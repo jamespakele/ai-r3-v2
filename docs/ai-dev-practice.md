@@ -4,114 +4,69 @@ This document locks in the standard practices for solo development with AI agent
 
 ---
 
-## 1. Documentation Hierarchy
+## 1. Source of Truth
 
-| Artifact | Path | Created when | Purpose |
-|---|---|---|---|
-| **PRD** | `docs/feature-name-prd.html` | Feature kickoff | Problem, goals, scope, data model, handler sketches, route map, mockups |
-| **Epics & Stories** | `docs/planning/epics.md` | After PRD approved | Breakdown into epics (PRs) and stories (PR checkboxes) |
-| **GitHub Issues** | One issue per epic | When work on that epic begins | Work tracker for the AI agent |
-| **Code** | `r3-intake/internal/...` | During implementation | The actual feature |
+**GitHub Issues are the source of truth.** One place for bugs, features, epics, and tweaks.
 
-**Rule:** PRD is the source of truth for *what*. Epics/stories are the source of truth for *how to break it down*. Issues are the work queue, not a second source of truth.
+| Artifact | Path | Role |
+|---|---|---|
+| **GitHub Issues** | `github.com/jamespakele/ai-r3-v2/issues` | **Source of truth** — epics, bugs, feature requests, tweaks all live here |
+| **Epics & Stories** | `docs/planning/epics.md` | Planning artifact — written during BMAD workflow, then transcribed into issues |
+| **PRD** | `docs/feature-name-prd.html` | Design reference — problem, goals, data model, mockups |
+| **Code** | `r3-intake/internal/...` | The actual implementation |
 
-If a design changes mid-development, edit the PRD first, then update the story in `epics.md`, then update the issue. One direction of flow.
+**Rule:** When a design changes mid-development, update the GitHub Issue first, then update the PRD, then update `epics.md`. The issue is what you read when starting work. The PRD and `epics.md` are references, not trackers.
+
+**Why issues win:**
+- Comments, edits, and linked PRs keep history in one place
+- Bugs reported by users go into the same system as planned epics
+- Checkboxes render progress bars natively
+- Closing PRs auto-close issues with `Closes #N`
 
 ---
 
-## 2. GitHub Issue Strategy: One Per Epic, Not Per Story
+## 2. GitHub Issue Strategy: One Per Epic
 
 **Standard:** Create **one GitHub issue per epic**, not one per story.
 
-**Why:**
-- Solo dev + AI agent = no team board to signal work in progress
-- All stories in an epic usually share files (e.g. `attendance.go` + templates + CSS)
-- Working them in one branch/PR is the norm, not the exception
-- 12 issues for a 4-epic feature is noise — nobody else is watching
-- GitHub task lists give progress bars (3 of 5 ✓) without 5 separate issues to close
+**Stories are checkbox task lists inside the epic issue body.** GitHub renders a progress bar (e.g. `3 of 5 ✓`).
 
-**Issue body template:**
-
-```markdown
-## Epic {N}: {Title}
-
-**Goal:** {one-sentence value statement}
-
-**Stories:**
-- [ ] {N}.1 {Story title} (`docs/planning/epics.md#story-{n}1`)
-- [ ] {N}.2 {Story title}
-- [ ] {N}.3 {Story title}
-...
-
-**FRs covered:** FR{x}-FR{y}
-**UX-DRs covered:** UX-DR{x}-UX-DR{y}
-**PRD reference:** `docs/feature-name-prd.html` §{section}
-
-**Files likely to change:**
-- `r3-intake/internal/server/{file}.go`
-- `r3-intake/internal/assets/public/{template}.html`
-- `r3-intake/internal/assets/public/app.css`
-- `r3-intake/pocketbase/migrations/{file}.js`
-```
-
-**Labels:** `epic`, feature name (e.g. `attendance`), `priority:high|medium|low`
+**Create all epic issues upfront** when the PRD and `epics.md` are approved. This gives you a complete roadmap visible in the Issues tab.
 
 ---
 
-## 3. When to Create Issues
+## 3. Refinement Before Coding (Mandatory)
 
-**Create issues in waves, not all upfront:**
+Before starting work on ANY issue, do a refinement pass:
 
-1. **Epic 1 now** — the foundation epic, create immediately after PRD + stories are approved
-2. **Epic 2 when Epic 1 is merged** — don't pre-create future epics; early epics may reveal design constraints
-3. **Epic 3 and 4 likewise** — create as you approach them
+1. Open the issue
+2. Review its stories against what you learned from previous epics
+3. If the schema changed or the approach shifted, **edit the issue body** to match reality
+4. Update `docs/planning/epics.md` if the change affects the spec
+5. Only then start coding
 
-**Why:** Pre-creating future epics leads to stale issues when early epics reveal design constraints. The PRD and `epics.md` are the planning docs — issues are the work queue.
-
----
-
-## 4. AI Agent Working Style
-
-When working with an AI agent (Hermes, Claude Code, Cursor, Codex, etc.) on a story:
-
-**Open the issue, paste the story as context:**
-```
-Working on Epic 1 from docs/planning/epics.md.
-Implementing Story 1.3: Cell Toggle with HTMX Auto-Save.
-Here's the AC:
-[paste AC block]
-```
-
-**The agent should:**
-- Read the related sections of the PRD before writing code
-- Make minimal, focused changes (don't refactor unrelated code)
-- Update the issue checkboxes as stories complete: `- [x] Story 1.3`
-- Report when ACs are met, not when "code is written"
-
-**Don't:**
-- Paste the entire PRD (too much context, agent gets lost)
-- Ask the agent to "improve the codebase" (scope creep)
-- Run multiple stories in one agent session (hard to review)
+This is the standard check that catches stale issues — it happens at implementation time, not creation time.
 
 ---
 
-## 5. Branch & PR Strategy
+## 4. Branch & PR Strategy
 
-**One branch per epic, one PR per epic.**
+- **One branch per epic, one PR per epic.** Work all of the epic's stories in that branch.
+- Name branches `epic/N-short-slug` (e.g. `epic/1-attendance-matrix`).
+- The PR body copies the epic's story checklist and links the epic issue with `Closes #N`.
+- Since AI can implement fast, it is fine for several epics to be in flight in parallel branches.
 
-```bash
-git checkout -b epic/1-attendance-matrix
-# work through stories 1.1 → 1.5
-git commit -m "Story 1.1: attendance migration + topbar tab"
-git commit -m "Story 1.2: calendar matrix view + filters"
-# ...
-git push origin epic/1-attendance-matrix
-# PR references issue: "Closes #1"
-```
+---
 
-**PR description:** Copy the epic issue body, add a "Stories completed" section, link to the deployed dev environment for visual review.
+## 5. AI Agent Working Style
 
-Since AI can implement fast, it is fine for several epics to be in flight in parallel branches.
+When working with an AI agent on a story:
+
+- **Paste the story's AC block as context**, not the entire PRD (too much context, agent gets lost)
+- **One agent session per story** — easier to review, harder to scope-creep
+- **Report when ACs are met**, not when "code is written"
+- **Make minimal, focused changes** — don't refactor unrelated code
+- **Update the issue checkboxes** as stories complete: `- [x] Story 1.3`
 
 ---
 
@@ -133,6 +88,19 @@ Solo dev + AI means review is the bottleneck. Set checkpoints:
 - **After each epic merge:** Run the full app, walk through the user flow, fix anything janky before starting the next epic
 - **After every 3rd epic:** Review the whole feature, update the PRD with learnings
 - **Monthly:** Check `docs/issues*.md` for accumulated tech debt; fold high-impact items into a new PRD
+
+---
+
+## 8. GitHub Projects (Optional, Not Currently Used)
+
+**GitHub Projects** is a kanban board that links to Issues. It could give you a visual Todo/In Progress/Done board, but:
+
+- **Projects don't store markdown files** — they track Issues
+- **`epics.md` lives in the repo** (`docs/planning/epics.md`) — that's the planning artifact
+- **Use Projects if you want:** visual sprint board, milestone tracking, iteration planning
+- **Skip Projects if you want:** minimal overhead — Issues + labels are enough
+
+**Current status:** Not using Projects. Issues + labels (`epic`, `attendance`, `priority:*`) give enough structure. Add a Project board later if visual sprint tracking becomes useful.
 
 ---
 

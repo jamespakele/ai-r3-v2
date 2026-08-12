@@ -15,13 +15,14 @@ AI coding agents (Claude Code, Cursor, Codex, Hermes, etc.) read this file at se
 These practices are locked in as the standard for AI-driven development in this project.
 Do not deviate without explicit user approval. Full details in `docs/ai-dev-practice.md`.
 
-### 1. GitHub Issue Granularity
+### 1. GitHub Issues Are the Source of Truth
 
-- **Create ONE GitHub issue per EPIC, not per story.** Epics live in `docs/planning/epics.md`.
-- **Do NOT create individual issues for stories.** For a solo dev using AI to implement, per-story issues are board noise.
-- **Encode stories as a checkbox task list inside the epic issue body** (GitHub renders a progress bar, e.g. `3 of 5 ✓`).
-- **Create a new epic issue only when work on that epic begins**, not all upfront (avoids stale issues if priorities shift).
-- **Close the epic issue when its task list is fully checked** (ideally via a closing PR reference).
+- **GitHub Issues are the source of truth** — one place for bugs, features, epics, and tweaks.
+- `docs/planning/epics.md` is a planning artifact, not a living spec. Issues win because comments, linked PRs, and checkboxes keep history in one place.
+- **Create ONE issue per EPIC, not per story.** Stories are checkbox task lists inside the epic issue body (GitHub renders a progress bar).
+- **Create all epic issues upfront** when the PRD and `epics.md` are approved.
+- **Before coding any issue**, do a refinement pass: open the issue, review against what you learned from previous epics, edit the issue body if the approach shifted, then start coding.
+- **Close the epic issue** when its task list is fully checked (via `Closes #N` in the PR).
 
 ### 2. Branch & PR Strategy
 
