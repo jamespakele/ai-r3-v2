@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R3 Attendance Tracking — PRD: Calendar Matrix + Event Sessions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #b5502e; --accent-dark: #8a3c20;
+    --ink: #2b2320; --muted: #6b5f52;
+    --card: #fffdfa; --bg: #f7f1e6;
+    --border: #e4d9c8; --input-border: #ddd2c4;
+    --error: #b3261e;
+    --success-bg: #eef3ea; --success-fg: #3f6b34;
+    --warn-bg: #fdf3e3; --warn-fg: #8a6a1e;
+    --danger-bg: #fbeeec; --danger-fg: #8f3a2e;
+    --info-bg: #f0f4fa; --info-fg: #2a4d8a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: 'Public Sans', system-ui, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.6; }
+
+  /* ---- Topbar ---- */
+  .topbar { position: sticky; top: 0; z-index: 100; background: var(--card); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-badge { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: var(--card); display: flex; align-items: center; justify-content: center; font: 700 13px 'Public Sans', sans-serif; flex: none; }
+  .brand-title { font: 600 14px 'Public Sans', sans-serif; }
+  .brand-sub { font: 400 12px 'Public Sans', sans-serif; color: var(--muted); }
+  .doc-meta { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .doc-meta span { background: var(--bg); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); font: 12px 'Public Sans', sans-serif; color: var(--muted); }
+
+  /* ---- TOC ---- */
+  .toc { max-width: 1000px; margin: 20px auto; padding: 0 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+  .toc a { display: block; padding: 10px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; text-decoration: none; color: var(--ink); font: 600 13px 'Public Sans', sans-serif; transition: all .15s; }
+  .toc a:hover { border-color: var(--accent); background: var(--bg); }
+  .toc a .sec-num { color: var(--accent); margin-right: 6px; }
+
+  /* ---- Layout ---- */
+  .container { max-width: 1000px; margin: 0 auto; padding: 0 24px 80px; }
+  section { margin-bottom: 40px; scroll-margin-top: 100px; }
+  .r3-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 28px 32px; margin-bottom: 24px; box-shadow: 0 1px 2px rgba(43,35,32,0.04); }
+  .eyebrow { font: 600 12px/1 'Public Sans', sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 8px; }
+  .section-title { font: 600 26px/1.2 'Lora', serif; color: var(--ink); margin: 0 0 16px; }
+  .section-title-sm { font: 600 18px/1.2 'Lora', serif; color: var(--ink); margin: 24px 0 12px; }
+  .section-sub { font: 400 16px 'Public Sans', sans-serif; color: var(--muted); margin: 0 0 16px; }
+
+  /* ---- Callouts ---- */
+  .callout { border-radius: 10px; padding: 14px 18px; margin: 16px 0; font: 14px/1.6 'Public Sans', sans-serif; border: 1px solid; }
+  .callout-info { background: var(--info-bg); border-color: #c5d3e8; }
+  .callout-info strong { color: var(--info-fg); }
+  .callout-success { background: var(--success-bg); border-color: #cfe0c6; }
+  .callout-success strong { color: var(--success-fg); }
+  .callout-warn { background: var(--warn-bg); border-color: #e8d5b0; }
+  .callout-warn strong { color: var(--warn-fg); }
+  .callout-danger { background: var(--danger-bg); border-color: #f5c6c0; }
+  .callout-danger strong { color: var(--danger-fg); }
+
+  /* ---- Tables ---- */
+  table.spec { width: 100%; border-collapse: collapse; font: 14px 'Public Sans', sans-serif; margin: 12px 0; }
+  table.spec th { text-align: left; font: 600 12px 'Public Sans', sans-serif; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  table.spec td { padding: 10px 12px; border-bottom: 1px solid #eee3d2; vertical-align: top; }
+  table.spec tr:last-child td { border-bottom: none; }
+  table.spec td:first-child { width: 30%; font-weight: 500; color: var(--muted); }
+  table.spec th:first-child { width: 30%; }
+
+  /* ---- Mockup frames ---- */
+  .mockup-frame { background: #1a1614; border-radius: 14px; padding: 20px; margin: 20px 0; overflow-x: auto; }
+  .mockup-label { font: 600 12px 'Public Sans', sans-serif; color: #a99c8b; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 12px; }
+  .mockup-screen { background: var(--bg); border-radius: 10px; overflow: hidden; max-width: 100%; }
+  .mockup-screen.wide { max-width: 1100px; }
+  .mockup-screen.narrow { max-width: 420px; margin: 0 auto; }
+
+  /* ---- Mockup components ---- */
+  .mu-topbar { background: var(--card); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .mu-badge { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--card); display: flex; align-items: center; justify-content: center; font: 700 11px 'Public Sans', sans-serif; flex: none; }
+  .mu-brand-title { font: 600 13px 'Public Sans', sans-serif; }
+  .mu-brand-sub { font: 400 11px 'Public Sans', sans-serif; color: var(--muted); }
+  .mu-actions { margin-left: auto; display: flex; gap: 8px; }
+  .mu-btn { padding: 7px 14px; border-radius: 7px; font: 600 12px 'Public Sans', sans-serif; border: 1px solid var(--border); background: var(--card); color: var(--ink); cursor: pointer; text-decoration: none; display: inline-block; }
+  .mu-btn-primary { background: var(--accent); color: var(--card); border: none; font-weight: 700; }
+  .mu-btn-tiny { padding: 4px 10px; font-size: 11px; border-radius: 6px; }
+  .mu-btn-danger { color: var(--danger-fg); }
+  .mu-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--card); padding: 0 20px; }
+  .mu-tab { padding: 10px 18px; font: 600 13px 'Public Sans', sans-serif; color: var(--muted); border-bottom: 3px solid transparent; cursor: pointer; }
+  .mu-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .mu-content { padding: 24px 20px; }
+  .mu-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
+  .mu-eyebrow { font: 600 11px 'Public Sans', sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+  .mu-h2 { font: 600 20px 'Lora', serif; margin: 0 0 16px; }
+  .mu-h3 { font: 600 16px 'Lora', serif; margin: 0 0 12px; }
+  .mu-label { display: block; font: 600 13px 'Public Sans', sans-serif; color: var(--muted); margin-bottom: 4px; }
+  .mu-input { display: inline-block; padding: 9px 12px; border: 1px solid var(--input-border); border-radius: 8px; font: 14px 'Public Sans', sans-serif; background: #fffdf9; color: var(--ink); min-width: 180px; }
+  .mu-select { padding: 9px 12px; border: 1px solid var(--input-border); border-radius: 8px; font: 14px 'Public Sans', sans-serif; background: #fffdf9; color: var(--ink); }
+  .mu-table { width: 100%; border-collapse: collapse; font: 14px 'Public Sans', sans-serif; }
+  .mu-table th { text-align: left; font: 600 12px 'Public Sans', sans-serif; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .mu-table td { padding: 10px; border-bottom: 1px solid #eee3d2; vertical-align: middle; }
+  .mu-status-badge { font: 600 11px 'Public Sans', sans-serif; padding: 3px 9px; border-radius: 999px; text-transform: capitalize; }
+  .mu-status-active { background: var(--success-bg); color: var(--success-fg); }
+  .mu-status-completed { background: var(--warn-bg); color: var(--warn-fg); }
+  .mu-status-present { background: var(--success-bg); color: var(--success-fg); }
+  .mu-status-absent { background: var(--danger-bg); color: var(--danger-fg); }
+  .mu-checkbox { width: 22px; height: 22px; accent-color: var(--accent); cursor: pointer; }
+  .mu-check-cell { text-align: center; }
+
+  /* ---- Matrix ---- */
+  .mu-matrix { overflow-x: auto; }
+  .mu-matrix table { font-size: 12px; min-width: 700px; }
+  .dot-present { width: 14px; height: 14px; border-radius: 50%; background: var(--success-fg); display: inline-block; }
+  .dot-absent { width: 14px; height: 14px; border-radius: 50%; background: #eee; display: inline-block; border: 1px solid var(--border); }
+  .dot-excused { width: 14px; height: 14px; border-radius: 50%; background: var(--warn-fg); display: inline-block; }
+  .dot-walkin { width: 14px; height: 14px; border-radius: 50%; background: var(--info-fg); display: inline-block; }
+
+  /* ---- Calendar ---- */
+  .mu-calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .mu-cal-day { border: 1px solid var(--border); border-radius: 8px; padding: 8px; min-height: 70px; background: var(--card); font: 12px 'Public Sans', sans-serif; }
+  .mu-cal-day.has-attendance { border-color: #cfe0c6; background: #f6fbf4; }
+  .mu-cal-day.today { border-color: var(--accent); border-width: 2px; }
+  .mu-cal-day .cal-num { font-weight: 600; margin-bottom: 4px; }
+  .mu-cal-day .cal-count { font: 600 11px 'Public Sans', sans-serif; color: var(--success-fg); }
+
+  /* ---- Schema ---- */
+  .schema-diagram { margin: 20px 0; }
+  .schema-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; }
+  .schema-table { flex: 1; min-width: 220px; max-width: 320px; border: 2px solid var(--accent); border-radius: 10px; overflow: hidden; }
+  .schema-table.new { border-color: var(--success-fg); }
+  .schema-table .st-name { background: var(--accent); color: var(--card); font: 700 13px 'Public Sans', sans-serif; padding: 8px 14px; }
+  .schema-table.new .st-name { background: var(--success-fg); }
+  .schema-table .st-field { padding: 5px 14px; font: 12px 'Public Sans', sans-serif; border-bottom: 1px solid #f0e8db; display: flex; justify-content: space-between; gap: 8px; }
+  .schema-table .st-field:last-child { border-bottom: none; }
+  .schema-table .st-field .st-type { color: var(--muted); font-size: 11px; }
+  .schema-table .st-field.pk { background: #fef5e7; font-weight: 600; }
+  .schema-table .st-field.fk { background: #f0f4fa; }
+  .schema-table .st-field.new-field { background: #eef3ea; font-weight: 600; }
+  .schema-arrow { display: inline-block; color: var(--accent); font-size: 24px; vertical-align: middle; margin: 0 4px; flex-shrink: 0; align-self: center; }
+
+  /* ---- Code blocks ---- */
+  .code-block { background: #1a1614; color: #d4c9b8; border-radius: 10px; padding: 16px 20px; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 14px 0; overflow-x: auto; white-space: pre; }
+  .code-block .cmt { color: #6a9955; }
+  .code-block .kw { color: #c586c0; }
+  .code-block .str { color: #ce9178; }
+  .code-block .ty { color: #b8c8e8; }
+
+  /* ---- Flowchart ---- */
+  .flow-step { display: inline-block; padding: 10px 18px; border-radius: 10px; font: 600 13px 'Public Sans', sans-serif; text-align: center; border: 2px solid; }
+  .flow-step.start { background: var(--success-bg); border-color: #cfe0c6; color: var(--success-fg); }
+  .flow-step.process { background: var(--card); border-color: var(--border); color: var(--ink); }
+  .flow-step.decision { background: var(--warn-bg); border-color: #e8d5b0; color: var(--warn-fg); }
+  .flow-step.end { background: var(--accent); border-color: var(--accent); color: var(--card); }
+  .flow-arrow { display: inline-block; color: var(--muted); font-size: 20px; margin: 0 4px; vertical-align: middle; }
+  .flow-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+
+  /* ---- Story cards ---- */
+  .story-card { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 10px; padding: 16px 20px; margin-bottom: 12px; }
+  .story-card .role { font: 600 12px 'Public Sans', sans-serif; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .story-card .statement { font: 15px 'Public Sans', sans-serif; margin-bottom: 8px; }
+  .story-card .acceptance { font: 13px 'Public Sans', sans-serif; color: var(--muted); }
+  .story-card .acceptance ol { margin: 6px 0 0 18px; padding: 0; }
+  .story-card .acceptance li { margin-bottom: 4px; }
+
+  /* ---- Two col ---- */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ---- Print ---- */
+  @media print { .topbar, .toc { display: none; } .mockup-frame { background: #fff; border: 1px solid var(--border); } .code-block { background: #f7f1e6; color: var(--ink); } }
+</style>
+</head>
+<body>
+
+<!-- ============ TOPBAR ============ -->
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-badge">R3</div>
+    <div>
+      <div class="brand-title">Restore, Reconnect, Revive</div>
+      <div class="brand-sub">Product Requirements Document — Attendance Tracking</div>
+    </div>
+  </div>
+  <div class="doc-meta">
+    <span>Version 1.0</span>
+    <span>Status: Draft</span>
+    <span>Aug 11, 2026</span>
+  </div>
+</div>
+
+<!-- ============ TOC ============ -->
+<div class="toc">
+  <a href="#overview"><span class="sec-num">01.</span>Overview</a>
+  <a href="#goals"><span class="sec-num">02.</span>Goals & Metrics</a>
+  <a href="#scope"><span class="sec-num">03.</span>Scope & Priorities</a>
+  <a href="#stories"><span class="sec-num">04.</span>User Stories</a>
+  <a href="#screens"><span class="sec-num">05.</span>Screen Specs & Mockups</a>
+  <a href="#schema"><span class="sec-num">06.</span>Data Model</a>
+  <a href="#migrations"><span class="sec-num">07.</span>Migrations</a>
+  <a href="#handlers"><span class="sec-num">08.</span>Go Handler Sketches</a>
+  <a href="#routes"><span class="sec-num">09.</span>Route Map</a>
+  <a href="#permissions"><span class="sec-num">10.</span>Permissions</a>
+  <a href="#acceptance"><span class="sec-num">11.</span>Acceptance Criteria</a>
+  <a href="#risks"><span class="sec-num">12.</span>Risks & Mitigations</a>
+  <a href="#timeline"><span class="sec-num">13.</span>Timeline</a>
+  <a href="#checklist"><span class="sec-num">14.</span>Implementation Checklist</a>
+  <a href="#decisions"><span class="sec-num">15.</span>Decision Log</a>
+  <a href="#open"><span class="sec-num">16.</span>Open Questions</a>
+</div>
+
+<!-- ============ CONTAINER ============ -->
+<div class="container">
+
+<!-- ============================================================ -->
+<!-- 01. OVERVIEW -->
+<!-- ============================================================ -->
+<section id="overview">
+  <div class="r3-card">
+    <div class="eyebrow">01. Overview</div>
+    <h1 class="section-title">Attendance Tracking: Calendar Matrix + Event Sessions</h1>
+    <p class="section-sub">A unified design combining the <strong>Calendar Matrix</strong> (Approach #2) as the primary attendance view with <strong>Event Sessions</strong> (Approach #3) for program lifecycle management and funder reporting.</p>
+
+    <div class="callout callout-info">
+      <strong>Executive Summary:</strong> This feature adds attendance tracking to the R3 Intake system. Coordinators record daily participant check-ins using a spreadsheet-style matrix grid (participants × dates). An optional <strong>Events</strong> layer groups dates into named program cycles (e.g., "Summer Outreach 2026") for reporting. The matrix works with or without events — events are an organizational layer, not a prerequisite.
+    </div>
+
+    <div class="callout callout-success">
+      <strong>Key principle:</strong> The Calendar Matrix is the <em>primary</em> attendance view. Events are opt-in. Coordinators can check people in Day 1 without creating any events. When an admin creates an event and enrolls participants, the matrix simply adds an event filter dropdown and shows enrollment-aware rosters.
+    </div>
+
+    <h3 class="section-title-sm">Problem Statement</h3>
+    <p style="font:14px 'Public Sans'; color:var(--muted);">
+      R3 coordinators currently track attendance manually (paper sign-in sheets, spreadsheets). Challenges:
+    </p>
+    <ul style="font:14px 'Public Sans'; color:var(--muted); padding-left:20px;">
+      <li>No centralized record of who attended which outreach sessions</li>
+      <li>Difficulty identifying participants who have stopped engaging</li>
+      <li>Time-consuming to compile attendance reports for funders or board meetings</li>
+      <li>No way to see attendance patterns over time</li>
+      <li>Walk-in participants cannot be easily tracked or later connected to intake records</li>
+    </ul>
+
+    <h3 class="section-sm">Proposed Solution</h3>
+    <p style="font:14px 'Public Sans'; color:var(--muted);">
+      A dedicated <strong>Attendance</strong> tab in the R3 Intake app with three screens:
+    </p>
+    <ol style="font:14px 'Public Sans'; color:var(--muted); padding-left:20px;">
+      <li><strong>Admin: Event Management</strong> — Create multi-week program cycles tied to a location and date range. Enroll participants from existing intake records.</li>
+      <li><strong>Calendar Matrix</strong> — Spreadsheet grid: participants as rows, dates as columns. Color-coded dots for present/absent/excused/walk-in. Click to toggle. CSV export.</li>
+      <li><strong>Per-Person Calendar</strong> — Mobile-optimized monthly calendar for a single participant's attendance history.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 02. GOALS -->
+<!-- ============================================================ -->
+<section id="goals">
+  <div class="r3-card">
+    <div class="eyebrow">02. Goals & Success Metrics</div>
+    <h2 class="section-title">What Success Looks Like</h2>
+
+    <div class="two-col">
+      <div>
+        <h3 class="section-title-sm" style="color:var(--success-fg);">Primary Goals</h3>
+        <ul style="font:14px 'Public Sans'; color:var(--muted); padding-left:18px;">
+          <li>Record daily attendance in under 30 seconds for 10 participants</li>
+          <li>Identify dropout participants within 2 weeks of last attendance</li>
+          <li>Generate funder-ready attendance reports with one click (CSV export)</li>
+          <li>Track walk-ins and link them to existing intake records later</li>
+          <li>Organize attendance by program cycle for reporting periods</li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="section-title-sm" style="color:var(--accent);">Success Metrics</h3>
+        <ul style="font:14px 'Public Sans'; color:var(--muted); padding-left:18px;">
+          <li><strong>Adoption:</strong> 100% of outreach sessions logged within 4 weeks</li>
+          <li><strong>Speed:</strong> Average check-in time &lt;3 seconds per participant</li>
+          <li><strong>Data Quality:</strong> &lt;5% duplicate or erroneous records</li>
+          <li><strong>Reporting:</strong> Zero manual data compilation for monthly reports</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout callout-warn" style="margin-top:20px;">
+      <strong>Non-Goals (Out of Scope for V1):</strong> QR code check-in, geofencing, automated reminders, participant self-service portal, HMIS integration, sub-activities within events.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 03. SCOPE -->
+<!-- ============================================================ -->
+<section id="scope">
+  <div class="r3-card">
+    <div class="eyebrow">03. Scope & Priorities</div>
+    <h2 class="section-title">Feature Breakdown by Priority</h2>
+
+    <table class="spec">
+      <thead><tr><th>Priority</th><th>Feature</th><th>Description</th><th>Effort</th></tr></thead>
+      <tbody>
+        <tr><td><span class="mu-status-badge mu-status-active">P0</span></td><td><strong>Attendance collection</strong></td><td>Store one record per (event?, intake, date) with status + optional note</td><td>1 day</td></tr>
+        <tr><td><span class="mu-status-badge mu-status-active">P0</span></td><td><strong>Calendar Matrix view</strong></td><td>Spreadsheet grid: participants × dates; click dots to toggle; sticky name column</td><td>2 days</td></tr>
+        <tr><td><span class="mu-status-badge mu-status-active">P0</span></td><td><strong>Events CRUD</strong></td><td>Create, view, edit, complete events (name, site, start/end dates, description)</td><td>1 day</td></tr>
+        <tr><td><span class="mu-status-badge mu-status-active">P0</span></td><td><strong>Event Enrollment</strong></td><td>Enroll existing intake participants into events; view enrolled roster with stats</td><td>1 day</td></tr>
+        <tr><td><span class="mu-status-badge mu-status-active">P0</span></td><td><strong>CSV Export</strong></td><td>Export attendance data for a given event or date range</td><td>0.5 days</td></tr>
+        <tr><td><span class="mu-status-badge" style="background:var(--warn-bg);color:var(--warn-fg);">P1</span></td><td><strong>Walk-in Check-in</strong></td><td>Check in participants not enrolled; option to enroll later</td><td>1 day</td></tr>
+        <tr><td><span class="mu-status-badge" style="background:var(--warn-bg);color:var(--warn-fg);">P1</span></td><td><strong>Summary Stats</strong></td><td>Per-event totals: check-ins, active participants, avg rate, dropout count</td><td>1 day</td></tr>
+        <tr><td><span class="mu-status-badge" style="background:var(--warn-bg);color:var(--warn-fg);">P1</span></td><td><strong>Per-Person Calendar</strong></td><td>Mobile monthly calendar view for single participant</td><td>1 day</td></tr>
+        <tr><td><span class="mu-status-badge" style="background:var(--bg);color:var(--muted);">P2</span></td><td><strong>Dropout Alerts</strong></td><td>Flag participants who haven't attended in 14+ days</td><td>0.5 days</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-info">
+      <strong>Phase 1 (V1):</strong> All P0 items. <strong>Phase 2 (V1.1):</strong> P1 items. <strong>Phase 3 (Future):</strong> P2 + QR codes, sub-activities, HMIS integration.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 04. USER STORIES -->
+<!-- ============================================================ -->
+<section id="stories">
+  <div class="r3-card">
+    <div class="eyebrow">04. User Stories</div>
+    <h2 class="section-title">Who Does What and Why</h2>
+
+    <div class="story-card">
+      <div class="role">Outreach Coordinator (Case Manager)</div>
+      <div class="statement"><strong>As a</strong> coordinator, <strong>I want to</strong> quickly check in participants at each outreach session using the matrix, <strong>so that</strong> we have an accurate record of who attended.</div>
+      <div class="acceptance"><strong>Acceptance Criteria:</strong><ol><li>Opens Attendance tab → sees matrix filtered to today's date column</li><li>Taps a dot to toggle: empty → present → absent → excused → walk_in → empty</li><li>Can add optional note per participant</li><li>Auto-saves via HTMX (no explicit save button needed)</li><li>Takes &lt;30 seconds for 10 participants</li></ol></div>
+    </div>
+
+    <div class="story-card">
+      <div class="role">Program Administrator</div>
+      <div class="statement"><strong>As an</strong> admin, <strong>I want to</strong> create and manage multi-week outreach programs (events), <strong>so that</strong> attendance is organized by program cycle for reporting.</div>
+      <div class="acceptance"><strong>Acceptance Criteria:</strong><ol><li>Can create event with name, location, start/end dates, description</li><li>Can enroll participants from existing intake records (search by name)</li><li>Can view enrolled roster with attendance stats (days attended, rate %)</li><li>Can mark event as "completed" when program cycle ends</li><li>Can view completed event summary report</li></ol></div>
+    </div>
+
+    <div class="story-card">
+      <div class="role">Outreach Coordinator (Case Manager)</div>
+      <div class="statement"><strong>As a</strong> coordinator, <strong>I want to</strong> see a calendar matrix of attendance over weeks, <strong>so that</strong> I can spot who's been coming regularly and who's stopped showing up.</div>
+      <div class="acceptance"><strong>Acceptance Criteria:</strong><ol><li>Can filter matrix by event, site, and date range</li><li>Sees participants as rows, dates as columns with color-coded dots</li><li>Dropout rows highlighted with red background + "STOPPED" badge</li><li>Can click any cell to toggle attendance status</li><li>Can export matrix as CSV</li></ol></div>
+    </div>
+
+    <div class="story-card">
+      <div class="role">Case Manager</div>
+      <div class="statement"><strong>As a</strong> case manager, <strong>I want to</strong> view a single participant's attendance history as a calendar, <strong>so that</strong> I can discuss their engagement patterns during case management meetings.</div>
+      <div class="acceptance"><strong>Acceptance Criteria:</strong><ol><li>Opens intake record → clicks Attendance tab</li><li>Sees monthly calendar with present/absent/excused days</li><li>Shows total days, present count, rate %, current streak</li><li>Can navigate to prev/next month</li><li>Can click a day to see detail (event, recorded by, time, note)</li></ol></div>
+    </div>
+
+    <div class="story-card">
+      <div class="role">Program Administrator</div>
+      <div class="statement"><strong>As an</strong> admin, <strong>I want to</strong> export attendance data for a given event or date range, <strong>so that</strong> I can include it in funder reports or board presentations.</div>
+      <div class="acceptance"><strong>Acceptance Criteria:</strong><ol><li>Can export CSV with columns: date, participant, site, event, status, recorded by, note</li><li>Can filter export by event, date range, or site</li><li>CSV includes summary stats row (total check-ins, unique participants, avg rate)</li></ol></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 05. SCREEN SPECS & MOCKUPS -->
+<!-- ============================================================ -->
+<section id="screens">
+  <div class="r3-card">
+    <div class="eyebrow">05. Screen Specifications</div>
+    <h2 class="section-title">Key Screens</h2>
+
+    <!-- Screen 1: Admin Events Management -->
+    <h3 class="section-title-sm">Screen 1 — Admin: Events Management</h3>
+    <p class="section-sub">New "Events" tab in the admin accordion (alongside Sites and Users). Full CRUD for program cycles.</p>
+
+    <div class="mockup-frame">
+      <div class="mockup-label">Mockup — Admin Events Management (Desktop)</div>
+      <div class="mockup-screen wide">
+        <div class="mu-topbar">
+          <div class="mu-badge">R3</div>
+          <div><div class="mu-brand-title">Restore, Reconnect, Revive</div><div class="mu-brand-sub">Admin — Events — Kimo (admin)</div></div>
+          <div class="mu-actions"><a class="mu-btn">Records</a><a class="mu-btn">Attendance</a><a class="mu-btn">Sign out</a></div>
+        </div>
+        <div class="mu-tabs"><div class="mu-tab">Sites</div><div class="mu-tab">Users</div><div class="mu-tab active">Events</div></div>
+        <div class="mu-content">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div class="mu-h2" style="margin:0;">Events / Programs</div>
+            <button class="mu-btn mu-btn-primary">+ New Event</button>
+          </div>
+          <table class="mu-table" style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+            <thead><tr style="background:#f7f1e6;"><th style="padding:10px;">Event Name</th><th>Location</th><th>Dates</th><th>Enrolled</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              <tr><td style="padding:10px;"><strong>R3 Summer Outreach — Waiʻanae</strong></td><td>Paradise Chapel</td><td style="font:13px monospace;">Jul 28 – Aug 22, 2026</td><td>12</td><td><span class="mu-status-badge mu-status-active">Active</span></td><td><button class="mu-btn mu-btn-tiny">Manage</button> <button class="mu-btn mu-btn-tiny">Matrix</button></td></tr>
+              <tr><td style="padding:10px;"><strong>R3 Summer Outreach — Kapolei</strong></td><td>Kapolei Library</td><td style="font:13px monospace;">Jul 28 – Aug 22, 2026</td><td>8</td><td><span class="mu-status-badge mu-status-active">Active</span></td><td><button class="mu-btn mu-btn-tiny">Manage</button> <button class="mu-btn mu-btn-tiny">Matrix</button></td></tr>
+              <tr><td style="padding:10px;"><strong>Spring Outreach — Waiʻanae</strong></td><td>Paradise Chapel</td><td style="font:13px monospace;">Mar 4 – Apr 26, 2026</td><td>15</td><td><span class="mu-status-badge mu-status-completed">Completed</span></td><td><button class="mu-btn mu-btn-tiny">Report</button> <button class="mu-btn mu-btn-tiny">Matrix</button></td></tr>
+            </tbody>
+          </table>
+          <div class="mu-card" style="margin-top:20px;border:2px dashed var(--accent);">
+            <div class="mu-eyebrow">Create New Event</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-top:12px;">
+              <div><label class="mu-label">Event Name</label><input class="mu-input" placeholder="R3 Fall Outreach" style="width:100%;"></div>
+              <div><label class="mu-label">Location</label><select class="mu-select" style="width:100%;"><option>Paradise Chapel — Waiʻanae</option><option>Kapolei Public Library</option></select></div>
+              <div><label class="mu-label">Start Date</label><input class="mu-input" type="date" style="width:100%;"></div>
+              <div><label class="mu-label">End Date</label><input class="mu-input" type="date" style="width:100%;"></div>
+            </div>
+            <div style="margin-top:12px;"><label class="mu-label">Description (optional)</label><input class="mu-input" placeholder="What this program covers..." style="width:100%;"></div>
+            <button class="mu-btn mu-btn-primary" style="margin-top:14px;">Create Event</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <table class="spec">
+      <tr><td>Route</td><td><code>GET /admin/events</code> (new accordion section in admin template)</td></tr>
+      <tr><td>Permissions</td><td>Admin only (role = "admin")</td></tr>
+      <tr><td>"Manage" action</td><td>Navigates to <code>/admin/events/{id}/manage</code> (enrollment screen)</td></tr>
+      <tr><td>"Matrix" action</td><td>Navigates to <code>/attendance?event={id}</code> with event pre-selected</td></tr>
+      <tr><td>"Report" action</td><td>Navigates to completed event summary (CSV/PDF export)</td></tr>
+    </table>
+
+    <!-- Screen 1b: Event Detail / Enrollment -->
+    <h3 class="section-title-sm">Screen 1b — Event Detail: Enrollment</h3>
+    <p class="section-sub">Manage which participants are enrolled in this event. Enrolled = "expected" — they appear in the matrix by default.</p>
+
+    <div class="mockup-frame">
+      <div class="mockup-label">Mockup — Event Detail: Enrollment (Desktop)</div>
+      <div class="mockup-screen wide">
+        <div class="mu-topbar">
+          <div class="mu-badge">R3</div>
+          <div><div class="mu-brand-title">R3 Summer Outreach — Waiʻanae</div><div class="mu-brand-sub">Paradise Chapel · Jul 28 – Aug 22, 2026 · Active</div></div>
+          <div class="mu-actions"><a class="mu-btn">← All Events</a><a class="mu-btn mu-btn-primary">View Matrix</a></div>
+        </div>
+        <div class="mu-tabs"><div class="mu-tab active">Enrolled (12)</div><div class="mu-tab">Attendance History</div><div class="mu-tab">Summary</div></div>
+        <div class="mu-content">
+          <div style="display:flex;gap:12px;margin-bottom:20px;align-items:flex-end;">
+            <div><label class="mu-label">Add participant</label><input class="mu-input" placeholder="Search name..." style="width:260px;"></div>
+            <button class="mu-btn">+ Enroll</button>
+          </div>
+          <table class="mu-table" style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+            <thead><tr style="background:#f7f1e6;"><th style="padding:10px;">Participant</th><th>Enrolled</th><th>Days Attended</th><th>Rate</th><th>Last Present</th><th></th></tr></thead>
+            <tbody>
+              <tr><td style="padding:10px;"><strong>Keola Kanakaole</strong></td><td style="font:13px monospace;">Jul 28</td><td>8 / 11</td><td><span class="mu-status-badge mu-status-present">73%</span></td><td style="font:13px monospace;">Aug 11</td><td><button class="mu-btn mu-btn-tiny mu-btn-danger">Remove</button></td></tr>
+              <tr><td style="padding:10px;"><strong>Mahealani Torres</strong></td><td style="font:13px monospace;">Jul 28</td><td>6 / 11</td><td><span class="mu-status-badge mu-status-present">55%</span></td><td style="font:13px monospace;">Aug 11</td><td><button class="mu-btn mu-btn-tiny mu-btn-danger">Remove</button></td></tr>
+              <tr><td style="padding:10px;"><strong>Kainoa Kealoha</strong></td><td style="font:13px monospace;">Jul 28</td><td>2 / 11</td><td><span class="mu-status-badge mu-status-absent">18%</span></td><td style="font:13px monospace;">Jul 30</td><td><button class="mu-btn mu-btn-tiny mu-btn-danger">Remove</button></td></tr>
+              <tr><td style="padding:10px;"><strong>Pualani Mahoe</strong></td><td style="font:13px monospace;">Jul 29</td><td>7 / 11</td><td><span class="mu-status-badge mu-status-present">64%</span></td><td style="font:13px monospace;">Aug 11</td><td><button class="mu-btn mu-btn-tiny mu-btn-danger">Remove</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 2: Calendar Matrix (Primary) -->
+    <h3 class="section-title-sm">Screen 2 — Attendance: Calendar Matrix (Primary View)</h3>
+    <p class="section-sub">The main attendance screen. Spreadsheet grid: participants as rows, dates as columns. Works with or without an event selected.</p>
+
+    <div class="mockup-frame">
+      <div class="mockup-label">Mockup — Calendar Matrix (Desktop)</div>
+      <div class="mockup-screen wide">
+        <div class="mu-topbar">
+          <div class="mu-badge">R3</div>
+          <div><div class="mu-brand-title">Restore, Reconnect, Revive</div><div class="mu-brand-sub">Attendance Matrix — Kimo (admin)</div></div>
+          <div class="mu-actions"><a class="mu-btn">Records</a><a class="mu-btn">Admin</a><a class="mu-btn mu-btn-primary">New Intake</a></div>
+        </div>
+        <div class="mu-tabs"><div class="mu-tab">Records</div><div class="mu-tab active">Matrix</div><div class="mu-tab">Admin</div></div>
+        <div class="mu-content">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;align-items:flex-end;">
+            <div><label class="mu-label">Event (optional)</label><select class="mu-select" style="width:260px;"><option value="">All dates — no event filter</option><option selected>R3 Summer Outreach — Waiʻanae</option><option>R3 Summer Outreach — Kapolei</option></select></div>
+            <div><label class="mu-label">Location</label><select class="mu-select"><option>Paradise Chapel — Waiʻanae</option><option>Kapolei Public Library</option><option>All locations</option></select></div>
+            <div><label class="mu-label">From</label><input class="mu-input" value="Jul 28, 2026" style="width:120px;"></div>
+            <div><label class="mu-label">To</label><input class="mu-input" value="Aug 11, 2026" style="width:120px;"></div>
+            <button class="mu-btn mu-btn-primary">Apply</button>
+            <button class="mu-btn" style="margin-left:auto;">Export CSV</button>
+          </div>
+          <div class="mu-matrix">
+            <table class="mu-table" style="width:100%;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+              <thead><tr style="background:#f7f1e6;">
+                <th style="text-align:left;padding:10px;min-width:160px;">Participant</th>
+                <th style="text-align:center;">Total</th>
+                <th style="text-align:center;">Jul 28</th><th style="text-align:center;">Jul 29</th><th style="text-align:center;">Jul 30</th><th style="text-align:center;">Jul 31</th><th style="text-align:center;">Aug 1</th><th style="text-align:center;">Aug 4</th><th style="text-align:center;">Aug 5</th><th style="text-align:center;">Aug 6</th><th style="text-align:center;">Aug 7</th><th style="text-align:center;">Aug 8</th><th style="text-align:center;">Aug 11</th>
+              </tr></thead>
+              <tbody>
+                <tr><td style="padding:10px;"><strong>Keola Kanakaole</strong></td><td style="text-align:center;"><span class="mu-status-badge mu-status-present">8/10</span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td></tr>
+                <tr><td style="padding:10px;"><strong>Mahealani Torres</strong></td><td style="text-align:center;"><span class="mu-status-badge mu-status-present">6/10</span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td></tr>
+                <tr><td style="padding:10px;"><strong>Kainoa Kealoha</strong></td><td style="text-align:center;"><span class="mu-status-badge mu-status-absent">2/10</span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td></tr>
+                <tr style="background:#fbeeec;"><td style="padding:10px;"><strong>Kawika Nakamura</strong> <span style="font:600 10px 'Public Sans';background:var(--danger-bg);color:var(--danger-fg);padding:2px 6px;border-radius:4px;margin-left:4px;">STOPPED</span></td><td style="text-align:center;"><span class="mu-status-badge mu-status-absent">3/10</span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td></tr>
+                <tr><td style="padding:10px;"><strong>Pualani Mahoe</strong></td><td style="text-align:center;"><span class="mu-status-badge mu-status-present">7/10</span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td><td class="mu-check-cell"><span class="dot-absent"></span></td><td class="mu-check-cell"><span class="dot-present"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="display:flex;gap:16px;margin-top:20px;flex-wrap:wrap;">
+            <div class="mu-card" style="margin:0;flex:1;min-width:160px;text-align:center;"><div style="font:600 26px 'Lora';color:var(--success-fg);">26</div><div style="font:13px 'Public Sans';color:var(--muted);">Total check-ins</div></div>
+            <div class="mu-card" style="margin:0;flex:1;min-width:160px;text-align:center;"><div style="font:600 26px 'Lora';color:var(--accent);">5</div><div style="font:13px 'Public Sans';color:var(--muted);">Active participants</div></div>
+            <div class="mu-card" style="margin:0;flex:1;min-width:160px;text-align:center;"><div style="font:600 26px 'Lora';color:var(--danger-fg);">1</div><div style="font:13px 'Public Sans';color:var(--muted);">Stopped (>2 weeks)</div></div>
+            <div class="mu-card" style="margin:0;flex:1;min-width:160px;text-align:center;"><div style="font:600 26px 'Lora';color:var(--warn-fg);">52%</div><div style="font:13px 'Public Sans';color:var(--muted);">Avg attendance rate</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <table class="spec">
+      <tr><td>Route</td><td><code>GET /attendance</code> (new tab in topbar, between Records and Admin)</td></tr>
+      <tr><td>Query params</td><td><code>?event={id}&amp;site={id}&amp;from=YYYY-MM-DD&amp;to=YYYY-MM-DD</code></td></tr>
+      <tr><td>Default range</td><td>Last 14 days, user's assigned site (or first active site), no event filter</td></tr>
+      <tr><td>Cell interaction</td><td>Click dot → cycles: empty → present → absent → excused → walk_in → empty. HTMX <code>hx-post</code> to <code>/attendance/toggle</code>.</td></tr>
+      <tr><td>Sticky column</td><td>Participant name column fixed during horizontal scroll (CSS <code>position:sticky; left:0</code>)</td></tr>
+      <tr><td>Dropout highlight</td><td>Rows where last present date > 14 days ago: red row background + "STOPPED" badge</td></tr>
+      <tr><td>Walk-in</td><td>"Add walk-in" button: search existing intake or create minimal record (name only) → adds row with walk_in dot</td></tr>
+      <tr><td>Export</td><td>CSV columns: Participant, Site, Event, Date, Status, Recorded By, Check-in Time, Note</td></tr>
+    </table>
+
+    <!-- Screen 3: Per-Person Calendar -->
+    <h3 class="section-title-sm">Screen 3 — Per-Person Calendar (Mobile / Case Manager)</h3>
+    <p class="section-sub">Accessed from intake form's new "Attendance" tab or by clicking a participant name in the matrix.</p>
+
+    <div class="mockup-frame">
+      <div class="mockup-label">Mockup — Per-Person Calendar (Mobile)</div>
+      <div class="mockup-screen narrow">
+        <div class="mu-topbar">
+          <div class="mu-badge">R3</div>
+          <div><div class="mu-brand-title">Attendance</div><div class="mu-brand-sub">Keola Kanakaole</div></div>
+          <div class="mu-actions"><a class="mu-btn mu-btn-tiny">← Back</a></div>
+        </div>
+        <div class="mu-content">
+          <div class="mu-card">
+            <div class="mu-eyebrow">Attendance History</div>
+            <div class="mu-h2">Keola Kanakaole</div>
+            <div style="font:14px 'Public Sans';color:var(--muted);margin-bottom:16px;">Paradise Chapel, Waiʻanae · 8 of 10 days (80%)</div>
+            <div class="mu-calendar" style="grid-template-columns:repeat(7,1fr);gap:6px;">
+              <div class="mu-cal-day has-attendance"><div class="cal-num">Jul 28</div><div class="cal-count">✓ Present</div></div>
+              <div class="mu-cal-day has-attendance"><div class="cal-num">Jul 29</div><div class="cal-count">✓ Present</div></div>
+              <div class="mu-cal-day"><div class="cal-num">Jul 30</div><div class="cal-count" style="color:var(--muted);">Absent</div></div>
+              <div class="mu-cal-day has-attendance"><div class="cal-num">Jul 31</div><div class="cal-count">✓ Present</div></div>
+              <div class="mu-cal-day has-attendance"><div class="cal-num">Aug 1</div><div class="cal-count">✓ Present</div></div>
+              <div class="mu-cal-day has-attendance"><div class="cal-num">Aug 4</div><div class="cal-count">✓ Present</div></div>
+              <div class="mu-cal-day has-attendance"><div class="cal-num">Aug 5</div><div class="cal-count">✓ Present</div></div>
+              <div class="mu-cal-day"><div class="cal-num">Aug 6</div><div class="cal-count" style="color:var(--muted);">Absent</div></div>
+              <div class="mu-cal-day has-attendance"><div class="cal-num">Aug 7</div><div class="cal-count">✓ Present</div></div>
+              <div class="mu-cal-day has-attendance"><div class="cal-num">Aug 8</div><div class="cal-count">✓ Present</div></div>
+              <div class="mu-cal-day today has-attendance"><div class="cal-num">Aug 11</div><div class="cal-count">✓ Present</div></div>
+            </div>
+            <div style="margin-top:14px;padding:10px;background:#f7f1e6;border-radius:8px;font:12px 'Public Sans';">
+              <strong>Legend:</strong>
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--success-fg);margin:0 4px;"></span> Present
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#eee;border:1px solid var(--border);margin:0 4px;"></span> Absent
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--warn-fg);margin:0 4px;"></span> Excused
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--info-fg);margin:0 4px;"></span> Walk-in
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <table class="spec">
+      <tr><td>Route</td><td><code>GET /intake/{id}/attendance</code> (new tab on intake detail)</td></tr>
+      <tr><td>Default view</td><td>Current month calendar; nav arrows for prev/next month</td></tr>
+      <tr><td>Click day</td><td>Opens modal with detail: status, event, recorded by, time, note. Can edit.</td></tr>
+      <tr><td>Stats row</td><td>Total days in period, present count, rate %, current streak</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 06. DATA MODEL -->
+<!-- ============================================================ -->
+<section id="schema">
+  <div class="r3-card">
+    <div class="eyebrow">06. Data Model</div>
+    <h2 class="section-title">Database Schema</h2>
+    <p class="section-sub">Three new PocketBase collections. The <code>attendance</code> collection is the core — it exists whether or not events are used. Events are an optional organizational layer.</p>
+
+    <div class="schema-diagram">
+      <div class="schema-row">
+        <div class="schema-table new">
+          <div class="st-name">events <span style="float:right;font-size:10px;opacity:.7;">NEW</span></div>
+          <div class="st-field pk"><span>id</span><span class="st-type">autogen</span></div>
+          <div class="st-field fk"><span>site</span><span class="st-type">→ sites.id</span></div>
+          <div class="st-field new-field"><span>name</span><span class="st-type">text (req, max 200)</span></div>
+          <div class="st-field new-field"><span>start_date</span><span class="st-type">text (YYYY-MM-DD, req)</span></div>
+          <div class="st-field new-field"><span>end_date</span><span class="st-type">text (YYYY-MM-DD, req)</span></div>
+          <div class="st-field new-field"><span>description</span><span class="st-type">text (opt, max 500)</span></div>
+          <div class="st-field new-field"><span>status</span><span class="st-type">select: active, completed, cancelled</span></div>
+          <div class="st-field fk"><span>created_by</span><span class="st-type">→ users.id</span></div>
+          <div class="st-field"><span>created</span><span class="st-type">autodate</span></div>
+          <div class="st-field"><span>updated</span><span class="st-type">autodate</span></div>
+        </div>
+        <div class="schema-arrow">↔</div>
+        <div class="schema-table new">
+          <div class="st-name">event_enrollment <span style="float:right;font-size:10px;opacity:.7;">NEW</span></div>
+          <div class="st-field pk"><span>id</span><span class="st-type">autogen</span></div>
+          <div class="st-field fk"><span>event</span><span class="st-type">→ events.id</span></div>
+          <div class="st-field fk"><span>intake</span><span class="st-type">→ intake.id</span></div>
+          <div class="st-field new-field"><span>enrolled_date</span><span class="st-type">text (YYYY-MM-DD, opt)</span></div>
+          <div class="st-field"><span>created</span><span class="st-type">autodate</span></div>
+        </div>
+        <div class="schema-arrow">↔</div>
+        <div class="schema-table new">
+          <div class="st-name">attendance <span style="float:right;font-size:10px;opacity:.7;">NEW</span></div>
+          <div class="st-field pk"><span>id</span><span class="st-type">autogen</span></div>
+          <div class="st-field fk"><span>event</span><span class="st-type">→ events.id (nullable)</span></div>
+          <div class="st-field fk"><span>intake</span><span class="st-type">→ intake.id</span></div>
+          <div class="st-field fk"><span>site</span><span class="st-type">→ sites.id</span></div>
+          <div class="st-field fk"><span>recorded_by</span><span class="st-type">→ users.id</span></div>
+          <div class="st-field new-field"><span>date</span><span class="st-type">text (YYYY-MM-DD, req)</span></div>
+          <div class="st-field new-field"><span>status</span><span class="st-type">select: present, absent, excused, walk_in</span></div>
+          <div class="st-field new-field"><span>check_in_time</span><span class="st-type">text (HH:MM, opt)</span></div>
+          <div class="st-field new-field"><span>note</span><span class="st-type">text (opt, max 500)</span></div>
+          <div class="st-field"><span>created</span><span class="st-type">autodate</span></div>
+          <div class="st-field"><span>updated</span><span class="st-type">autodate</span></div>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="section-title-sm">Key Constraints &amp; Rules</h3>
+    <table class="spec">
+      <tr><td>Unique constraint</td><td>One attendance record per <code>(event, intake, date)</code>. If <code>event</code> is null, unique per <code>(intake, site, date)</code>. Enforced in Go handler (PocketBase has no native unique constraints).</td></tr>
+      <tr><td>Nullable event</td><td>The <code>event</code> field on <code>attendance</code> is <code>required: false</code>. This allows the matrix to work Day 1 without any events created.</td></tr>
+      <tr><td>Walk-in status</td><td><code>status = "walk_in"</code> means participant was not enrolled in the event (or no event selected). Can be converted to enrolled after the fact.</td></tr>
+      <tr><td>Cascade delete</td><td>Delete event → cascade delete enrollments + attendance. Delete intake → cascade delete enrollment + attendance. Delete site → restricted.</td></tr>
+      <tr><td>Enrollment</td><td>Junction table. Soft delete on unenroll (keeps attendance history). Many-to-many: participants can be in multiple events.</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 07. MIGRATIONS -->
+<!-- ============================================================ -->
+<section id="migrations">
+  <div class="r3-card">
+    <div class="eyebrow">07. Database Migrations</div>
+    <h2 class="section-title">PocketBase Migration Scripts</h2>
+    <p class="section-sub">Place at <code>r3-intake/pocketbase/migrations/007_events_attendance.js</code>. PocketBase v0.39 auto-executes pending migrations on start.</p>
+
+    <div class="code-block"><span class="cmt">// 007_events_attendance.js — Events + Enrollment + Attendance collections</span>
+<span class="cmt">// Requires: sites, intake, users collections (from 001_init.js)</span>
+
+migrate((app) => {
+  <span class="kw">const</span> intake = app.findCollectionByNameOrId(<span class="str">"intake"</span>);
+  <span class="kw">const</span> sites  = app.findCollectionByNameOrId(<span class="str">"sites"</span>);
+  <span class="kw">const</span> users  = app.findCollectionByNameOrId(<span class="str">"users"</span>);
+
+  <span class="cmt">// --- events collection ---</span>
+  <span class="kw">const</span> events = <span class="kw">new</span> Collection({
+    name: <span class="str">"events"</span>, type: <span class="str">"base"</span>,
+    listRule: <span class="kw">null</span>, viewRule: <span class="kw">null</span>, createRule: <span class="kw">null</span>, updateRule: <span class="kw">null</span>, deleteRule: <span class="kw">null</span>,
+    fields: [
+      { name: <span class="str">"site"</span>,        type: <span class="str">"relation"</span>, collectionId: sites.id,  maxSelect: 1, required: <span class="kw">true</span>,  cascadeDelete: <span class="kw">false</span> },
+      { name: <span class="str">"name"</span>,        type: <span class="str">"text"</span>,    required: <span class="kw">true</span>,  max: 200 },
+      { name: <span class="str">"start_date"</span>,  type: <span class="str">"text"</span>,    required: <span class="kw">true</span>,  max: 20 },
+      { name: <span class="str">"end_date"</span>,    type: <span class="str">"text"</span>,    required: <span class="kw">true</span>,  max: 20 },
+      { name: <span class="str">"description"</span>, type: <span class="str">"text"</span>,    required: <span class="kw">false</span>, max: 500 },
+      { name: <span class="str">"status"</span>,      type: <span class="str">"select"</span>,  required: <span class="kw">true</span>,  values: [<span class="str">"active"</span>,<span class="str">"completed"</span>,<span class="str">"cancelled"</span>], maxSelect: 1 },
+      { name: <span class="str">"created_by"</span>,  type: <span class="str">"relation"</span>, collectionId: users.id, maxSelect: 1, required: <span class="kw">false</span>, cascadeDelete: <span class="kw">false</span> },
+      { name: <span class="str">"created"</span>, type: <span class="str">"autodate"</span>, onCreate: <span class="kw">true</span>,  onUpdate: <span class="kw">false</span> },
+      { name: <span class="str">"updated"</span>, type: <span class="str">"autodate"</span>, onCreate: <span class="kw">false</span>, onUpdate: <span class="kw">true</span>  },
+    ],
+  });
+  app.save(events);
+
+  <span class="cmt">// --- event_enrollment junction collection ---</span>
+  <span class="kw">const</span> enrollment = <span class="kw">new</span> Collection({
+    name: <span class="str">"event_enrollment"</span>, type: <span class="str">"base"</span>,
+    listRule: <span class="kw">null</span>, viewRule: <span class="kw">null</span>, createRule: <span class="kw">null</span>, updateRule: <span class="kw">null</span>, deleteRule: <span class="kw">null</span>,
+    fields: [
+      { name: <span class="str">"event"</span>,         type: <span class="str">"relation"</span>, collectionId: events.id, maxSelect: 1, required: <span class="kw">true</span>,  cascadeDelete: <span class="kw">true</span>  },
+      { name: <span class="str">"intake"</span>,        type: <span class="str">"relation"</span>, collectionId: intake.id, maxSelect: 1, required: <span class="kw">true</span>,  cascadeDelete: <span class="kw">true</span>  },
+      { name: <span class="str">"enrolled_date"</span>, type: <span class="str">"text"</span>,    required: <span class="kw">false</span>, max: 20 },
+      { name: <span class="str">"created"</span>, type: <span class="str">"autodate"</span>, onCreate: <span class="kw">true</span>, onUpdate: <span class="kw">false</span> },
+    ],
+  });
+  app.save(enrollment);
+
+  <span class="cmt">// --- attendance collection (event is nullable) ---</span>
+  <span class="kw">const</span> attendance = <span class="kw">new</span> Collection({
+    name: <span class="str">"attendance"</span>, type: <span class="str">"base"</span>,
+    listRule: <span class="kw">null</span>, viewRule: <span class="kw">null</span>, createRule: <span class="kw">null</span>, updateRule: <span class="kw">null</span>, deleteRule: <span class="kw">null</span>,
+    fields: [
+      { name: <span class="str">"event"</span>,        type: <span class="str">"relation"</span>, collectionId: events.id, maxSelect: 1, required: <span class="kw">false</span>, cascadeDelete: <span class="kw">true</span>  },
+      { name: <span class="str">"intake"</span>,       type: <span class="str">"relation"</span>, collectionId: intake.id, maxSelect: 1, required: <span class="kw">true</span>,  cascadeDelete: <span class="kw">true</span>  },
+      { name: <span class="str">"site"</span>,         type: <span class="str">"relation"</span>, collectionId: sites.id,  maxSelect: 1, required: <span class="kw">true</span>,  cascadeDelete: <span class="kw">false</span> },
+      { name: <span class="str">"recorded_by"</span>,  type: <span class="str">"relation"</span>, collectionId: users.id,  maxSelect: 1, required: <span class="kw">false</span>, cascadeDelete: <span class="kw">false</span> },
+      { name: <span class="str">"date"</span>,         type: <span class="str">"text"</span>,    required: <span class="kw">true</span>,  max: 20 },
+      { name: <span class="str">"status"</span>,       type: <span class="str">"select"</span>,  required: <span class="kw">true</span>,  values: [<span class="str">"present"</span>,<span class="str">"absent"</span>,<span class="str">"excused"</span>,<span class="str">"walk_in"</span>], maxSelect: 1 },
+      { name: <span class="str">"check_in_time"</span>, type: <span class="str">"text"</span>,   required: <span class="kw">false</span>, max: 20 },
+      { name: <span class="str">"note"</span>,        type: <span class="str">"text"</span>,    required: <span class="kw">false</span>, max: 500 },
+      { name: <span class="str">"created"</span>, type: <span class="str">"autodate"</span>, onCreate: <span class="kw">true</span>,  onUpdate: <span class="kw">false</span> },
+      { name: <span class="str">"updated"</span>, type: <span class="str">"autodate"</span>, onCreate: <span class="kw">false</span>, onUpdate: <span class="kw">true</span>  },
+    ],
+  });
+  app.save(attendance);
+
+}, (app) => {
+  <span class="cmt">// Down: drop in reverse dependency order</span>
+  <span class="kw">for</span> (<span class="kw">const</span> name <span class="kw">of</span> [<span class="str">"attendance"</span>, <span class="str">"event_enrollment"</span>, <span class="str">"events"</span>]) {
+    <span class="kw">let</span> col; <span class="kw">try</span> { col = app.findCollectionByNameOrId(name); } <span class="kw">catch</span>(e) {}
+    <span class="kw">if</span> (col) app.delete(col);
+  }
+});</div>
+
+    <div class="callout callout-success">
+      <strong>Migration Notes:</strong> All collections have <code>null</code> rules because the Go server is the policy layer (browser never talks to PocketBase directly). The <code>cascadeDelete: true</code> on enrollment and attendance ensures cleanup when an event or intake record is deleted.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 08. GO HANDLER SKETCHES -->
+<!-- ============================================================ -->
+<section id="handlers">
+  <div class="r3-card">
+    <div class="eyebrow">08. Go Handler Sketches</div>
+    <h2 class="section-title">Backend Implementation Sketches</h2>
+    <p class="section-sub">Follow existing patterns in <code>internal/server/handlers.go</code>. New file: <code>internal/server/attendance.go</code>.</p>
+
+    <div class="code-block"><span class="cmt">// internal/server/attendance.go</span>
+
+<span class="cmt">// MatrixViewData builds the grid: participants × dates → status</span>
+<span class="kw">type</span> MatrixViewData <span class="kw">struct</span> {
+  UserName  <span class="ty">string</span>
+  Role      <span class="ty">string</span>
+  IsAdmin   <span class="ty">bool</span>
+  SiteID    <span class="ty">string</span>
+  EventID   <span class="ty">string</span>
+  DateFrom  <span class="ty">string</span>
+  DateTo    <span class="ty">string</span>
+  Dates     []<span class="ty">string</span>       <span class="cmt">// column headers</span>
+  Rows      []MatrixRow
+  Summary   MatrixSummary
+  Sites     []Site
+  Events    []EventOption
+}
+
+<span class="kw">type</span> MatrixRow <span class="kw">struct</span> {
+  IntakeID     <span class="ty">string</span>
+  Name         <span class="ty">string</span>
+  IsEnrolled   <span class="ty">bool</span>
+  Cells        <span class="ty">map</span>[<span class="ty">string</span>]<span class="ty">string</span> <span class="cmt">// date → status</span>
+  TotalDays    <span class="ty">int</span>
+  PresentCount <span class="ty">int</span>
+  LastPresent  <span class="ty">string</span>
+  IsDropout    <span class="ty">bool</span>
+}
+
+<span class="cmt">// handleMatrix renders the Calendar Matrix screen</span>
+<span class="kw">func</span> (s *<span class="ty">Server</span>) handleMatrix(w http.ResponseWriter, r *http.Request) {
+  u := s.currentSession(r)
+  <span class="kw">if</span> u == <span class="kw">nil</span> { http.Redirect(w, r, <span class="str">"/public/intake"</span>, 303); <span class="kw">return</span> }
+
+  siteID  := r.URL.Query().Get(<span class="str">"site"</span>)
+  eventID := r.URL.Query().Get(<span class="str">"event"</span>)
+  fromStr := r.URL.Query().Get(<span class="str">"from"</span>)
+  toStr   := r.URL.Query().Get(<span class="str">"to"</span>)
+
+  <span class="cmt">// defaults: last 14 days</span>
+  <span class="kw">if</span> fromStr == <span class="str">""</span> { fromStr = time.Now().In(hst).AddDate(0,0,-14).Format(<span class="str">"2006-01-02"</span>) }
+  <span class="kw">if</span> toStr == <span class="str">""</span>   { toStr = time.Now().In(hst).Format(<span class="str">"2006-01-02"</span>) }
+
+  <span class="cmt">// 1. Get participants (all intake at site, or enrolled if event selected)</span>
+  participants := s.getParticipantsForMatrix(siteID, eventID)
+
+  <span class="cmt">// 2. Build date columns</span>
+  dates := buildDateRange(fromStr, toStr)
+
+  <span class="cmt">// 3. Fetch attendance records in range</span>
+  filter := fmt.Sprintf(<span class="str">"site='%s' && date >= '%s' && date <= '%s'"</span>,
+    mcpmod.EscapeFilter(siteID), fromStr, toStr)
+  <span class="kw">if</span> eventID != <span class="str">""</span> { filter += fmt.Sprintf(<span class="str">" && event='%s'"</span>, mcpmod.EscapeFilter(eventID)) }
+  recs, _ := s.pb.FindRecordsByFilter(<span class="str">"attendance"</span>, filter, <span class="str">"date"</span>, 5000, 0)
+
+  <span class="cmt">// 4. Build matrix map: intakeID → date → status</span>
+  matrix := <span class="kw">make</span>(<span class="ty">map</span>[<span class="ty">string</span>]<span class="ty">map</span>[<span class="ty">string</span>]<span class="ty">string</span>)
+  <span class="kw">for</span> _, rec := <span class="kw">range</span> recs {
+    iid := rec.GetString(<span class="str">"intake"</span>)
+    <span class="kw">if</span> matrix[iid] == <span class="kw">nil</span> { matrix[iid] = <span class="kw">make</span>(<span class="ty">map</span>[<span class="ty">string</span>]<span class="ty">string</span>) }
+    matrix[iid][rec.GetString(<span class="str">"date"</span>)] = rec.GetString(<span class="str">"status"</span>)
+  }
+
+  <span class="cmt">// 5. Build rows with computed stats + render</span>
+  <span class="cmt">// ... (append MatrixRow for each participant with Cells, PresentCount, etc.)</span>
+  s.tpl.ExecuteTemplate(w, <span class="str">"matrix"</span>, view)
+}
+
+<span class="cmt">// handleToggle handles HTMX cell clicks: cycles status</span>
+<span class="kw">func</span> (s *<span class="ty">Server</span>) handleToggle(w http.ResponseWriter, r *http.Request) {
+  u := s.currentSession(r); <span class="kw">if</span> u == <span class="kw">nil</span> { http.Error(w, <span class="str">"unauthorized"</span>, 401); <span class="kw">return</span> }
+  intakeID := r.FormValue(<span class="str">"intake_id"</span>)
+  date     := r.FormValue(<span class="str">"date"</span>)
+  eventID  := r.FormValue(<span class="str">"event_id"</span>) <span class="cmt">// optional</span>
+  siteID   := r.FormValue(<span class="str">"site_id"</span>)
+
+  <span class="cmt">// Find existing or create new</span>
+  filter := fmt.Sprintf(<span class="str">"intake='%s' && date='%s'"</span>, intakeID, date)
+  <span class="kw">if</span> eventID != <span class="str">""</span> { filter += fmt.Sprintf(<span class="str">" && event='%s'"</span>, eventID) }
+  <span class="kw">else</span> { filter += fmt.Sprintf(<span class="str">" && site='%s'"</span>, siteID) }
+
+  recs, _ := s.pb.FindRecordsByFilter(<span class="str">"attendance"</span>, filter, <span class="str">""</span>, 1, 0)
+  <span class="kw">var</span> rec *core.Record
+  <span class="kw">if</span> len(recs) > 0 { rec = recs[0] } <span class="kw">else</span> { rec = core.NewRecord(/* attendance col */) }
+
+  <span class="cmt">// Cycle: empty → present → absent → excused → walk_in → empty (delete)</span>
+  next := cycleStatus(rec.GetString(<span class="str">"status"</span>))
+  <span class="kw">if</span> next == <span class="str">""</span> { s.pb.Delete(rec) } <span class="kw">else</span> {
+    rec.Set(<span class="str">"intake"</span>, intakeID); rec.Set(<span class="str">"date"</span>, date); rec.Set(<span class="str">"status"</span>, next)
+    <span class="kw">if</span> eventID != <span class="str">""</span> { rec.Set(<span class="str">"event"</span>, eventID) }
+    rec.Set(<span class="str">"site"</span>, siteID); rec.Set(<span class="str">"recorded_by"</span>, u.ID)
+    rec.Set(<span class="str">"check_in_time"</span>, time.Now().In(hst).Format(<span class="str">"15:04"</span>))
+    s.pb.Save(rec)
+  }
+  <span class="cmt">// Return updated cell HTML for HTMX swap</span>
+  fmt.Fprintf(w, <span class="str">`&lt;span class="dot-%s"&gt;&lt;/span&gt;`</span>, next)
+}
+
+<span class="kw">func</span> cycleStatus(current <span class="ty">string</span>) <span class="ty">string</span> {
+  <span class="kw">switch</span> current {
+  <span class="kw">case</span> <span class="str">""</span>:        <span class="kw">return</span> <span class="str">"present"</span>
+  <span class="kw">case</span> <span class="str">"present"</span>:  <span class="kw">return</span> <span class="str">"absent"</span>
+  <span class="kw">case</span> <span class="str">"absent"</span>:   <span class="kw">return</span> <span class="str">"excused"</span>
+  <span class="kw">case</span> <span class="str">"excused"</span>:  <span class="kw">return</span> <span class="str">"walk_in"</span>
+  <span class="kw">case</span> <span class="str">"walk_in"</span>: <span class="kw">return</span> <span class="str">""</span>
+  <span class="kw">default</span>:       <span class="kw">return</span> <span class="str">"present"</span>
+  }
+}
+
+<span class="kw">func</span> isDropout(lastPresent <span class="ty">string</span>) <span class="ty">bool</span> {
+  <span class="kw">if</span> lastPresent == <span class="str">""</span> { <span class="kw">return</span> <span class="kw">false</span> }
+  t, _ := time.Parse(<span class="str">"2006-01-02"</span>, lastPresent)
+  <span class="kw">return</span> time.Since(t) > 14*24*time.Hour
+}</div>
+
+    <div class="callout callout-info">
+      <strong>Template structure:</strong> Add <code>{{define "matrix"}}</code>, <code>{{define "matrix-cell"}}</code> (partial for HTMX swap), <code>{{define "attendance-person"}}</code>, <code>{{define "admin-events"}}</code>, and <code>{{define "admin-event-manage"}}</code> to <code>internal/assets/public/index.html</code>. Add "Attendance" tab to topbar (between Records and Admin, auth-only).
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 09. ROUTE MAP -->
+<!-- ============================================================ -->
+<section id="routes">
+  <div class="r3-card">
+    <div class="eyebrow">09. Route Map</div>
+    <h2 class="section-title">HTTP Routes</h2>
+
+    <table class="spec">
+      <thead><tr><th>Method</th><th>Path</th><th>Handler</th><th>Auth</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><strong>GET</strong></td><td><code>/attendance</code></td><td>handleMatrix</td><td>auth</td><td>Calendar Matrix (primary view)</td></tr>
+        <tr><td><strong>POST</strong></td><td><code>/attendance/toggle</code></td><td>handleToggle</td><td>auth</td><td>HTMX cell toggle (present/absent/excused/walk_in)</td></tr>
+        <tr><td><strong>GET</strong></td><td><code>/intake/{id}/attendance</code></td><td>handlePersonAttendance</td><td>auth</td><td>Per-person calendar tab</td></tr>
+        <tr><td><strong>GET</strong></td><td><code>/attendance/export</code></td><td>handleExportCSV</td><td>auth</td><td>CSV export (respects filters)</td></tr>
+        <tr><td><strong>GET</strong></td><td><code>/admin/events</code></td><td>handleEventsList</td><td>admin</td><td>Events list (accordion in admin)</td></tr>
+        <tr><td><strong>POST</strong></td><td><code>/admin/events/create</code></td><td>handleEventCreate</td><td>admin</td><td>Create new event</td></tr>
+        <tr><td><strong>GET</strong></td><td><code>/admin/events/{id}/manage</code></td><td>handleEventManage</td><td>admin</td><td>Enrollment + history tabs</td></tr>
+        <tr><td><strong>POST</strong></td><td><code>/admin/events/{id}/enroll</code></td><td>handleEventEnroll</td><td>admin</td><td>Add participant to event</td></tr>
+        <tr><td><strong>POST</strong></td><td><code>/admin/events/{id}/unenroll</code></td><td>handleEventUnenroll</td><td>admin</td><td>Remove participant (soft delete)</td></tr>
+        <tr><td><strong>POST</strong></td><td><code>/admin/events/{id}/status</code></td><td>handleEventStatus</td><td>admin</td><td>Change active → completed → cancelled</td></tr>
+        <tr><td><strong>POST</strong></td><td><code>/admin/events/{id}/delete</code></td><td>handleEventDelete</td><td>admin</td><td>Delete event + cascade</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-info">
+      <strong>Registration:</strong> Add to <code>server.go</code> <code>Mux()</code> method:
+      <code>mux.HandleFunc("/attendance", s.requireAuth(s.handleMatrix))</code>,
+      <code>mux.HandleFunc("/attendance/", s.requireAuth(s.handleAttendanceSub))</code>,
+      <code>mux.HandleFunc("/admin/events", s.requireRole("admin", s.handleEventsList))</code>,
+      <code>mux.HandleFunc("/admin/events/", s.requireAuth(s.handleAdminEventsSub))</code>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 10. PERMISSIONS -->
+<!-- ============================================================ -->
+<section id="permissions">
+  <div class="r3-card">
+    <div class="eyebrow">10. Permissions</div>
+    <h2 class="section-title">Access Control</h2>
+
+    <table class="spec">
+      <thead><tr><th>Action</th><th>Admin</th><th>Case Manager</th><th>Intake Role</th></tr></thead>
+      <tbody>
+        <tr><td>View Matrix</td><td>✓ All sites</td><td>✓ Assigned site only</td><td>✗</td></tr>
+        <tr><td>Toggle cells (check-in)</td><td>✓</td><td>✓</td><td>✗</td></tr>
+        <tr><td>Add walk-in</td><td>✓</td><td>✓</td><td>✗</td></tr>
+        <tr><td>Export CSV</td><td>✓</td><td>✗</td><td>✗</td></tr>
+        <tr><td>Create/manage events</td><td>✓</td><td>✗</td><td>✗</td></tr>
+        <tr><td>Enroll/unenroll participants</td><td>✓</td><td>✗</td><td>✗</td></tr>
+        <tr><td>View per-person calendar</td><td>✓</td><td>✓ (their participants)</td><td>✗</td></tr>
+        <tr><td>Edit attendance notes</td><td>✓</td><td>✓ (own records)</td><td>✗</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 11. ACCEPTANCE CRITERIA -->
+<!-- ============================================================ -->
+<section id="acceptance">
+  <div class="r3-card">
+    <div class="eyebrow">11. Acceptance Criteria</div>
+    <h2 class="section-title">Definition of Done</h2>
+
+    <table class="spec">
+      <thead><tr><th>Feature</th><th>Acceptance Criteria</th><th>Test Method</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Events CRUD</strong></td><td>Admin can create, edit, complete events. List shows name, site, dates, enrolled count, status.</td><td>Manual QA: Create → edit → complete → verify in list</td></tr>
+        <tr><td><strong>Event Enrollment</strong></td><td>Admin can search and enroll participants. Roster shows attendance stats.</td><td>Manual QA: Enroll 3 → verify roster → check stats</td></tr>
+        <tr><td><strong>Matrix Toggle</strong></td><td>Click dot → cycles status. HTMX saves instantly. No duplicate records.</td><td>Manual QA: Toggle 5 cells → reload → verify persisted</td></tr>
+        <tr><td><strong>Matrix Filters</strong></td><td>Filter by event, site, date range. Default: last 14 days, user's site.</td><td>Manual QA: Change each filter → verify grid updates</td></tr>
+        <tr><td><strong>CSV Export</strong></td><td>Export includes: date, participant, site, event, status, recorded by, note. Summary row at bottom.</td><td>Export → open in spreadsheet → verify columns</td></tr>
+        <tr><td><strong>Walk-in Check-in</strong></td><td>Can check in unenrolled participant. Appears in matrix with walk_in status.</td><td>Manual QA: Add walk-in → verify in matrix → verify in export</td></tr>
+        <tr><td><strong>Per-Person Calendar</strong></td><td>Monthly calendar shows present/absent days. Stats: total, present, rate, streak.</td><td>Manual QA: Open intake → Attendance tab → verify calendar</td></tr>
+        <tr><td><strong>Data Integrity</strong></td><td>No duplicate (event, intake, date) records. Deleted event cascades to attendance + enrollment.</td><td>Automated test: duplicate → error. Delete event → verify cascade</td></tr>
+        <tr><td><strong>Mobile</strong></td><td>Matrix works on 375px width. Sticky name column. Tap targets ≥44px.</td><td>Browser dev tools: 375×667 → verify usability</td></tr>
+        <tr><td><strong>No-JS Fallback</strong></td><td>Matrix toggles work via full page reload (POST → redirect).</td><td>Disable JS → verify toggle still works</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 12. RISKS -->
+<!-- ============================================================ -->
+<section id="risks">
+  <div class="r3-card">
+    <div class="eyebrow">12. Risks & Mitigations</div>
+    <h2 class="section-title">What Could Go Wrong</h2>
+
+    <div class="two-col">
+      <div class="callout callout-danger">
+        <strong>Risk: Low Adoption</strong><br>
+        Coordinators continue using paper sign-in sheets.<br><br>
+        <strong>Mitigation:</strong> 5-minute training demo. Pre-load events. Make matrix the default landing for coordinators.
+      </div>
+      <div class="callout callout-warn">
+        <strong>Risk: Data Entry Errors</strong><br>
+        Wrong participant marked present, or wrong date.<br><br>
+        <strong>Mitigation:</strong> Today's column highlighted. "Undo" via clicking dot back to empty. Audit trail in recorded_by + timestamps.
+      </div>
+      <div class="callout callout-info">
+        <strong>Risk: Performance with Large Datasets</strong><br>
+        Matrix slows with 100+ participants × 60+ dates.<br><br>
+        <strong>Mitigation:</strong> Default 14-day window. Limit to 30 days max. Pagination for longer ranges.
+      </div>
+      <div class="callout callout-success">
+        <strong>Risk: Privacy</strong><br>
+        Attendance data could be sensitive if exposed.<br><br>
+        <strong>Mitigation:</strong> All PB rules null (Go is policy layer). Session auth required. Site-scoped access for case managers.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 13. TIMELINE -->
+<!-- ============================================================ -->
+<section id="timeline">
+  <div class="r3-card">
+    <div class="eyebrow">13. Implementation Timeline</div>
+    <h2 class="section-title">Phased Rollout Plan</h2>
+
+    <table class="spec">
+      <thead><tr><th>Phase</th><th>Duration</th><th>Deliverables</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Phase 1: Foundation</strong></td><td>Days 1-3</td><td>DB migration, Events CRUD, Enrollment UI, Attendance collection + handlers</td></tr>
+        <tr><td><strong>Phase 2: Matrix UX</strong></td><td>Days 4-5</td><td>Calendar Matrix view, cell toggle (HTMX), walk-in support, sticky column CSS</td></tr>
+        <tr><td><strong>Phase 3: Reporting</strong></td><td>Days 6-7</td><td>CSV export, summary stats, per-person calendar, dropout highlighting</td></tr>
+        <tr><td><strong>Phase 4: QA & Launch</strong></td><td>Days 8-9</td><td>End-to-end testing, bug fixes, training demo, production deploy</td></tr>
+        <tr><td><strong>Phase 5: Feedback</strong></td><td>Week 3+</td><td>Monitor adoption, collect feedback, plan V1.1 (P1 features)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-info">
+      <strong>Launch target:</strong> 2 weeks from kickoff. ~9 working days of engineering effort.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 14. IMPLEMENTATION CHECKLIST -->
+<!-- ============================================================ -->
+<section id="checklist">
+  <div class="r3-card">
+    <div class="eyebrow">14. Implementation Checklist</div>
+    <h2 class="section-title">Task List</h2>
+
+    <table class="spec">
+      <thead><tr><th>#</th><th>Task</th><th>File(s)</th><th>Done</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Create migration <code>007_events_attendance.js</code></td><td><code>pocketbase/migrations/007_events_attendance.js</code></td><td>☐</td></tr>
+        <tr><td>2</td><td>Run migrations (dev)</td><td>Start server — PB auto-migrates</td><td>☐</td></tr>
+        <tr><td>3</td><td>Add Attendance tab to topbar</td><td><code>internal/assets/public/index.html</code></td><td>☐</td></tr>
+        <tr><td>4</td><td>Implement <code>handleMatrix</code> + <code>handleToggle</code></td><td><code>internal/server/attendance.go</code> (new)</td><td>☐</td></tr>
+        <tr><td>5</td><td>Add <code>{{define "matrix"}}</code> template</td><td><code>internal/assets/public/index.html</code></td><td>☐</td></tr>
+        <tr><td>6</td><td>Add <code>{{define "matrix-cell"}}</code> partial</td><td><code>internal/assets/public/index.html</code></td><td>☐</td></tr>
+        <tr><td>7</td><td>Implement <code>handlePersonAttendance</code></td><td><code>internal/server/attendance.go</code></td><td>☐</td></tr>
+        <tr><td>8</td><td>Add <code>{{define "attendance-person"}}</code> template</td><td><code>internal/assets/public/index.html</code></td><td>☐</td></tr>
+        <tr><td>9</td><td>Add Attendance tab to intake detail</td><td><code>internal/assets/public/index.html</code></td><td>☐</td></tr>
+        <tr><td>10</td><td>Implement Events admin handlers</td><td><code>internal/server/admin.go</code> (extend)</td><td>☐</td></tr>
+        <tr><td>11</td><td>Add <code>{{define "admin-events"}}</code> + <code>{{define "admin-event-manage"}}</code></td><td><code>internal/assets/public/index.html</code></td><td>☐</td></tr>
+        <tr><td>12</td><td>Add Events accordion to admin template</td><td><code>internal/assets/public/index.html</code></td><td>☐</td></tr>
+        <tr><td>13</td><td>Implement CSV export handler</td><td><code>internal/server/attendance.go</code></td><td>☐</td></tr>
+        <tr><td>14</td><td>Add route registrations</td><td><code>internal/server/server.go</code> Mux()</td><td>☐</td></tr>
+        <tr><td>15</td><td>Mobile CSS (sticky col, tap targets)</td><td><code>internal/assets/public/app.css</code></td><td>☐</td></tr>
+        <tr><td>16</td><td>E2E test: matrix toggle → persist</td><td><code>internal/server/attendance_test.go</code></td><td>☐</td></tr>
+        <tr><td>17</td><td>E2E test: event create → enroll → matrix</td><td><code>internal/server/attendance_test.go</code></td><td>☐</td></tr>
+        <tr><td>18</td><td>Update README</td><td><code>README.md</code></td><td>☐</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 15. DECISION LOG -->
+<!-- ============================================================ -->
+<section id="decisions">
+  <div class="r3-card">
+    <div class="eyebrow">15. Decision Log</div>
+    <h2 class="section-title">Key Design Decisions</h2>
+
+    <table class="spec">
+      <tr><td>Why Matrix over Daily Roster?</td><td>Matrix gives pattern visibility (dropouts, trends) in one view. Daily roster is a subset — filter the matrix to one date column. Matrix serves both coordinator (daily) and director (weekly) without separate screens.</td></tr>
+      <tr><td>Why nullable <code>event</code> on attendance?</td><td>Allows matrix to work Day 1 without any events created. Events are opt-in, not a prerequisite.</td></tr>
+      <tr><td>Why <code>walk_in</code> status instead of boolean?</td><td>Preserves "came but not enrolled" vs "enrolled and present." Four-state cycle covers all real-world cases. Enables walk-in conversion tracking.</td></tr>
+      <tr><td>Why junction table for enrollment?</td><td>Many-to-many: participants can be in multiple events. Enrollment date tracks when they joined. Soft delete preserves attendance history on unenroll.</td></tr>
+      <tr><td>Why HTMX for cell toggles?</td><td>Matches existing stack. No new dependencies. Works without JS (full page reload fallback). Instant feedback, server-authoritative.</td></tr>
+      <tr><td>Why sticky participant column?</td><td>Essential for horizontal scroll on matrix. Pure CSS, no JS needed.</td></tr>
+      <tr><td>Why not PocketBase views for summary?</td><td>Go handler computes summaries on read — simpler, no sync issues. Can add materialized view later if performance needs it.</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- 16. OPEN QUESTIONS -->
+<!-- ============================================================ -->
+<section id="open">
+  <div class="r3-card">
+    <div class="eyebrow">16. Open Questions</div>
+    <h2 class="section-title">Decisions Needed Before Development</h2>
+
+    <ul style="font:14px 'Public Sans';color:var(--muted);padding-left:20px;">
+      <li><strong>Should walk-ins be allowed without any intake record?</strong> Current design: yes, with name-only minimal record. Alternative: require intake first.</li>
+      <li><strong>Should coordinators be able to edit attendance after save?</strong> Current design: yes, click dot to cycle back. Alternative: lock after 24 hours.</li>
+      <li><strong>Auto-create events for each site?</strong> Current design: optional seed migration creates one active event per site. Alternative: require manual event creation.</li>
+      <li><strong>Matrix shows only enrolled participants, or all intake records at site?</strong> Current design: enrolled only when event selected; all site participants when no event. Alternative: toggle.</li>
+      <li><strong>Should we add check-out time?</strong> Current design: check-in time only. Alternative: add check-out for duration tracking (not V1).</li>
+    </ul>
+
+    <div class="callout callout-warn">
+      <strong>Recommendation:</strong> Decide these in kickoff meeting. Default to simplest option if unclear. Update this section with decisions.
+    </div>
+  </div>
+</section>
+
+</div>
+<!-- End container -->
+
+<!-- ============ FOOTER ============ -->
+<div style="text-align:center;padding:30px 20px;border-top:1px solid var(--border);font:13px 'Public Sans';color:var(--muted);">
+  R3 Attendance Tracking PRD · Calendar Matrix + Event Sessions · Version 1.0 Draft<br>
+  Related: <a href="attendance-mockups.html" style="color:var(--accent);">attendance-mockups.html</a> (3 UI approaches)
+</div>
+
+<script>
+  // Smooth scroll for TOC
+  document.querySelectorAll('.toc a').forEach(link => {
+    link.addEventListener('click', (e) => {
+      const href = link.getAttribute('href');
+      if (href.startsWith('#')) {
+        e.preventDefault();
+        document.querySelector(href)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

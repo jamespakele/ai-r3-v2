@@ -1,0 +1,11 @@
+- The "Start New Form" should be present on page load. Having it show up after the first box is filled is a bit weird. 
+- Can we prompt for only the last 4 of the ssn, not the whole thing
+- Can we get phone number and date of birth formatting, so when they enter the phone number and birthdate it's formatted in a standardized way. 
+- Can the Confirmation or Error go inside the white box at the top right above the "01 - Personal Profile" Label? 
+- Relabel the button "Review &amp; Finish" to something like "Check Form" 
+- Also, we can leave the "Check Form" button on the bottom where it is, but can we also add another one between the Print/Save PDF and "Start New Form" Buttons at the top as well? This way the user doesn't have to scroll to the bottom if they had to correct/update something at the top of the form. 
+- Rename "Start new form" button to simply "New Form" 
+- "Saves automatically" can go under the buttons to make room for the "Check Form" button at the top. 
+- We can remove the "Print / Save PDF" button from the bottom of the form 
+- Let's format the "start a new form" as a "New Form" button right flushed to the edge of the white form box. 
+

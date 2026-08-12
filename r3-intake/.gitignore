@@ -1,0 +1,12 @@
+# Build output
+r3-intake
+
+# Production secrets
+deploy/vps/.env
+
+# Local runtime data (PocketBase/SQLite)
+pocketbase/pb_data/
+
+# Vendored JS libraries (fetched by make vendor)
+internal/assets/public/htmx.min.js
+internal/assets/public/alpine.min.js

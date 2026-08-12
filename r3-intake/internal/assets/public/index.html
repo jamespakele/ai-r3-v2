@@ -1,0 +1,767 @@
+{{define "page"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R3 Intake Form — Personal Profile / Service Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css?v=3">
+<script src="/static/htmx.min.js" defer></script>
+<script src="/static/alpine.min.js" defer></script>
+<script>document.documentElement.classList.add('js')</script>
+<script>window.R3F={digits:function(v){return (v||'').replace(/\D/g,'').slice(0,4)},phone:function(v){var d=(v||'').replace(/\D/g,'').slice(0,10);if(!d)return '';if(d.length<3)return '('+d;if(d.length<6)return '('+d.slice(0,3)+') '+d.slice(3);if(d.length<10)return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6);return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6,10)},dob:function(v){var d=(v||'').replace(/\D/g,'').slice(0,8);if(d.length>4)return d.slice(0,2)+'/'+d.slice(2,4)+'/'+d.slice(4);if(d.length>2)return d.slice(0,2)+'/'+d.slice(2);return d}};</script>
+</head>
+<body>
+<div class="page-bg">
+
+  <div class="topbar" data-no-print>
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-badge">R3</div>
+        <div>
+          <div class="brand-title">Restore, Reconnect, Revive</div>
+          <div class="brand-sub">Intake Forms — Personal Profile / Service Plan</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button type="submit" form="finish-form" class="btn btn-primary">Check Form</button>
+        <button type="button" onclick="window.print()" class="btn btn-ghost">Print / Save PDF</button>
+        {{if and .HasRecord .IsAuthed}}<a href="/notes/{{.ID}}" class="btn btn-ghost">Notes</a>{{end}}
+        {{if .IsAuthed}}<a href="/" class="btn btn-ghost">View All</a>{{else}}<a href="/login" class="btn btn-ghost">Sign in</a>{{end}}
+        <a href="/public/intake" class="btn btn-primary">New Form</a>
+      </div>
+    </div>
+    <div class="topbar-progress">
+      <div class="progress-labels"><span>Form progress</span><span>{{.Progress}}%</span></div>
+      <div class="progress-track"><div class="progress-bar" style="width:{{.Progress}}%"></div></div>
+    </div>
+    <div class="topbar-saved">Saves automatically</div>
+  </div>
+
+  <div class="container">
+
+    <p class="intro">
+      This intake form gathers the information R3 case managers use to build a Personal Profile and Service Plan.
+      Fill it out together with a participant, or have a participant complete it themselves — everything saves
+      automatically as you go.
+    </p>
+
+    {{template "section-01" .}}
+    {{template "section-02" .}}
+    {{template "section-03" .}}
+    {{template "section-04" .}}
+    {{template "section-05" .}}
+
+    <form id="finish-form" class="finish-actions" data-no-print action="/intake/{{if .HasRecord}}{{.ID}}{{else}}new{{end}}/finish" method="post">
+      <input type="hidden" name="id" value="{{.ID}}">
+      <button type="submit" class="btn btn-primary">Check Form</button>
+      {{if .HasRecord}}<a href="/" class="link-btn link-btn-muted">New Form</a>{{end}}
+    </form>
+    {{if .HasRecord}}<form id="cancel-form" method="post" action="/intake/{{.ID}}/cancel"></form>{{end}}
+  </div>
+</div>
+</body>
+</html>{{end}}
+
+{{define "site-fragment"}}
+<select name="site" class="field-input">
+  <option value="">Select a site</option>
+  {{range .Sites}}<option value="{{.ID}}" {{if eq .ID $.SiteSel}}selected{{end}}>{{.Name}}</option>{{end}}
+</select>
+{{end}}
+
+{{define "dup-fragment"}}
+{{range .}}<div class="dup-result"><a href="/intake/{{.ID}}">{{.Name}}{{if .SSNLast4}} — SSN {{.SSNLast4}}{{end}}</a></div>{{end}}
+{{end}}
+
+{{define "section-01"}}
+<form id="sec-01" class="r3-card"
+      hx-post="/section/01" hx-target="#sec-01" hx-swap="none" hx-trigger="change delay:300ms, submit"
+      x-data="{ served:'{{.ServedMilitary}}', pets:'{{.HasPets}}', emp:'{{.Employment}}', interested:'{{.InterestedEmployed}}', living:'{{.LivingWith}}', household: JSON.parse($el.dataset.household) }"
+      data-household='{{.HouseholdJSON}}'>
+  <input type="hidden" name="id" value="{{.ID}}">
+  {{if .HasRecord}}<button type="submit" form="cancel-form" class="section-cancel" title="Cancel entry" onclick="return confirm('Cancel and remove this incomplete entry?')">❌</button>{{end}}
+  <div class="card-status" data-no-print>
+    {{if .ShowSuccess}}<div class="alert alert-success alert-card">Looks complete — everything is saved. Use Print / Save PDF to file a copy.</div>{{end}}
+    {{if .ShowIncomplete}}<div class="alert alert-incomplete alert-card">A few required fields still need attention — scroll down to the highlighted sections.</div>{{end}}
+  </div>
+  <div class="section-eyebrow">01 — Personal Profile</div>
+  <h2 class="section-title">Who we're meeting</h2>
+
+  <div class="field-group {{if .Errors.site}}has-error{{end}}">
+    <label class="field-label">R3 Site Location <span class="field-required">*</span></label>
+    {{template "site-fragment" .}}
+    {{if .Errors.site}}<div class="field-error">Please select a site.</div>{{end}}
+  </div>
+
+  <div class="grid-2">
+    <div class="field-group grid-full {{if .Errors.name}}has-error{{end}}">
+      <label class="field-label">Name <span class="field-required">*</span></label>
+      <input type="text" name="name" value="{{.Name}}" placeholder="Full name" class="field-input {{if .Errors.name}}has-error{{end}}"
+             {{if .IsAuthed}}hx-get="/search/duplicates" hx-trigger="keyup changed delay:500ms" hx-target="#dup-results" hx-swap="innerHTML"{{end}}>
+      {{if .Errors.name}}<div class="field-error">Name is required.</div>{{end}}
+      {{if .IsAuthed}}<div id="dup-results" class="dup-results"></div>{{end}}
+    </div>
+    <div class="field-group {{if .Errors.dob}}has-error{{end}}">
+      <label class="field-label">Date of Birth <span class="field-required">*</span></label>
+      <input type="text" name="dob" value="{{fmtDob .DOB}}" inputmode="numeric" maxlength="10" placeholder="MM/DD/YYYY" class="field-input {{if .Errors.dob}}has-error{{end}}" @input="$el.value=R3F.dob($el.value)">
+      {{if .Errors.dob}}<div class="field-error">Date of birth is required.</div>{{end}}
+    </div>
+    <div class="field-group">
+      <label class="field-label">SSN (last 4)</label>
+      <input type="text" name="ssn" value="{{ssnLast4 .SSN}}" inputmode="numeric" maxlength="4" placeholder="Last 4 digits" class="field-input" @input="$el.value=R3F.digits($el.value)">
+    </div>
+    <div class="field-group {{if .Errors.contact}}has-error{{end}}">
+      <label class="field-label">Contact # <span class="field-required">*</span></label>
+      <input type="tel" name="contact" value="{{fmtPhone .Contact}}" placeholder="(808) 555-0100" class="field-input {{if .Errors.contact}}has-error{{end}}" @input="$el.value=R3F.phone($el.value)">
+      {{if .Errors.contact}}<div class="field-error">Contact number is required.</div>{{end}}
+    </div>
+    <div class="field-group">
+      <label class="field-label">Email</label>
+      <input type="email" name="email" value="{{.Email}}" placeholder="name@example.com" class="field-input">
+    </div>
+  </div>
+
+  <div class="field-group">
+    <label class="field-label">Are you living alone or with others?</label>
+    <div class="radio-row">
+      <label class="radio-item"><input type="radio" name="livingWith" value="alone" x-model="living" class="radio-input">Alone</label>
+      <label class="radio-item"><input type="radio" name="livingWith" value="others" x-model="living" class="radio-input">With Others</label>
+    </div>
+  </div>
+
+  <div class="sub-panel" x-show="living === 'others'">
+    <div class="sub-panel-title">Household members</div>
+    <!-- no-JS fallback: server-rendered rows with real names. Hidden when
+         Alpine is active (x-show=false); without JS they are the usable rows
+         the server reads via household_name_N / household_rel_N. -->
+    <div class="hh-fallback" x-show="false">
+      {{range $i, $row := .Household}}
+      <div class="household-row">
+        <input type="text" name="household_name_{{$i}}" value="{{$row.Name}}" placeholder="Full name" class="field-input field-input-sm">
+        <input type="text" name="household_rel_{{$i}}" value="{{$row.Relationship}}" placeholder="Relationship" class="field-input field-input-sm">
+      </div>
+      {{end}}
+    </div>
+    <!-- JS: dynamic add/remove rows -->
+    <template x-for="(row, i) in household" :key="i">
+      <div class="household-row">
+        <input type="text" x-model="row.name" placeholder="Full name" class="field-input field-input-sm">
+        <input type="text" x-model="row.relationship" placeholder="Relationship" class="field-input field-input-sm">
+        <button type="button" @click="household.splice(i,1); htmx.trigger($el.closest('form'),'submit')" class="link-btn link-btn-danger">Remove</button>
+      </div>
+    </template>
+    <button type="button" @click="household.push({name:'',relationship:''}); htmx.trigger($el.closest('form'),'submit')" class="add-row-btn">+ Add another person</button>
+    <input type="hidden" name="household" :value="JSON.stringify(household)">
+  </div>
+
+  <div class="field-group">
+    <label class="field-label">Where is your set up? / Where did you sleep last night?</label>
+    <input type="text" name="sleptWhere" value="{{.SleptWhere}}" class="field-input">
+  </div>
+
+  <div class="field-group {{if .Errors.race}}has-error{{end}}">
+    <label class="field-label">What is your race? You can select more than one. <span class="field-required">*</span></label>
+    <div class="checkbox-grid">
+      {{range raceList}}
+      <label class="checkbox-item"><input type="checkbox" name="race" value="{{index . 0}}" {{if index $.Race (index . 0)}}checked{{end}} class="checkbox-input">{{index . 1}}</label>
+      {{end}}
+    </div>
+    <input type="text" name="raceOther" value="{{.RaceOther}}" placeholder="If Other, please specify" class="field-input field-input-other">
+    {{if .Errors.race}}<div class="field-error">Please select at least one.</div>{{end}}
+  </div>
+
+  <div class="field-group {{if .Errors.sexAtBirth}}has-error{{end}}">
+    <label class="field-label">What was your sex assigned at birth? <span class="field-required">*</span></label>
+    <div class="radio-row">
+      <label class="radio-item"><input type="radio" name="sexAtBirth" value="male" {{if eq .SexAtBirth "male"}}checked{{end}} class="radio-input">Male</label>
+      <label class="radio-item"><input type="radio" name="sexAtBirth" value="female" {{if eq .SexAtBirth "female"}}checked{{end}} class="radio-input">Female</label>
+    </div>
+    {{if .Errors.sexAtBirth}}<div class="field-error">Please select one.</div>{{end}}
+  </div>
+
+  <div class="field-group {{if .Errors.servedMilitary}}has-error{{end}}">
+    <label class="field-label">Have you ever served in the U.S. Armed Forces? <span class="field-required">*</span></label>
+    <div class="radio-row radio-row-wrap">
+      <label class="radio-item"><input type="radio" name="servedMilitary" value="yes" x-model="served" class="radio-input">Yes</label>
+      <input type="text" name="militaryDetail" value="{{.MilitaryDetail}}" placeholder="DOD# or branch" class="field-input field-input-inline" x-show="served === 'yes'">
+      <label class="radio-item"><input type="radio" name="servedMilitary" value="no" x-model="served" class="radio-input">No</label>
+    </div>
+    {{if .Errors.servedMilitary}}<div class="field-error">Please select one.</div>{{end}}
+  </div>
+
+  <div class="field-group {{if .Errors.hasPets}}has-error{{end}}">
+    <label class="field-label">Do you have any pets? <span class="field-required">*</span></label>
+    <div class="radio-row">
+      <label class="radio-item"><input type="radio" name="hasPets" value="yes" x-model="pets" class="radio-input">Yes</label>
+      <label class="radio-item"><input type="radio" name="hasPets" value="no" x-model="pets" class="radio-input">No</label>
+    </div>
+    <div class="sub-panel sub-panel-stack" x-show="pets === 'yes'">
+      <div>
+        <div class="field-label">Is it an emotional support or service animal?</div>
+        <div class="radio-row">
+          <label class="radio-item"><input type="radio" name="petSupport" value="yes" {{if eq .PetSupport "yes"}}checked{{end}} class="radio-input">Yes</label>
+          <label class="radio-item"><input type="radio" name="petSupport" value="no" {{if eq .PetSupport "no"}}checked{{end}} class="radio-input">No</label>
+          <label class="radio-item"><input type="radio" name="petSupport" value="unknown" {{if eq .PetSupport "unknown"}}checked{{end}} class="radio-input">Unknown</label>
+        </div>
+      </div>
+      <div>
+        <div class="field-label">Has owning a pet prevented you from entering a shelter and/or permanent housing?</div>
+        <div class="radio-row">
+          <label class="radio-item"><input type="radio" name="petPrevented" value="yes" {{if eq .PetPrevented "yes"}}checked{{end}} class="radio-input">Yes</label>
+          <label class="radio-item"><input type="radio" name="petPrevented" value="no" {{if eq .PetPrevented "no"}}checked{{end}} class="radio-input">No</label>
+          <label class="radio-item"><input type="radio" name="petPrevented" value="unknown" {{if eq .PetPrevented "unknown"}}checked{{end}} class="radio-input">Unknown</label>
+        </div>
+      </div>
+    </div>
+    {{if .Errors.hasPets}}<div class="field-error">Please select one.</div>{{end}}
+  </div>
+
+  <div class="field-group {{if .Errors.employment}}has-error{{end}}">
+    <label class="field-label">Are you currently? <span class="field-required">*</span></label>
+    <div class="radio-row radio-row-wrap">
+      <label class="radio-item"><input type="radio" name="employment" value="employed" x-model="emp" class="radio-input">Employed</label>
+      <label class="radio-item"><input type="radio" name="employment" value="unemployed" x-model="emp" class="radio-input">Unemployed</label>
+      <label class="radio-item"><input type="radio" name="employment" value="retired" x-model="emp" class="radio-input">Retired</label>
+      <label class="radio-item"><input type="radio" name="employment" value="student" x-model="emp" class="radio-input">Student</label>
+    </div>
+    <div class="sub-panel sub-panel-divider" x-show="emp === 'unemployed'">
+      <div>
+        <div class="field-label">If unemployed:</div>
+        <div class="radio-row radio-row-wrap">
+          <label class="radio-item"><input type="radio" name="unemployedDuration" value="less" {{if eq .UnemployedDuration "less"}}checked{{end}} class="radio-input">For less than a year</label>
+          <label class="radio-item"><input type="radio" name="unemployedDuration" value="more" {{if eq .UnemployedDuration "more"}}checked{{end}} class="radio-input">For more than a year</label>
+          <label class="radio-item"><input type="radio" name="unemployedDuration" value="unable" {{if eq .UnemployedDuration "unable"}}checked{{end}} class="radio-input">Unable to work</label>
+        </div>
+      </div>
+      <div>
+        <div class="field-label">Are you interested in becoming employed?</div>
+        <div class="radio-row">
+          <label class="radio-item"><input type="radio" name="interestedEmployed" value="yes" x-model="interested" class="radio-input">Yes</label>
+          <label class="radio-item"><input type="radio" name="interestedEmployed" value="no" x-model="interested" class="radio-input">No</label>
+          <label class="radio-item"><input type="radio" name="interestedEmployed" value="unknown" x-model="interested" class="radio-input">Unknown</label>
+        </div>
+      </div>
+      <div x-show="interested === 'yes'">
+        <label class="field-label">Please list the types of jobs:</label>
+        <input type="text" name="jobTypes" value="{{.JobTypes}}" class="field-input">
+      </div>
+    </div>
+    {{if .Errors.employment}}<div class="field-error">Please select one.</div>{{end}}
+  </div>
+
+  <button type="submit" class="section-save-btn noscript-only" data-no-print>Save section 01</button>
+</form>
+{{end}}
+
+{{define "section-02"}}
+<form id="sec-02" class="r3-card" hx-post="/section/02" hx-target="#sec-02" hx-swap="none" hx-trigger="change delay:300ms, submit">
+  <input type="hidden" name="id" value="{{.ID}}">
+  <div class="section-eyebrow">02 — Medical History</div>
+  <h2 class="section-title">Health &amp; safety</h2>
+
+  <div class="field-group {{if .Errors.mentalHealth}}has-error{{end}}">
+    <label class="field-label">Do you have a mental health disability that limits your ability to work or perform activities of daily life? <span class="field-required">*</span></label>
+    <div class="radio-row">
+      <label class="radio-item"><input type="radio" name="mentalHealth" value="yes" {{if eq .MentalHealth "yes"}}checked{{end}} class="radio-input">Yes</label>
+      <label class="radio-item"><input type="radio" name="mentalHealth" value="no" {{if eq .MentalHealth "no"}}checked{{end}} class="radio-input">No</label>
+      <label class="radio-item"><input type="radio" name="mentalHealth" value="unknown" {{if eq .MentalHealth "unknown"}}checked{{end}} class="radio-input">Unknown</label>
+    </div>
+    {{if .Errors.mentalHealth}}<div class="field-error">Please select one.</div>{{end}}
+  </div>
+
+  <div class="field-group {{if .Errors.substanceUse}}has-error{{end}}">
+    <label class="field-label">Does alcohol or drug use limit your ability to work or perform activities of daily life? <span class="field-required">*</span></label>
+    <div class="radio-row">
+      <label class="radio-item"><input type="radio" name="substanceUse" value="yes" {{if eq .SubstanceUse "yes"}}checked{{end}} class="radio-input">Yes</label>
+      <label class="radio-item"><input type="radio" name="substanceUse" value="no" {{if eq .SubstanceUse "no"}}checked{{end}} class="radio-input">No</label>
+      <label class="radio-item"><input type="radio" name="substanceUse" value="unknown" {{if eq .SubstanceUse "unknown"}}checked{{end}} class="radio-input">Unknown</label>
+    </div>
+    {{if .Errors.substanceUse}}<div class="field-error">Please select one.</div>{{end}}
+  </div>
+
+  <div class="field-group {{if .Errors.fleeingViolence}}has-error{{end}}">
+    <label class="field-label">Are you experiencing homelessness because you are currently fleeing domestic violence, dating violence, sexual assault, or stalking? <span class="field-required">*</span></label>
+    <div class="radio-row">
+      <label class="radio-item"><input type="radio" name="fleeingViolence" value="yes" {{if eq .FleeingViolence "yes"}}checked{{end}} class="radio-input">Yes</label>
+      <label class="radio-item"><input type="radio" name="fleeingViolence" value="no" {{if eq .FleeingViolence "no"}}checked{{end}} class="radio-input">No</label>
+      <label class="radio-item"><input type="radio" name="fleeingViolence" value="unknown" {{if eq .FleeingViolence "unknown"}}checked{{end}} class="radio-input">Unknown</label>
+    </div>
+    {{if .Errors.fleeingViolence}}<div class="field-error">Please select one.</div>{{end}}
+  </div>
+
+  <div class="field-group">
+    <label class="field-label">What are the primary factors that led you to become homeless (this time)?</label>
+    <textarea name="homelessFactors" rows="3" class="field-input textarea">{{.HomelessFactors}}</textarea>
+  </div>
+
+  <button type="submit" class="section-save-btn noscript-only" data-no-print>Save section 02</button>
+</form>
+{{end}}
+
+{{define "section-03"}}
+<form id="sec-03" class="r3-card" hx-post="/section/03" hx-target="#sec-03" hx-swap="none" hx-trigger="change delay:300ms, submit"
+      x-data="{ hmis: {{.HMIS}} }">
+  <input type="hidden" name="id" value="{{.ID}}">
+  <div class="section-eyebrow">03 — Homeless Verification</div>
+  <h2 class="section-title">Documentation on file</h2>
+
+  <div class="field-group">
+    <label class="checkbox-item checkbox-item-lg">
+      <input type="checkbox" name="hmis" x-model="hmis" class="checkbox-input">
+      <span>Added to HMIS system</span>
+    </label>
+    <input type="text" name="hmisProvider" value="{{.HMISProvider}}" placeholder="Provider" class="field-input field-input-provider" x-show="hmis">
+  </div>
+
+  <div class="field-group">
+    <label class="field-label">Case manager</label>
+    <input type="text" name="casemanagerName" value="{{.CasemanagerName}}" placeholder="Select or type a name" class="field-input" list="case-manager-list">
+    <datalist id="case-manager-list">
+      {{range .CaseManagers}}<option value="{{.Name}}">{{end}}
+    </datalist>
+  </div>
+
+  <div class="grid-2 grid-docs">
+    <div>
+      <div class="field-label">Documents</div>
+      <div class="checkbox-stack">
+        {{range docList}}
+        <label class="checkbox-item"><input type="checkbox" name="documents" value="{{index . 0}}" {{if index $.Documents (index . 0)}}checked{{end}} class="checkbox-input">{{index . 1}}</label>
+        {{end}}
+        <input type="text" name="healthInsuranceDetail" value="{{.HealthInsuranceDetail}}" placeholder="Health insurance provider" class="field-input field-input-sm">
+      </div>
+    </div>
+    <div>
+      <div class="field-label">Housing</div>
+      <div class="checkbox-stack">
+        {{range housingList}}
+        <label class="checkbox-item"><input type="checkbox" name="housing" value="{{index . 0}}" {{if index $.Housing (index . 0)}}checked{{end}} class="checkbox-input">{{index . 1}}</label>
+        {{end}}
+      </div>
+      <div class="field-label">Income</div>
+      <div class="checkbox-stack">
+        {{range incomeList}}
+        <label class="checkbox-item"><input type="checkbox" name="income" value="{{index . 0}}" {{if index $.Income (index . 0)}}checked{{end}} class="checkbox-input">{{index . 1}}</label>
+        {{end}}
+      </div>
+    </div>
+  </div>
+
+  <button type="submit" class="section-save-btn noscript-only" data-no-print>Save section 03</button>
+</form>
+{{end}}
+
+{{define "section-04"}}
+<form id="sec-04" class="r3-card" hx-post="/section/04" hx-target="#sec-04" hx-swap="none" hx-trigger="change delay:300ms, submit">
+  <input type="hidden" name="id" value="{{.ID}}">
+  <div class="section-eyebrow">04 — Personal</div>
+  <h2 class="section-title">In their own words</h2>
+
+  <div class="personal-stack">
+    {{range $i, $q := personalQ}}
+    <div class="field-group">
+      <label class="field-label field-label-strong">{{add1 $i}}. {{$q}}</label>
+      <textarea name="personal_{{$i}}" rows="2" class="field-input textarea textarea-sm">{{index $.Personal $i}}</textarea>
+    </div>
+    {{end}}
+  </div>
+
+  <button type="submit" class="section-save-btn noscript-only" data-no-print>Save section 04</button>
+</form>
+{{end}}
+
+{{define "section-05"}}
+<form id="sec-05" class="r3-card" hx-post="/section/05" hx-target="#sec-05" hx-swap="none" hx-trigger="change delay:300ms, submit">
+  <input type="hidden" name="id" value="{{.ID}}">
+  <div class="section-eyebrow">05 — Service Plan</div>
+  <h2 class="section-title">Next steps</h2>
+
+  <div class="service-stack">
+    {{range $i, $v := .ServicePlan}}
+    <div class="service-row">
+      <div class="service-num">{{add1 $i}}.</div>
+      <input type="text" name="servicePlan_{{$i}}" value="{{$v}}" class="field-input">
+    </div>
+    {{end}}
+  </div>
+
+  <button type="submit" class="section-save-btn noscript-only" data-no-print>Save section 05</button>
+</form>
+{{end}}
+
+{{define "login"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R3 Intake — Sign in</title>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css?v=3">
+</head>
+<body>
+<div class="page-bg">
+  <div class="container container-narrow">
+    <div class="r3-card r3-card-center">
+      <div class="brand brand-center">
+        <div class="brand-badge">R3</div>
+        <div>
+          <div class="brand-title">Restore, Reconnect, Revive</div>
+          <div class="brand-sub">Case manager / admin sign in</div>
+        </div>
+      </div>
+      {{if .Error}}<div class="alert alert-incomplete">{{.Error}}</div>{{end}}
+      <form method="post" action="/login" class="login-form">
+        <input type="hidden" name="next" value="{{.Next}}">
+        <div class="field-group">
+          <label class="field-label">Email</label>
+          <input type="email" name="email" required class="field-input">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Password</label>
+          <input type="password" name="password" required class="field-input">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+      </form>
+      <p class="login-hint">Participants do not need to sign in — use the <a href="/">public intake form</a>.</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>{{end}}
+
+{{define "list"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R3 Intake — Records</title>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css?v=3">
+</head>
+<body>
+<div class="page-bg">
+  <div class="topbar topbar-admin" data-no-print>
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-badge">R3</div>
+        <div>
+          <div class="brand-title">Restore, Reconnect, Revive</div>
+          <div class="brand-sub">Records — {{.UserName}} ({{.Role}})</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/public/intake" class="btn btn-primary">New Intake</a>
+        {{if .IsAdmin}}<a href="/admin" class="btn btn-ghost">Admin</a>{{end}}
+        <a href="/logout" class="btn btn-ghost">Sign out</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container container-admin">
+    <h2 class="section-title section-title-sm">Intake records</h2>
+    <form method="get" action="/" class="inline-form">
+      <input type="text" name="q" value="{{.Query}}" placeholder="Search name, email, phone" class="field-input">
+      <select name="status" class="field-input">
+        <option value="">All statuses</option>
+        <option value="unassigned"{{if eq .StatusFilter "unassigned"}} selected{{end}}>Unassigned</option>
+        <option value="claimed"{{if eq .StatusFilter "claimed"}} selected{{end}}>Claimed</option>
+        <option value="completed"{{if eq .StatusFilter "completed"}} selected{{end}}>Completed</option>
+      </select>
+      <select name="site" class="field-input">
+        <option value="">All sites</option>
+        {{range .Sites}}<option value="{{.ID}}"{{if eq $.SiteFilter .ID}} selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+      <button type="submit" class="btn btn-primary">Filter</button>
+      {{if or .Query .StatusFilter .SiteFilter}}<a href="/" class="btn btn-ghost">Clear</a>{{end}}
+    </form>
+    <p class="admin-result-count">Showing {{.Total}} record{{if ne .Total 1}}s{{end}}{{if .Query}} matching "{{.Query}}"{{end}}</p>
+    {{if .IsAdmin}}<form id="bulk-delete-form" method="post" action="/admin/intake/bulk-delete"></form>
+    <div class="bulk-bar"><button type="submit" form="bulk-delete-form" class="btn btn-tiny btn-danger" onclick="return confirm('Delete '+document.querySelectorAll('.bulk-check:checked').length+' selected records?')">Delete selected</button></div>{{end}}
+    <table class="admin-table">
+      <thead><tr>{{if .IsAdmin}}<th style="width:28px"><input type="checkbox" title="Select all" onclick="document.querySelectorAll('.bulk-check').forEach(c=>c.checked=this.checked)"></th>{{end}}<th>Participant</th><th>SSN</th><th>Site</th><th>Status</th><th>Assigned</th><th>Created</th><th></th></tr></thead>
+      <tbody>
+      {{range .Rows}}
+        <tr>
+          {{if $.IsAdmin}}<td><input type="checkbox" name="ids" value="{{.ID}}" form="bulk-delete-form" class="bulk-check"></td>{{end}}
+          <td><a href="/intake/{{.ID}}" class="admin-link">{{if .Name}}{{.Name}}{{else}}(unnamed){{end}}</a></td>
+          <td class="mono">{{.SSNMasked}}</td>
+          <td>{{.SiteName}}</td>
+          <td><span class="status-badge status-{{.Status}}">{{.Status}}</span></td>
+          <td>{{.AssignedName}}</td>
+          <td class="mono">{{formatTime .Created}}</td>
+          <td class="admin-actions">
+            <a href="/intake/{{.ID}}" class="btn btn-tiny btn-primary">Edit</a>
+            <a href="/notes/{{.ID}}" class="btn btn-tiny">Notes</a>
+            {{if eq .Status "unassigned"}}<form method="post" action="/admin/intake/{{.ID}}/claim"><button class="btn btn-tiny" type="submit">Claim</button></form>{{end}}
+            {{if ne .Status "completed"}}<form method="post" action="/admin/intake/{{.ID}}/complete"><button class="btn btn-tiny" type="submit">Complete</button></form>{{end}}
+            {{if $.IsAdmin}}<form method="post" action="/admin/intake/{{.ID}}/delete" onsubmit="return confirm('Delete this intake?')"><button class="btn btn-tiny btn-danger" type="submit">Delete</button></form>{{end}}
+          </td>
+        </tr>
+      {{end}}
+      {{if not .Rows}}<tr><td colspan="{{if .IsAdmin}}8{{else}}7{{end}}" class="empty-state">{{if or .Query .StatusFilter .SiteFilter}}No records match your search.{{else}}No intake records yet.{{end}}</td></tr>{{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>{{end}}
+
+{{define "admin"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R3 Intake — Admin Settings</title>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css?v=3">
+</head>
+<body>
+<div class="page-bg">
+  <div class="topbar topbar-admin" data-no-print>
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-badge">R3</div>
+        <div>
+          <div class="brand-title">Restore, Reconnect, Revive</div>
+          <div class="brand-sub">Admin settings — {{.UserName}} ({{.Role}})</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/" class="btn btn-ghost">Back to List</a>
+        <a href="/logout" class="btn btn-ghost">Sign out</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container container-admin">
+    <div class="accordion">
+      <button type="button" class="accordion-header" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'false' ? 'true' : 'false'); this.parentElement.classList.toggle('open')">
+        <span class="accordion-title">Sites</span>
+        <svg class="accordion-icon" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M6 8.5L1 3.5h10z" fill="currentColor"/></svg>
+      </button>
+      <div class="accordion-body">
+        <table class="admin-table">
+          <thead><tr><th>Name</th><th>Address</th><th>Active</th><th>Default</th><th>Order</th>{{if .IsAdmin}}<th></th>{{end}}</tr></thead>
+          <tbody>
+          {{range .Sites}}
+            <tr>
+              <td>{{.Name}}</td>
+              <td>{{.Address}}</td>
+              <td>{{if .Active}}Yes{{else}}No{{end}}</td>
+              <td>{{if .Default}}Yes{{else}}No{{end}}</td>
+              <td>{{.SortOrder}}</td>
+              {{if $.IsAdmin}}<td>
+                <form method="post" action="/admin/sites/{{.ID}}/default" style="display:inline">
+                  <button class="btn btn-tiny" type="submit" {{if .Default}}disabled{{end}}>Set Default</button>
+                </form>
+                <form method="post" action="/admin/sites/{{.ID}}/toggle" style="display:inline">
+                  <button class="btn btn-tiny" type="submit">{{if .Active}}Deactivate{{else}}Activate{{end}}</button>
+                </form>
+              </td>{{end}}
+            </tr>
+          {{end}}
+          </tbody>
+        </table>
+
+        {{if .IsAdmin}}
+        <form method="post" action="/admin/sites" class="inline-form">
+          <input type="text" name="name" placeholder="Site name" required class="field-input">
+          <input type="text" name="address" placeholder="Address" class="field-input">
+          <button type="submit" class="btn btn-primary">Add site</button>
+        </form>
+        {{end}}
+      </div>
+    </div>
+
+    {{if .IsAdmin}}
+    <div class="accordion">
+      <button type="button" class="accordion-header" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'false' ? 'true' : 'false'); this.parentElement.classList.toggle('open')">
+        <span class="accordion-title">Users</span>
+        <svg class="accordion-icon" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M6 8.5L1 3.5h10z" fill="currentColor"/></svg>
+      </button>
+      <div class="accordion-body">
+        <table class="admin-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
+          <tbody>
+          {{range .Users}}
+          <tr>
+            <td>{{.Name}}</td>
+            <td>{{.Email}}</td>
+            <td>{{.Role}}</td>
+            <td>
+              <button type="button" class="btn btn-tiny" onclick="document.getElementById('edit-user-{{.ID}}').style.display=document.getElementById('edit-user-{{.ID}}').style.display==='none'?'table-row':'none'">Edit</button>
+            </td>
+          </tr>
+          <tr id="edit-user-{{.ID}}" style="display:none">
+            <td colspan="4">
+              <form method="post" action="/admin/users/{{.ID}}/update" class="inline-form">
+                <input type="text" name="name" value="{{.Name}}" placeholder="Full name" class="field-input">
+                <input type="email" name="email" value="{{.Email}}" placeholder="Email" class="field-input">
+                <input type="password" name="password" placeholder="New password (leave blank to keep)" class="field-input">
+                <select name="role" class="field-input">
+                  <option value="case_manager"{{if eq .Role "case_manager"}} selected{{end}}>case_manager</option>
+                  <option value="intake"{{if eq .Role "intake"}} selected{{end}}>intake</option>
+                  <option value="admin"{{if eq .Role "admin"}} selected{{end}}>admin</option>
+                </select>
+                <button type="submit" class="btn btn-primary">Save</button>
+              </form>
+            </td>
+          </tr>
+          {{end}}
+          </tbody>
+        </table>
+        <form method="post" action="/admin/users" class="inline-form">
+          <input type="text" name="name" placeholder="Full name" required class="field-input">
+          <input type="email" name="email" placeholder="Email" required class="field-input">
+          <input type="password" name="password" placeholder="Password (≥8 chars)" required class="field-input">
+          <select name="role" class="field-input">
+            <option value="case_manager">case_manager</option>
+            <option value="intake">intake</option>
+            <option value="admin">admin</option>
+          </select>
+          <button type="submit" class="btn btn-primary">Add user</button>
+        </form>
+      </div>
+    </div>
+    {{end}}
+  </div>
+</div>
+</body>
+</html>{{end}}
+
+{{define "notes"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R3 Intake — Notes</title>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0;500;0,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css?v=3">
+</head>
+<body>
+<div class="page-bg">
+  <div class="topbar topbar-admin" data-no-print>
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-badge">R3</div>
+        <div>
+          <div class="brand-title">Restore, Reconnect, Revive</div>
+          <div class="brand-sub">Notes — {{.UserName}} ({{.Role}})</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/intake/{{.IntakeID}}" class="btn btn-ghost">Intake Form</a>
+        <a href="/" class="btn btn-ghost">View All</a>
+        <a href="/logout" class="btn btn-ghost">Sign out</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container container-admin">
+    <h2 class="section-title section-title-sm">Notes{{if .IntakeName}} — {{.IntakeName}}{{end}}</h2>
+
+    <form method="post" action="{{if .EditNoteID}}/notes/{{.IntakeID}}/{{.EditNoteID}}/edit{{else}}/notes/{{.IntakeID}}{{end}}" class="r3-card note-form">
+      <div class="field-group">
+        <label class="field-label" for="note-author">Author</label>
+        <select id="note-author" name="author" class="field-input">
+          {{range .Authors}}<option value="{{.ID}}"{{if eq $.AuthorSel .ID}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="note-date">Date</label>
+        <input type="date" id="note-date" name="date" value="{{if .EditNoteID}}{{.EditDate}}{{else}}{{.Today}}{{end}}" class="field-input">
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="note-body">Notes</label>
+        <textarea id="note-body" name="body" class="field-input note-body" rows="6" placeholder="Write the note...">{{if .EditNoteID}}{{.EditBody}}{{end}}</textarea>
+      </div>
+      {{if .Error}}<div class="alert alert-incomplete">{{.Error}}</div>{{end}}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{if .EditNoteID}}Save Note{{else}}Add Note{{end}}</button>
+        {{if .EditNoteID}}<a href="/notes/{{.IntakeID}}" class="btn btn-ghost">Cancel</a>{{end}}
+      </div>
+    </form>
+
+    <div class="notes-list">
+      {{range .Notes}}
+      <div class="r3-card note-card">
+        <div class="note-meta">
+          <span class="note-author">{{.AuthorLabel}}</span>
+          <span class="note-date mono">{{if .Date}}{{.Date}}{{end}}</span>
+          <span class="note-created mono">{{.Created}}</span>
+          <span class="note-actions">
+            <a href="/notes/{{$.IntakeID}}/{{.ID}}/edit" class="btn btn-tiny">Edit</a>
+            <a href="/notes/{{$.IntakeID}}/{{.ID}}/history" class="btn btn-tiny">History</a>
+            <form method="post" action="/notes/{{$.IntakeID}}/{{.ID}}/delete" onsubmit="return confirm('Delete this note?')" class="note-inline-form">
+              <button type="submit" class="btn btn-tiny btn-danger">Delete</button>
+            </form>
+          </span>
+        </div>
+        <div class="note-body">{{.Body}}</div>
+      </div>
+      {{end}}
+      {{if not .Notes}}<p class="empty-state">No notes yet.</p>{{end}}
+    </div>
+  </div>
+</div>
+</body>
+</html>{{end}}
+
+{{define "note-history"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R3 Intake — Note History</title>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css?v=3">
+</head>
+<body>
+<div class="page-bg">
+  <div class="topbar topbar-admin" data-no-print>
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-badge">R3</div>
+        <div>
+          <div class="brand-title">Restore, Reconnect, Revive</div>
+          <div class="brand-sub">Note History — {{.UserName}} ({{.Role}})</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/notes/{{.IntakeID}}" class="btn btn-ghost">Back to Notes</a>
+        <a href="/" class="btn btn-ghost">View All</a>
+        <a href="/logout" class="btn btn-ghost">Sign out</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container container-admin">
+    <h2 class="section-title section-title-sm">Note History{{if .IntakeName}} — {{.IntakeName}}{{end}}</h2>
+
+    <div class="r3-card note-card">
+      <div class="note-meta">
+        <span class="note-author">Current note</span>
+      </div>
+      <div class="note-body">{{.NoteBody}}</div>
+    </div>
+
+    <div class="notes-list">
+      {{range .Entries}}
+      <div class="r3-card note-card note-change-entry">
+        <div class="note-meta">
+          <span class="note-author">{{.UserLabel}}</span>
+          <span class="note-action-badge action-{{.Action}}">{{.Action}}</span>
+          <span class="note-created mono">{{.Created}}</span>
+        </div>
+        {{if .ChangeFrom}}<div class="change-field"><span class="change-label">From:</span> <span class="change-value">{{.ChangeFrom}}</span></div>{{end}}
+        {{if .ChangeTo}}<div class="change-field"><span class="change-label">To:</span> <span class="change-value">{{.ChangeTo}}</span></div>{{end}}
+      </div>
+      {{end}}
+      {{if not .Entries}}<p class="empty-state">No change history.</p>{{end}}
+    </div>
+  </div>
+</div>
+</body>
+</html>{{end}}

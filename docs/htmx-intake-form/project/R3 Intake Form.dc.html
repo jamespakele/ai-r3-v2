@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  a{color:#8a3c20;}
+  a:hover{color:#b5502e;}
+  ::placeholder{color:#a99c8b;}
+  @media print{
+    [data-no-print]{display:none !important;}
+    .r3-card{box-shadow:none !important;break-inside:avoid;border:1px solid #cfc3b0 !important;}
+    body{background:#fff !important;}
+  }
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#f7f1e6;font-family:'Public Sans',sans-serif;color:#2b2320;">
+
+  <div data-no-print style="position:sticky;top:0;z-index:10;background:#fffdfa;border-bottom:1px solid #e4d9c8;">
+    <div style="max-width:760px;margin:0 auto;padding:14px 24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:34px;height:34px;border-radius:50%;background:#b5502e;color:#fffdfa;display:flex;align-items:center;justify-content:center;font:700 13px 'Public Sans',sans-serif;flex:none;">R3</div>
+          <div>
+            <div style="font:600 14px/1.2 'Public Sans',sans-serif;">Restore, Revive, Reconnect</div>
+            <div style="font:400 12px/1.2 'Public Sans',sans-serif;color:#6b5f52;">Intake Forms — Personal Profile / Service Plan</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font:400 12px 'Public Sans',sans-serif;color:#6b5f52;">{{ savedLabel }}</span>
+          <button onClick="{{ printForm }}" style="border:1px solid #d9cbb6;background:#fff;color:#2b2320;padding:8px 14px;border-radius:8px;font:600 13px 'Public Sans',sans-serif;cursor:pointer;">Print / Save PDF</button>
+        </div>
+      </div>
+      <sc-if value="{{ showProgressBar }}" hint-placeholder-val="{{ true }}">
+        <div style="margin-top:10px;">
+          <div style="display:flex;justify-content:space-between;font:600 11px 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:4px;">
+            <span>Form progress</span><span>{{ progressPercent }}%</span>
+          </div>
+          <div style="height:6px;background:#eee3d2;border-radius:4px;overflow:hidden;">
+            <div style="{{ progressBarStyle }}"></div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+
+  <div style="max-width:760px;margin:0 auto;padding:28px 24px 80px;">
+
+    <p style="font:400 15px/1.6 'Public Sans',sans-serif;color:#4a3f37;margin:0 0 24px;">
+      This intake form gathers the information R3 case managers use to build a Personal Profile and Service Plan.
+      Fill it out together with a participant, or have a participant complete it themselves — everything saves
+      automatically in this browser as you go.
+    </p>
+
+    <div class="r3-card" style="background:#fffdfa;border:1px solid #e4d9c8;border-radius:14px;padding:28px 30px;margin-bottom:24px;box-shadow:0 1px 2px rgba(43,35,32,0.04);">
+      <div style="font:600 12px/1 'Public Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#b5502e;margin:0 0 6px;">01 — Personal Profile</div>
+      <div style="font:600 24px/1.2 'Lora',serif;color:#2b2320;margin:0 0 20px;">Who we're meeting</div>
+
+      <div id="field-site" style="{{ siteGroupStyle }}margin-bottom:18px;">
+        <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:8px;">R3 Site Location <span style="color:#b5502e;">*</span></label>
+        <div style="display:flex;gap:24px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="site" checked="{{ siteKapolei }}" onChange="{{ selectSiteKapolei }}" style="width:18px;height:18px;accent-color:#b5502e;cursor:pointer;"/>Kapolei Library
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="site" checked="{{ siteParadise }}" onChange="{{ selectSiteParadise }}" style="width:18px;height:18px;accent-color:#b5502e;cursor:pointer;"/>Paradise Chapel of the Assemblies of God
+          </label>
+        </div>
+        <sc-if value="{{ errors.site }}" hint-placeholder-val="{{ false }}"><div style="color:#b3261e;font-size:13px;margin-top:6px;">Please select a site.</div></sc-if>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div id="field-name" style="grid-column:1 / -1;">
+          <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">Name <span style="color:#b5502e;">*</span></label>
+          <input type="text" value="{{ name }}" onChange="{{ setName }}" placeholder="Full name" style="{{ nameStyle }}"/>
+          <sc-if value="{{ errors.name }}" hint-placeholder-val="{{ false }}"><div style="color:#b3261e;font-size:13px;margin-top:4px;">Name is required.</div></sc-if>
+        </div>
+        <div id="field-dob">
+          <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">Date of Birth <span style="color:#b5502e;">*</span></label>
+          <input type="date" value="{{ dob }}" onChange="{{ setDob }}" style="{{ dobStyle }}"/>
+          <sc-if value="{{ errors.dob }}" hint-placeholder-val="{{ false }}"><div style="color:#b3261e;font-size:13px;margin-top:4px;">Date of birth is required.</div></sc-if>
+        </div>
+        <div>
+          <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">SSN</label>
+          <input type="text" inputmode="numeric" maxlength="11" value="{{ ssn }}" onChange="{{ setSsn }}" placeholder="XXX-XX-XXXX" style="width:100%;padding:10px 12px;border:1px solid #ddd2c4;border-radius:8px;font:15px/1.4 'Public Sans',sans-serif;color:#2b2320;background:#fffdf9;box-sizing:border-box;"/>
+        </div>
+        <div id="field-contact">
+          <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">Contact # <span style="color:#b5502e;">*</span></label>
+          <input type="tel" value="{{ contact }}" onChange="{{ setContact }}" placeholder="(808) 555-0100" style="{{ contactStyle }}"/>
+          <sc-if value="{{ errors.contact }}" hint-placeholder-val="{{ false }}"><div style="color:#b3261e;font-size:13px;margin-top:4px;">Contact number is required.</div></sc-if>
+        </div>
+        <div>
+          <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">Email</label>
+          <input type="email" value="{{ email }}" onChange="{{ setEmail }}" placeholder="name@example.com" style="width:100%;padding:10px 12px;border:1px solid #ddd2c4;border-radius:8px;font:15px/1.4 'Public Sans',sans-serif;color:#2b2320;background:#fffdf9;box-sizing:border-box;"/>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:8px;">Are you living alone or with others?</label>
+        <div style="display:flex;gap:24px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="livingWith" checked="{{ livingAlone }}" onChange="{{ selectLivingAlone }}" style="width:18px;height:18px;accent-color:#b5502e;"/>Alone
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="livingWith" checked="{{ livingOthers }}" onChange="{{ selectLivingOthers }}" style="width:18px;height:18px;accent-color:#b5502e;"/>With Others
+          </label>
+        </div>
+      </div>
+
+      <sc-if value="{{ livingOthers }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-bottom:16px;background:#f7f1e6;border:1px solid #e4d9c8;border-radius:10px;padding:14px 16px;">
+          <div style="font:600 13px 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:10px;">Household members</div>
+          <sc-for list="{{ householdRows }}" as="row" hint-placeholder-count="1">
+            <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-bottom:8px;align-items:center;">
+              <input type="text" value="{{ row.name }}" onChange="{{ row.onNameChange }}" placeholder="Full name" style="padding:8px 10px;border:1px solid #ddd2c4;border-radius:7px;font:14px 'Public Sans',sans-serif;background:#fffdf9;"/>
+              <input type="text" value="{{ row.relationship }}" onChange="{{ row.onRelChange }}" placeholder="Relationship" style="padding:8px 10px;border:1px solid #ddd2c4;border-radius:7px;font:14px 'Public Sans',sans-serif;background:#fffdf9;"/>
+              <sc-if value="{{ row.showRemove }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ row.onRemove }}" data-no-print="" style="border:none;background:none;color:#b3261e;cursor:pointer;font:13px 'Public Sans',sans-serif;">Remove</button>
+              </sc-if>
+            </div>
+          </sc-for>
+          <button onClick="{{ addHousehold }}" data-no-print="" style="border:1px dashed #c9bba5;background:none;color:#8a3c20;cursor:pointer;font:600 13px 'Public Sans',sans-serif;padding:6px 12px;border-radius:7px;">+ Add another person</button>
+        </div>
+      </sc-if>
+
+      <div style="margin-bottom:20px;">
+        <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">Where is your set up? / Where did you sleep last night?</label>
+        <input type="text" value="{{ sleptWhere }}" onChange="{{ setSleptWhere }}" style="width:100%;padding:10px 12px;border:1px solid #ddd2c4;border-radius:8px;font:15px/1.4 'Public Sans',sans-serif;color:#2b2320;background:#fffdf9;box-sizing:border-box;"/>
+      </div>
+
+      <div id="field-race" style="{{ raceGroupStyle }}margin-bottom:18px;">
+        <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:8px;">What is your race? You can select more than one. <span style="color:#b5502e;">*</span></label>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 16px;">
+          <sc-for list="{{ raceItems }}" as="opt" hint-placeholder-count="15">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font:14px 'Public Sans',sans-serif;">
+              <input type="checkbox" checked="{{ opt.checked }}" onChange="{{ opt.onToggle }}" style="width:17px;height:17px;accent-color:#b5502e;flex:none;"/>{{ opt.label }}
+            </label>
+          </sc-for>
+        </div>
+        <input type="text" value="{{ raceOther }}" onChange="{{ setRaceOther }}" placeholder="If Other, please specify" style="margin-top:10px;width:100%;max-width:320px;padding:8px 10px;border:1px solid #ddd2c4;border-radius:7px;font:14px 'Public Sans',sans-serif;background:#fffdf9;box-sizing:border-box;"/>
+        <sc-if value="{{ errors.race }}" hint-placeholder-val="{{ false }}"><div style="color:#b3261e;font-size:13px;margin-top:6px;">Please select at least one.</div></sc-if>
+      </div>
+
+      <div id="field-sexAtBirth" style="{{ sexGroupStyle }}margin-bottom:18px;">
+        <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:8px;">What was your sex assigned at birth? <span style="color:#b5502e;">*</span></label>
+        <div style="display:flex;gap:24px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="radio" name="sexAtBirth" checked="{{ sexMale }}" onChange="{{ selectSexMale }}" style="width:18px;height:18px;accent-color:#b5502e;"/>Male</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="radio" name="sexAtBirth" checked="{{ sexFemale }}" onChange="{{ selectSexFemale }}" style="width:18px;height:18px;accent-color:#b5502e;"/>Female</label>
+        </div>
+        <sc-if value="{{ errors.sexAtBirth }}" hint-placeholder-val="{{ false }}"><div style="color:#b3261e;font-size:13px;margin-top:6px;">Please select one.</div></sc-if>
+      </div>
+
+      <div id="field-servedMilitary" style="{{ servedGroupStyle }}margin-bottom:18px;">
+        <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:8px;">Have you ever served in the U.S. Armed Forces? <span style="color:#b5502e;">*</span></label>
+        <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="radio" name="servedMilitary" checked="{{ servedYes }}" onChange="{{ selectServedYes }}" style="width:18px;height:18px;accent-color:#b5502e;"/>Yes</label>
+          <sc-if value="{{ servedYes }}" hint-placeholder-val="{{ false }}">
+            <input type="text" value="{{ militaryDetail }}" onChange="{{ setMilitaryDetail }}" placeholder="DOD# or branch" style="padding:8px 10px;border:1px solid #ddd2c4;border-radius:7px;font:14px 'Public Sans',sans-serif;background:#fffdf9;"/>
+          </sc-if>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="radio" name="servedMilitary" checked="{{ servedNo }}" onChange="{{ selectServedNo }}" style="width:18px;height:18px;accent-color:#b5502e;"/>No</label>
+        </div>
+        <sc-if value="{{ errors.servedMilitary }}" hint-placeholder-val="{{ false }}"><div style="color:#b3261e;font-size:13px;margin-top:6px;">Please select one.</div></sc-if>
+      </div>
+
+      <div id="field-hasPets" style="{{ petsGroupStyle }}margin-bottom:18px;">
+        <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:8px;">Do you have any pets? <span style="color:#b5502e;">*</span></label>
+        <div style="display:flex;gap:24px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="radio" name="hasPets" checked="{{ petsYes }}" onChange="{{ selectPetsYes }}" style="width:18px;height:18px;accent-color:#b5502e;"/>Yes</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="radio" name="hasPets" checked="{{ petsNo }}" onChange="{{ selectPetsNo }}" style="width:18px;height:18px;accent-color:#b5502e;"/>No</label>
+        </div>
+        <sc-if value="{{ petsYes }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:12px;display:flex;flex-direction:column;gap:12px;">
+            <div>
+              <div style="font:600 13px 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">Is it an emotional support or service animal?</div>
+              <div style="display:flex;gap:16px;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="radio" name="petSupport" checked="{{ petSupportYes }}" onChange="{{ selectPetSupportYes }}" style="accent-color:#b5502e;"/>Yes</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="radio" name="petSupport" checked="{{ petSupportNo }}" onChange="{{ selectPetSupportNo }}" style="accent-color:#b5502e;"/>No</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="radio" name="petSupport" checked="{{ petSupportUnknown }}" onChange="{{ selectPetSupportUnknown }}" style="accent-color:#b5502e;"/>Unknown</label>
+              </div>
+            </div>
+            <div>
+              <div style="font:600 13px 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">Has owning a pet prevented you from entering a shelter and/or permanent housing?</div>
+              <div style="display:flex;gap:16px;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="radio" name="petPrevented" checked="{{ petPreventedYes }}" onChange="{{ selectPetPreventedYes }}" style="accent-color:#b5502e;"/>Yes</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="radio" name="petPrevented" checked="{{ petPreventedNo }}" onChange="{{ selectPetPreventedNo }}" style="accent-color:#b5502e;"/>No</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="radio" name="petPrevented" checked="{{ petPreventedUnknown }}" onChange="{{ selectPetPreventedUnknown }}" style="accent-color:#b5502e;"/>Unknown</label>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ errors.hasPets }}" hint-placeholder-val="{{ false }}"><div style="color:#b3261e;font-size:13px;margin-top:6px;">Please select one.</div></sc-if>
+      </div>
+
+      <div id="field-employment" style="{{ employmentGroupStyle }}">
+        <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:8px;">Are you currently? <span style="color:#b5502e;">*</span></label>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="radio" name="employment" checked="{{ empEmployed }}" onChange="{{ selectEmpEmployed }}" style="width:18px;height:18px;accent-color:#b5502e;"/>Employed</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="radio" name="employment" checked="{{ empUnemployed }}" onChange="{{ selectEmpUnemployed }}" style="width:18px;height:18px;accent-color:#b5502e;"/>Unemployed</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="radio" name="employment" checked="{{ empRetired }}" onChange="{{ selectEmpRetired }}" style="width:18px;height:18px;accent-color:#b5502e;"/>Retired</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="radio" name="employment" checked="{{ empStudent }}" onChange="{{ selectEmpStudent }}" style="width:18px;height:18px;accent-color:#b5502e;"/>Student</label>
+        </div>
+        <sc-if value="{{ empUnemployed }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:14px;padding-top:14px;border-top:1px dashed #e4d9c8;display:flex;flex-direction:column;gap:12px;">
+            <div>
+              <div style="font:600 13px 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">If unemployed:</div>
+              <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="radio" name="unemployedDuration" checked="{{ durLess }}" onChange="{{ selectDurLess }}" style="accent-color:#b5502e;"/>For less than a year</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="radio" name="unemployedDuration" checked="{{ durMore }}" onChange="{{ selectDurMore }}" style="accent-color:#b5502e;"/>For more than a year</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="radio" name="unemployedDuration" checked="{{ durUnable }}" onChange="{{ selectDurUnable }}" style="accent-color:#b5502e;"/>Unable to work</label>
+              </div>
+            </div>
+            <div>
+              <div style="font:600 13px 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">Are you interested in becoming employed?</div>
+              <div style="display:flex;gap:16px;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="radio" name="interestedEmployed" checked="{{ interestedYes }}" onChange="{{ selectInterestedYes }}" style="accent-color:#b5502e;"/>Yes</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="radio" name="interestedEmployed" checked="{{ interestedNo }}" onChange="{{ selectInterestedNo }}" style="accent-color:#b5502e;"/>No</label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="radio" name="interestedEmployed" checked="{{ interestedUnknown }}" onChange="{{ selectInterestedUnknown }}" style="accent-color:#b5502e;"/>Unknown</label>
+              </div>
+            </div>
+            <sc-if value="{{ interestedYes }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <label style="display:block;font:600 13px 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">Please list the types of jobs:</label>
+                <input type="text" value="{{ jobTypes }}" onChange="{{ setJobTypes }}" style="width:100%;padding:8px 10px;border:1px solid #ddd2c4;border-radius:7px;font:14px 'Public Sans',sans-serif;background:#fffdf9;box-sizing:border-box;"/>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+        <sc-if value="{{ errors.employment }}" hint-placeholder-val="{{ false }}"><div style="color:#b3261e;font-size:13px;margin-top:6px;">Please select one.</div></sc-if>
+      </div>
+    </div>
+
+    <div class="r3-card" style="background:#fffdfa;border:1px solid #e4d9c8;border-radius:14px;padding:28px 30px;margin-bottom:24px;box-shadow:0 1px 2px rgba(43,35,32,0.04);">
+      <div style="font:600 12px/1 'Public Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#b5502e;margin:0 0 6px;">02 — Medical History</div>
+      <div style="font:600 24px/1.2 'Lora',serif;color:#2b2320;margin:0 0 20px;">Health &amp; safety</div>
+
+      <div id="field-mentalHealth" style="{{ mentalHealthGroupStyle }}margin-bottom:18px;">
+        <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:8px;">Do you have a mental health disability that limits your ability to work or perform activities of daily life? <span style="color:#b5502e;">*</span></label>
+        <div style="display:flex;gap:16px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="mentalHealth" checked="{{ mentalYes }}" onChange="{{ selectMentalYes }}" style="accent-color:#b5502e;width:18px;height:18px;"/>Yes</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="mentalHealth" checked="{{ mentalNo }}" onChange="{{ selectMentalNo }}" style="accent-color:#b5502e;width:18px;height:18px;"/>No</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="mentalHealth" checked="{{ mentalUnknown }}" onChange="{{ selectMentalUnknown }}" style="accent-color:#b5502e;width:18px;height:18px;"/>Unknown</label>
+        </div>
+        <sc-if value="{{ errors.mentalHealth }}" hint-placeholder-val="{{ false }}"><div style="color:#b3261e;font-size:13px;margin-top:6px;">Please select one.</div></sc-if>
+      </div>
+
+      <div id="field-substanceUse" style="{{ substanceGroupStyle }}margin-bottom:18px;">
+        <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:8px;">Does alcohol or drug use limit your ability to work or perform activities of daily life? <span style="color:#b5502e;">*</span></label>
+        <div style="display:flex;gap:16px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="substanceUse" checked="{{ substanceYes }}" onChange="{{ selectSubstanceYes }}" style="accent-color:#b5502e;width:18px;height:18px;"/>Yes</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="substanceUse" checked="{{ substanceNo }}" onChange="{{ selectSubstanceNo }}" style="accent-color:#b5502e;width:18px;height:18px;"/>No</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="substanceUse" checked="{{ substanceUnknown }}" onChange="{{ selectSubstanceUnknown }}" style="accent-color:#b5502e;width:18px;height:18px;"/>Unknown</label>
+        </div>
+        <sc-if value="{{ errors.substanceUse }}" hint-placeholder-val="{{ false }}"><div style="color:#b3261e;font-size:13px;margin-top:6px;">Please select one.</div></sc-if>
+      </div>
+
+      <div id="field-fleeingViolence" style="{{ fleeingGroupStyle }}margin-bottom:18px;">
+        <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:8px;">Are you experiencing homelessness because you are currently fleeing domestic violence, dating violence, sexual assault, or stalking? <span style="color:#b5502e;">*</span></label>
+        <div style="display:flex;gap:16px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="fleeingViolence" checked="{{ fleeingYes }}" onChange="{{ selectFleeingYes }}" style="accent-color:#b5502e;width:18px;height:18px;"/>Yes</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="fleeingViolence" checked="{{ fleeingNo }}" onChange="{{ selectFleeingNo }}" style="accent-color:#b5502e;width:18px;height:18px;"/>No</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="radio" name="fleeingViolence" checked="{{ fleeingUnknown }}" onChange="{{ selectFleeingUnknown }}" style="accent-color:#b5502e;width:18px;height:18px;"/>Unknown</label>
+        </div>
+        <sc-if value="{{ errors.fleeingViolence }}" hint-placeholder-val="{{ false }}"><div style="color:#b3261e;font-size:13px;margin-top:6px;">Please select one.</div></sc-if>
+      </div>
+
+      <div>
+        <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">What are the primary factors that led you to become homeless (this time)?</label>
+        <textarea rows="3" value="{{ homelessFactors }}" onChange="{{ setHomelessFactors }}" style="width:100%;padding:10px 12px;border:1px solid #ddd2c4;border-radius:8px;font:15px/1.5 'Public Sans',sans-serif;color:#2b2320;background:#fffdf9;box-sizing:border-box;resize:vertical;"></textarea>
+      </div>
+    </div>
+
+    <div class="r3-card" style="background:#fffdfa;border:1px solid #e4d9c8;border-radius:14px;padding:28px 30px;margin-bottom:24px;box-shadow:0 1px 2px rgba(43,35,32,0.04);">
+      <div style="font:600 12px/1 'Public Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#b5502e;margin:0 0 6px;">03 — Homeless Verification</div>
+      <div style="font:600 24px/1.2 'Lora',serif;color:#2b2320;margin:0 0 20px;">Documentation on file</div>
+
+      <div style="margin-bottom:18px;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <input type="checkbox" checked="{{ hmis }}" onChange="{{ toggleHmis }}" style="width:18px;height:18px;accent-color:#b5502e;"/>
+          <span style="font:600 14px 'Public Sans',sans-serif;">Added to HMIS system</span>
+        </label>
+        <input type="text" value="{{ hmisProvider }}" onChange="{{ setHmisProvider }}" placeholder="Provider" style="margin-top:8px;margin-left:28px;width:calc(100% - 28px);max-width:320px;padding:8px 10px;border:1px solid #ddd2c4;border-radius:7px;font:14px 'Public Sans',sans-serif;background:#fffdf9;box-sizing:border-box;"/>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+        <div>
+          <div style="font:600 13px 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:8px;">Documents</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <sc-for list="{{ docItems }}" as="d" hint-placeholder-count="7">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="checkbox" checked="{{ d.checked }}" onChange="{{ d.onToggle }}" style="width:17px;height:17px;accent-color:#b5502e;flex:none;"/>{{ d.label }}</label>
+            </sc-for>
+            <input type="text" value="{{ healthInsuranceDetail }}" onChange="{{ setHealthInsuranceDetail }}" placeholder="Health insurance provider" style="margin-top:2px;padding:7px 9px;border:1px solid #ddd2c4;border-radius:7px;font:13px 'Public Sans',sans-serif;background:#fffdf9;box-sizing:border-box;"/>
+          </div>
+        </div>
+        <div>
+          <div style="font:600 13px 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:8px;">Housing</div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px;">
+            <sc-for list="{{ housingItems }}" as="h" hint-placeholder-count="4">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="checkbox" checked="{{ h.checked }}" onChange="{{ h.onToggle }}" style="width:17px;height:17px;accent-color:#b5502e;flex:none;"/>{{ h.label }}</label>
+            </sc-for>
+          </div>
+          <div style="font:600 13px 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:8px;">Income</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <sc-for list="{{ incomeItems }}" as="inc" hint-placeholder-count="4">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font:14px 'Public Sans',sans-serif;"><input type="checkbox" checked="{{ inc.checked }}" onChange="{{ inc.onToggle }}" style="width:17px;height:17px;accent-color:#b5502e;flex:none;"/>{{ inc.label }}</label>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="r3-card" style="background:#fffdfa;border:1px solid #e4d9c8;border-radius:14px;padding:28px 30px;margin-bottom:24px;box-shadow:0 1px 2px rgba(43,35,32,0.04);">
+      <div style="font:600 12px/1 'Public Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#b5502e;margin:0 0 6px;">04 — Personal</div>
+      <div style="font:600 24px/1.2 'Lora',serif;color:#2b2320;margin:0 0 20px;">In their own words</div>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <sc-for list="{{ personalItems }}" as="p" hint-placeholder-count="8">
+          <div>
+            <label style="display:block;font:600 14px/1.4 'Public Sans',sans-serif;color:#2b2320;margin-bottom:6px;">{{ p.n }}. {{ p.question }}</label>
+            <textarea rows="2" value="{{ p.value }}" onChange="{{ p.onChange }}" style="width:100%;padding:10px 12px;border:1px solid #ddd2c4;border-radius:8px;font:14px/1.5 'Public Sans',sans-serif;color:#2b2320;background:#fffdf9;box-sizing:border-box;resize:vertical;"></textarea>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div class="r3-card" style="background:#fffdfa;border:1px solid #e4d9c8;border-radius:14px;padding:28px 30px;margin-bottom:24px;box-shadow:0 1px 2px rgba(43,35,32,0.04);">
+      <div style="font:600 12px/1 'Public Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#b5502e;margin:0 0 6px;">05 — Service Plan</div>
+      <div style="font:600 24px/1.2 'Lora',serif;color:#2b2320;margin:0 0 20px;">Next steps</div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <sc-for list="{{ servicePlanItems }}" as="sp" hint-placeholder-count="8">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:22px;flex:none;font:600 14px 'Public Sans',sans-serif;color:#b5502e;text-align:right;">{{ sp.n }}.</div>
+            <input type="text" value="{{ sp.value }}" onChange="{{ sp.onChange }}" style="flex:1;padding:9px 12px;border:1px solid #ddd2c4;border-radius:8px;font:15px 'Public Sans',sans-serif;color:#2b2320;background:#fffdf9;box-sizing:border-box;"/>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div class="r3-card" style="background:#fffdfa;border:1px solid #e4d9c8;border-radius:14px;padding:28px 30px;margin-bottom:24px;box-shadow:0 1px 2px rgba(43,35,32,0.04);">
+      <div style="font:600 12px/1 'Public Sans',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#b5502e;margin:0 0 6px;">06 — Signatures</div>
+      <div style="font:600 24px/1.2 'Lora',serif;color:#2b2320;margin:0 0 20px;">Sign off</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;">
+        <div>
+          <div id="field-participantName">
+            <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">Participant Name <span style="color:#b5502e;">*</span></label>
+            <input type="text" value="{{ participantName }}" onChange="{{ setParticipantName }}" style="{{ participantNameStyle }}"/>
+            <sc-if value="{{ errors.participantName }}" hint-placeholder-val="{{ false }}"><div style="color:#b3261e;font-size:13px;margin-top:4px;">Participant name is required.</div></sc-if>
+          </div>
+          <div style="margin-top:14px;">
+            <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">Signature</label>
+            <sc-if value="{{ showCanvas }}" hint-placeholder-val="{{ true }}">
+              <div style="border:1px solid #ddd2c4;border-radius:8px;background:#fffdf9;overflow:hidden;">
+                <canvas ref="{{ participantCanvasRef }}" onPointerDown="{{ startParticipantSig }}" onPointerMove="{{ moveParticipantSig }}" onPointerUp="{{ endParticipantSig }}" onPointerLeave="{{ endParticipantSig }}" style="width:100%;height:110px;display:block;touch-action:none;cursor:crosshair;"></canvas>
+              </div>
+              <button onClick="{{ clearParticipantSig }}" data-no-print="" style="margin-top:6px;border:none;background:none;color:#8a3c20;cursor:pointer;font:600 12px 'Public Sans',sans-serif;">Clear signature</button>
+            </sc-if>
+            <div style="margin-top:8px;">
+              <label style="display:block;font:400 12px 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:4px;">or type your name to sign</label>
+              <input type="text" value="{{ participantSigTyped }}" onChange="{{ setParticipantSigTyped }}" style="width:100%;padding:9px 12px;border:1px solid #ddd2c4;border-radius:8px;font:20px 'Lora',serif;font-style:italic;color:#2b2320;background:#fffdf9;box-sizing:border-box;"/>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div>
+            <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">Casemanager Name</label>
+            <input type="text" value="{{ casemanagerName }}" onChange="{{ setCasemanagerName }}" style="width:100%;padding:10px 12px;border:1px solid #ddd2c4;border-radius:8px;font:15px/1.4 'Public Sans',sans-serif;color:#2b2320;background:#fffdf9;box-sizing:border-box;"/>
+          </div>
+          <div style="margin-top:14px;">
+            <label style="display:block;font:600 13px/1.3 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:6px;">Signature</label>
+            <sc-if value="{{ showCanvas }}" hint-placeholder-val="{{ true }}">
+              <div style="border:1px solid #ddd2c4;border-radius:8px;background:#fffdf9;overflow:hidden;">
+                <canvas ref="{{ casemanagerCanvasRef }}" onPointerDown="{{ startCasemanagerSig }}" onPointerMove="{{ moveCasemanagerSig }}" onPointerUp="{{ endCasemanagerSig }}" onPointerLeave="{{ endCasemanagerSig }}" style="width:100%;height:110px;display:block;touch-action:none;cursor:crosshair;"></canvas>
+              </div>
+              <button onClick="{{ clearCasemanagerSig }}" data-no-print="" style="margin-top:6px;border:none;background:none;color:#8a3c20;cursor:pointer;font:600 12px 'Public Sans',sans-serif;">Clear signature</button>
+            </sc-if>
+            <div style="margin-top:8px;">
+              <label style="display:block;font:400 12px 'Public Sans',sans-serif;color:#6b5f52;margin-bottom:4px;">or type name to sign</label>
+              <input type="text" value="{{ casemanagerSigTyped }}" onChange="{{ setCasemanagerSigTyped }}" style="width:100%;padding:9px 12px;border:1px solid #ddd2c4;border-radius:8px;font:20px 'Lora',serif;font-style:italic;color:#2b2320;background:#fffdf9;box-sizing:border-box;"/>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div data-no-print style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:8px;">
+      <button onClick="{{ validate }}" style="background:#b5502e;color:#fffdfa;border:none;padding:13px 26px;border-radius:9px;font:700 15px 'Public Sans',sans-serif;cursor:pointer;">Review &amp; Finish</button>
+      <button onClick="{{ printForm }}" style="border:1px solid #d9cbb6;background:#fff;color:#2b2320;padding:13px 22px;border-radius:9px;font:600 15px 'Public Sans',sans-serif;cursor:pointer;">Print / Save PDF</button>
+      <button onClick="{{ clearSavedData }}" style="border:none;background:none;color:#a4998a;cursor:pointer;font:400 13px 'Public Sans',sans-serif;text-decoration:underline;">Clear saved data</button>
+    </div>
+
+    <sc-if value="{{ showSuccess }}" hint-placeholder-val="{{ false }}">
+      <div data-no-print style="margin-top:16px;background:#eef3ea;border:1px solid #cfe0c6;color:#3f6b34;padding:14px 18px;border-radius:10px;font:600 14px 'Public Sans',sans-serif;">
+        Looks complete — everything is saved in this browser. Use Print / Save PDF to file a copy.
+      </div>
+    </sc-if>
+    <sc-if value="{{ showIncomplete }}" hint-placeholder-val="{{ false }}">
+      <div data-no-print style="margin-top:16px;background:#fbeeec;border:1px solid #f0c9c4;color:#8f3a2e;padding:14px 18px;border-radius:10px;font:600 14px 'Public Sans',sans-serif;">
+        A few required fields still need attention — scroll up to the highlighted sections.
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:900,&quot;height&quot;:1200},&quot;accentColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#b5502e&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#b5502e&quot;,&quot;#8a3c20&quot;,&quot;#2f6f4f&quot;,&quot;#2b5a8a&quot;]},&quot;showProgressBar&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;signatureMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;draw&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;draw&quot;,&quot;type&quot;]}}">
+
+const RACE_LIST = [
+  ['chinese','Chinese'],['nativeHawaiian','Native Hawaiian'],['white','White'],
+  ['japanese','Japanese'],['tongan','Tongan'],['blackAA','Black or African American'],
+  ['korean','Korean'],['samoan','Samoan'],['americanIndian','American Indian or Alaska Native'],
+  ['filipino','Filipino'],['marshallese','Marshallese'],['hispanic','Hispanic'],
+  ['vietnamese','Vietnamese'],['micronesian','Micronesian'],['other','Other']
+];
+const DOC_LIST = [
+  ['birthCert',"Birth Certificate"],['stateId',"State ID or Driver's License"],['ssnCard',"Social Security Card"],
+  ['background',"Background Clearance"],['courtOutreach',"Community Outreach Court"],['medical',"Medical"],
+  ['healthInsurance',"Health Insurance"]
+];
+const HOUSING_LIST = [
+  ['shelter',"Willing to go to shelter"],['ehv',"Emergency Housing Voucher (EHV)"],
+  ['section8',"Section 8"],['housingApp',"Application to housing"]
+];
+const INCOME_LIST = [
+  ['work',"Work / Employment"],['foodStamps',"Food Stamps / EBT / SNAP / Welfare"],
+  ['ssi',"Supplemental Security Income (SSI)"],['ssdi',"SSDI (Social Security Disability Insurance)"]
+];
+const PERSONAL_QUESTIONS = [
+  "Is there anything specific you need right now?",
+  "Is there someone you trust or rely on for support?",
+  "Would you like to share your story?",
+  "Are there any resources or services you are aware of that can be helpful?",
+  "Have you experienced issues with any services?",
+  "How can the community better support individuals facing homelessness in Wai\u02bbanae?",
+  "Do you have any specific skills or talents?",
+  "How can we help you right now?"
+];
+const REQUIRED_FIELDS = ['site','name','dob','contact','race','sexAtBirth','servedMilitary','hasPets','employment','mentalHealth','substanceUse','fleeingViolence','participantName'];
+const INPUT_STYLE = {width:'100%',padding:'10px 12px',border:'1px solid #ddd2c4',borderRadius:'8px',font:"15px/1.4 'Public Sans',sans-serif",color:'#2b2320',background:'#fffdf9',boxSizing:'border-box'};
+
+class Component extends DCLogic {
+  state = {
+    site:'', name:'', dob:'', ssn:'', contact:'', email:'',
+    livingWith:'', household:[{name:'',relationship:''}],
+    sleptWhere:'',
+    race:{}, raceOther:'',
+    sexAtBirth:'',
+    servedMilitary:'', militaryDetail:'',
+    hasPets:'', petSupport:'', petPrevented:'',
+    employment:'', unemployedDuration:'', interestedEmployed:'', jobTypes:'',
+    mentalHealth:'', substanceUse:'', fleeingViolence:'', homelessFactors:'',
+    hmis:false, hmisProvider:'',
+    documents:{birthCert:false,stateId:false,ssnCard:false,background:false,courtOutreach:false,medical:false,healthInsurance:false},
+    healthInsuranceDetail:'',
+    housing:{shelter:false,ehv:false,section8:false,housingApp:false},
+    income:{work:false,foodStamps:false,ssi:false,ssdi:false},
+    personal:['','','','','','','',''],
+    servicePlan:['','','','','','','',''],
+    participantName:'', participantSigTyped:'', participantSigDataUrl:null,
+    casemanagerName:'', casemanagerSigTyped:'', casemanagerSigDataUrl:null,
+    errors:{}, validated:false, lastSaved:null,
+  };
+
+  participantCanvasRef = React.createRef();
+  casemanagerCanvasRef = React.createRef();
+  drawing = {participant:false, casemanager:false};
+
+  computeFilled(key) {
+    if (key === 'race') return Object.values(this.state.race).some(Boolean);
+    const v = this.state[key];
+    return typeof v === 'string' ? v.trim().length > 0 : !!v;
+  }
+
+  get progressPercent() {
+    const filled = REQUIRED_FIELDS.filter(k => this.computeFilled(k)).length;
+    return Math.round((filled / REQUIRED_FIELDS.length) * 100);
+  }
+
+  eq(key, val) { return this.state[key] === val; }
+  setValue(key, val) { return () => this.setState({ [key]: val }); }
+  setField(key) { return (e) => this.setState({ [key]: e.target.value }); }
+  toggleRace(key) { return () => this.setState(s => ({ race: { ...s.race, [key]: !s.race[key] } })); }
+  toggleDoc(key) { return () => this.setState(s => ({ documents: { ...s.documents, [key]: !s.documents[key] } })); }
+  toggleHousing(key) { return () => this.setState(s => ({ housing: { ...s.housing, [key]: !s.housing[key] } })); }
+  toggleIncome(key) { return () => this.setState(s => ({ income: { ...s.income, [key]: !s.income[key] } })); }
+
+  addHousehold() { this.setState(s => ({ household: [...s.household, { name:'', relationship:'' }] })); }
+  removeHousehold(i) { this.setState(s => ({ household: s.household.filter((_, idx) => idx !== i) })); }
+  updateHousehold(i, field, value) {
+    this.setState(s => {
+      const household = [...s.household];
+      household[i] = { ...household[i], [field]: value };
+      return { household };
+    });
+  }
+  updatePersonal(i, value) {
+    this.setState(s => { const personal = [...s.personal]; personal[i] = value; return { personal }; });
+  }
+  updateServicePlan(i, value) {
+    this.setState(s => { const servicePlan = [...s.servicePlan]; servicePlan[i] = value; return { servicePlan }; });
+  }
+
+  errorStyle(key) {
+    return this.state.errors[key] ? { ...INPUT_STYLE, border:'1.5px solid #b3261e', background:'#fdf2f1' } : INPUT_STYLE;
+  }
+  groupStyle(key) {
+    return { padding:'2px 0 2px 14px', borderLeft: this.state.errors[key] ? '3px solid #b3261e' : '3px solid transparent', marginLeft:'-14px' };
+  }
+
+  validate() {
+    const errors = {};
+    REQUIRED_FIELDS.forEach(k => { if (!this.computeFilled(k)) errors[k] = true; });
+    this.setState({ errors, validated: true });
+    const keys = Object.keys(errors);
+    if (keys.length) {
+      const el = document.getElementById('field-' + keys[0]);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        window.scrollTo({ top: window.scrollY + rect.top - 110, behavior: 'smooth' });
+      }
+    }
+  }
+
+  printForm() { window.print(); }
+
+  clearSavedData() {
+    try { localStorage.removeItem('r3-intake-v1'); } catch (e) {}
+    window.location.reload();
+  }
+
+  getPos(canvas, e) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+  startSig(key, e) {
+    const canvas = this[key + 'CanvasRef'].current;
+    if (!canvas) return;
+    e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId);
+    const ctx = canvas.getContext('2d');
+    const { x, y } = this.getPos(canvas, e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    this.drawing[key] = true;
+  }
+  moveSig(key, e) {
+    if (!this.drawing[key]) return;
+    const canvas = this[key + 'CanvasRef'].current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const { x, y } = this.getPos(canvas, e);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  }
+  endSig(key) {
+    if (!this.drawing[key]) return;
+    this.drawing[key] = false;
+    const canvas = this[key + 'CanvasRef'].current;
+    if (canvas) this.setState({ [key + 'SigDataUrl']: canvas.toDataURL('image/png') });
+  }
+  clearSig(key) {
+    const canvas = this[key + 'CanvasRef'].current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    this.setState({ [key + 'SigDataUrl']: null });
+  }
+  initCanvas(key) {
+    const canvas = this[key + 'CanvasRef'].current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#2b2320';
+    const url = this.state[key + 'SigDataUrl'];
+    if (url) {
+      const img = new Image();
+      img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
+      img.src = url;
+    }
+  }
+
+  componentDidMount() {
+    let parsed = null;
+    try {
+      const raw = localStorage.getItem('r3-intake-v1');
+      if (raw) parsed = JSON.parse(raw);
+    } catch (e) {}
+    if (parsed) {
+      this.setState(parsed, () => { this.initCanvas('participant'); this.initCanvas('casemanager'); });
+    } else {
+      this.initCanvas('participant');
+      this.initCanvas('casemanager');
+    }
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    const { lastSaved, errors, validated, ...data } = this.state;
+    const { lastSaved: pl, errors: pe, validated: pv, ...prevData } = prevState;
+    if (JSON.stringify(data) !== JSON.stringify(prevData)) {
+      clearTimeout(this._saveTimer);
+      this._saveTimer = setTimeout(() => {
+        try { localStorage.setItem('r3-intake-v1', JSON.stringify(data)); } catch (e) {}
+        this.setState({ lastSaved: Date.now() });
+      }, 500);
+    }
+  }
+
+  renderVals() {
+    const s = this.state;
+    const eq = (k, v) => this.eq(k, v);
+    const errorsFilled = s.validated && Object.keys(s.errors).length === 0;
+    const showIncomplete = s.validated && Object.keys(s.errors).length > 0;
+
+    return {
+      savedLabel: s.lastSaved ? 'Saved automatically' : 'Not yet saved',
+      progressPercent: this.progressPercent,
+      progressBarStyle: { height:'100%', width: this.progressPercent + '%', background:'#b5502e', borderRadius:'4px', transition:'width .3s ease' },
+      showProgressBar: this.props.showProgressBar ?? true,
+
+      errors: s.errors,
+      showSuccess: errorsFilled,
+      showIncomplete,
+
+      name: s.name, setName: this.setField('name'), nameStyle: this.errorStyle('name'),
+      dob: s.dob, setDob: this.setField('dob'), dobStyle: this.errorStyle('dob'),
+      ssn: s.ssn, setSsn: this.setField('ssn'),
+      contact: s.contact, setContact: this.setField('contact'), contactStyle: this.errorStyle('contact'),
+      email: s.email, setEmail: this.setField('email'),
+      sleptWhere: s.sleptWhere, setSleptWhere: this.setField('sleptWhere'),
+      raceOther: s.raceOther, setRaceOther: this.setField('raceOther'),
+      militaryDetail: s.militaryDetail, setMilitaryDetail: this.setField('militaryDetail'),
+      jobTypes: s.jobTypes, setJobTypes: this.setField('jobTypes'),
+      homelessFactors: s.homelessFactors, setHomelessFactors: this.setField('homelessFactors'),
+      hmisProvider: s.hmisProvider, setHmisProvider: this.setField('hmisProvider'),
+      healthInsuranceDetail: s.healthInsuranceDetail, setHealthInsuranceDetail: this.setField('healthInsuranceDetail'),
+      participantName: s.participantName, setParticipantName: this.setField('participantName'), participantNameStyle: this.errorStyle('participantName'),
+      participantSigTyped: s.participantSigTyped, setParticipantSigTyped: this.setField('participantSigTyped'),
+      casemanagerName: s.casemanagerName, setCasemanagerName: this.setField('casemanagerName'),
+      casemanagerSigTyped: s.casemanagerSigTyped, setCasemanagerSigTyped: this.setField('casemanagerSigTyped'),
+
+      siteGroupStyle: this.groupStyle('site'),
+      siteKapolei: eq('site','kapolei'), selectSiteKapolei: this.setValue('site','kapolei'),
+      siteParadise: eq('site','paradise'), selectSiteParadise: this.setValue('site','paradise'),
+
+      livingAlone: eq('livingWith','alone'), selectLivingAlone: this.setValue('livingWith','alone'),
+      livingOthers: eq('livingWith','others'), selectLivingOthers: this.setValue('livingWith','others'),
+      householdRows: s.household.map((row, i) => ({
+        idx:i, name:row.name, relationship:row.relationship,
+        onNameChange:(e)=>this.updateHousehold(i,'name',e.target.value),
+        onRelChange:(e)=>this.updateHousehold(i,'relationship',e.target.value),
+        onRemove:()=>this.removeHousehold(i),
+        showRemove: s.household.length > 1
+      })),
+      addHousehold: () => this.addHousehold(),
+
+      raceGroupStyle: this.groupStyle('race'),
+      raceItems: RACE_LIST.map(([key,label]) => ({ key, label, checked: !!s.race[key], onToggle: this.toggleRace(key) })),
+
+      sexGroupStyle: this.groupStyle('sexAtBirth'),
+      sexMale: eq('sexAtBirth','male'), selectSexMale: this.setValue('sexAtBirth','male'),
+      sexFemale: eq('sexAtBirth','female'), selectSexFemale: this.setValue('sexAtBirth','female'),
+
+      servedGroupStyle: this.groupStyle('servedMilitary'),
+      servedYes: eq('servedMilitary','yes'), selectServedYes: this.setValue('servedMilitary','yes'),
+      servedNo: eq('servedMilitary','no'), selectServedNo: this.setValue('servedMilitary','no'),
+
+      petsGroupStyle: this.groupStyle('hasPets'),
+      petsYes: eq('hasPets','yes'), selectPetsYes: this.setValue('hasPets','yes'),
+      petsNo: eq('hasPets','no'), selectPetsNo: this.setValue('hasPets','no'),
+      petSupportYes: eq('petSupport','yes'), selectPetSupportYes: this.setValue('petSupport','yes'),
+      petSupportNo: eq('petSupport','no'), selectPetSupportNo: this.setValue('petSupport','no'),
+      petSupportUnknown: eq('petSupport','unknown'), selectPetSupportUnknown: this.setValue('petSupport','unknown'),
+      petPreventedYes: eq('petPrevented','yes'), selectPetPreventedYes: this.setValue('petPrevented','yes'),
+      petPreventedNo: eq('petPrevented','no'), selectPetPreventedNo: this.setValue('petPrevented','no'),
+      petPreventedUnknown: eq('petPrevented','unknown'), selectPetPreventedUnknown: this.setValue('petPrevented','unknown'),
+
+      employmentGroupStyle: this.groupStyle('employment'),
+      empEmployed: eq('employment','employed'), selectEmpEmployed: this.setValue('employment','employed'),
+      empUnemployed: eq('employment','unemployed'), selectEmpUnemployed: this.setValue('employment','unemployed'),
+      empRetired: eq('employment','retired'), selectEmpRetired: this.setValue('employment','retired'),
+      empStudent: eq('employment','student'), selectEmpStudent: this.setValue('employment','student'),
+      durLess: eq('unemployedDuration','less'), selectDurLess: this.setValue('unemployedDuration','less'),
+      durMore: eq('unemployedDuration','more'), selectDurMore: this.setValue('unemployedDuration','more'),
+      durUnable: eq('unemployedDuration','unable'), selectDurUnable: this.setValue('unemployedDuration','unable'),
+      interestedYes: eq('interestedEmployed','yes'), selectInterestedYes: this.setValue('interestedEmployed','yes'),
+      interestedNo: eq('interestedEmployed','no'), selectInterestedNo: this.setValue('interestedEmployed','no'),
+      interestedUnknown: eq('interestedEmployed','unknown'), selectInterestedUnknown: this.setValue('interestedEmployed','unknown'),
+
+      mentalHealthGroupStyle: this.groupStyle('mentalHealth'),
+      mentalYes: eq('mentalHealth','yes'), selectMentalYes: this.setValue('mentalHealth','yes'),
+      mentalNo: eq('mentalHealth','no'), selectMentalNo: this.setValue('mentalHealth','no'),
+      mentalUnknown: eq('mentalHealth','unknown'), selectMentalUnknown: this.setValue('mentalHealth','unknown'),
+
+      substanceGroupStyle: this.groupStyle('substanceUse'),
+      substanceYes: eq('substanceUse','yes'), selectSubstanceYes: this.setValue('substanceUse','yes'),
+      substanceNo: eq('substanceUse','no'), selectSubstanceNo: this.setValue('substanceUse','no'),
+      substanceUnknown: eq('substanceUse','unknown'), selectSubstanceUnknown: this.setValue('substanceUse','unknown'),
+
+      fleeingGroupStyle: this.groupStyle('fleeingViolence'),
+      fleeingYes: eq('fleeingViolence','yes'), selectFleeingYes: this.setValue('fleeingViolence','yes'),
+      fleeingNo: eq('fleeingViolence','no'), selectFleeingNo: this.setValue('fleeingViolence','no'),
+      fleeingUnknown: eq('fleeingViolence','unknown'), selectFleeingUnknown: this.setValue('fleeingViolence','unknown'),
+
+      hmis: s.hmis, toggleHmis: () => this.setState({ hmis: !s.hmis }),
+      docItems: DOC_LIST.map(([key,label]) => ({ key, label, checked: !!s.documents[key], onToggle: this.toggleDoc(key) })),
+      housingItems: HOUSING_LIST.map(([key,label]) => ({ key, label, checked: !!s.housing[key], onToggle: this.toggleHousing(key) })),
+      incomeItems: INCOME_LIST.map(([key,label]) => ({ key, label, checked: !!s.income[key], onToggle: this.toggleIncome(key) })),
+
+      personalItems: PERSONAL_QUESTIONS.map((q,i) => ({ n:i+1, question:q, value:s.personal[i], onChange:(e)=>this.updatePersonal(i,e.target.value) })),
+      servicePlanItems: s.servicePlan.map((v,i) => ({ n:i+1, value:v, onChange:(e)=>this.updateServicePlan(i,e.target.value) })),
+
+      showCanvas: (this.props.signatureMode ?? 'draw') === 'draw',
+      participantCanvasRef: this.participantCanvasRef,
+      startParticipantSig: (e) => this.startSig('participant', e),
+      moveParticipantSig: (e) => this.moveSig('participant', e),
+      endParticipantSig: () => this.endSig('participant'),
+      clearParticipantSig: () => this.clearSig('participant'),
+      casemanagerCanvasRef: this.casemanagerCanvasRef,
+      startCasemanagerSig: (e) => this.startSig('casemanager', e),
+      moveCasemanagerSig: (e) => this.moveSig('casemanager', e),
+      endCasemanagerSig: () => this.endSig('casemanager'),
+      clearCasemanagerSig: () => this.clearSig('casemanager'),
+
+      validate: () => this.validate(),
+      printForm: () => this.printForm(),
+      clearSavedData: () => this.clearSavedData(),
+    };
+  }
+}
+
+</script>
+</body>
+</html>
