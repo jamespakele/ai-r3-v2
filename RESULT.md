@@ -1,44 +1,24 @@
-# RESULT — CSV Attendance Export: Handler + Tests (Story 3.1)
+# RESULT — Story 4 backend: Participant Attendance History & Edits
 
 ## What was built
-Implemented the CSV attendance export endpoint (FR14, UX-DR5) and added unit +
-integration tests covering it end-to-end. Two child cards were merged:
-`wt/t_54a1f19a` (implementation) and `wt/t_7c6efa05` (tests).
+Backend endpoints for per-participant attendance history and edits (Epic 4, FR15/16/17/20), implemented via omp-plan-execute.
 
-### Implementation — `internal/server/attendance.go`
-- **Route:** `GET /attendance/export` → `handleExportCSV`, registered in `server.go` with `requireRole("admin", ...)` (admin-only per PRD §10; overrides §09 generic "auth").
-- **Handler** (`attendance.go`): parses `?event={id}&site={id}&from=YYYY-MM-DD&to=YYYY-MM-DD` with the same defaults as the matrix (last 14 days, resolved site, no event filter), 30-day cap, inverted-range swap. Sets `Content-Type: text/csv` and `Content-Disposition: attachment; filename="attendance_export_YYYY-MM-DD.csv"` (HST today). Streams via `encoding/csv` with Flush/Error checks.
-- **`loadExportRows`:** queries raw `attendance` records (NOT `loadMatrixRows`, which drops recorded_by/check_in_time/note), filters by date/site/event with `mcpmod.EscapeFilter`, resolves names via `nameFor`.
-- **Pure builders (testable):** `exportCSVRecords` (header + data rows + summary row), `exportStatus` (title-case), `summaryCSVRow` (total check-ins, unique participants, avg rate).
-- **Columns:** Participant, Site, Event, Date, Status, Recorded By, Check-in Time, Note (PRD §05 Screen 2).
+- **GET /intake/{id}/attendance** — full-page monthly calendar render (defaults to current HST month, `?month=YYYY-MM` nav), per-person stats (X of Y days (Z%), rate color, current streak), legend data.
+- **GET /intake/{id}/attendance/day?date=YYYY-MM-DD** — day-detail modal fragment (status, event name, recorded-by, check-in time, note) or empty state.
+- **POST /intake/{id}/attendance/day** — save/update attendance record (creates if none, updates existing; site derived from intake, recorded_by = current user).
+- **POST /intake/{id}/attendance/day/delete** — delete record for a date (idempotent).
 
-### Tests
-#### Pure unit tests — `internal/server/attendance_export_test.go`
-- `TestExportStatus` — status → title-case mapping (present/absent/excused/walk_in), unknown/empty → "".
-- `TestSummaryCSVRow` — check-in counting (present+walk_in), unique participants, avg-rate math, empty-set no-division-by-zero, trailing empty cells.
-- `TestExportCSVRecords_Header` — exact header row equality (order-sensitive).
-- `TestExportCSVRecords_FieldFormatting` — title-cased status, verbatim check_in_time/note/recorded_by pass-through, comma-in-note quoting.
-- `TestExportCSVRecords_Empty` — empty input → header + empty summary row only.
-- `TestExportCSVRecords` (in `attendance_test.go`) — header, status title-casing, empty relations, comma-in-note, summary math.
-
-#### Integration tests — `internal/server/attendance_export_integration_test.go`
-Boots a real in-process PocketBase (embedded JS migrations + Go stubs + pb.Bootstrap(), temp data dir) and drives the handler through `srv.Mux()` with signed session cookies:
-- `TestExportCSVPermissions` — unauthenticated / case_manager / tampered-cookie → 303 redirect to /login; admin → 200 + CSV headers.
-- `TestExportCSVDateRangeFilter` — ordered range, swapped range (from>to), 30-day cap, defaults.
-- `TestExportCSVSiteFilter` — site1/site2/invalid-site (all locations)/no-site.
-- `TestExportCSVEventFilter` — ev1/ev2/no-event.
-- `TestExportCSVHeaderAndFormatting` — full-wire header, resolved names, summary row, Content-Type/Disposition.
-- `TestExportCSVEmptyResultSet` — 200, header + empty summary row.
-- `TestExportCSVNameResolution` — nameFor + loadExportRows against booted PB.
+## Files
+- Created: `r3-intake/internal/server/person_attendance.go`, `person_attendance_test.go`, `person_attendance_integration_test.go`
+- Modified: `r3-intake/internal/server/server.go` (3 routes), `r3-intake/internal/assets/public/index.html` (3 template stubs)
+- Plan: `docs/plans/omp-plan-person-attendance-backend.md`
 
 ## Verification
-- `go build ./...` — pass
-- `go vet ./...` — pass
-- `go test ./...` — all pass (ok r3-intake/internal/server), including `TestExportCSVRecords` and the 12 new tests.
+- `go build ./...` — clean
+- `go vet ./...` — clean
+- `go test ./...` — full suite green (server package 3.22s)
+- Unit tests: stats, streak, month grid, template render
+- Integration tests: authz (admin/cm/403), month render, day GET, save create/update (no dup), delete, validation
 
-## Artifacts
-- Plans: `docs/plans/omp-plan-csv-export.md`, `docs/plans/omp-plan-csv-export-tests.md`
-- Changed: `r3-intake/internal/server/attendance.go`, `server.go`, `attendance_test.go`, `attendance_export_test.go`, `attendance_export_integration_test.go`
-
-## Handoff
-The pure `exportCSVRecords`/`summaryCSVRow`/`exportStatus` functions are the intended test surface. No production files were dropped during the merge; both child cards' feature sets are preserved.
+## Handoff to sibling UI cards
+View structs (`PersonAttendanceView`, `PersonDayCell`, `PersonStats`, `PersonDayDetailView`) and template names (`person-attendance`, `person-attendance-calendar`, `person-attendance-day`) are defined for t_cca37bee (calendar UI) and t_1030de8b (day-detail/edit UI) to consume.
