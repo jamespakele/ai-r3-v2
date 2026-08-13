@@ -81,9 +81,8 @@ func doToggle(srv *Server, cookie *http.Cookie, form url.Values) *httptest.Respo
 	return rec
 }
 
-// TestToggleNoLocation proves a participant with no assigned site can have
-// their attendance dot toggled, and that the resulting record stores an empty
-// site.
+// TestToggleNoLocation proves a participant with no assigned site cannot have
+// their attendance dot toggled — attendance requires a location.
 func TestToggleNoLocation(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedToggleData(t, srv.pb)
@@ -97,22 +96,13 @@ func TestToggleNoLocation(t *testing.T) {
 		"to":        {"2026-08-14"},
 	}
 	rec := doToggle(srv, admin, form)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
-	if !strings.Contains(rec.Body.String(), "dot-present") {
-		t.Errorf("toggle response missing dot-present cell")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (attendance requires a location)", rec.Code)
 	}
 
 	att := findAttendance(t, srv, fx.iNoSite, "2026-08-13")
-	if att == nil {
-		t.Fatalf("expected attendance record for no-location intake")
-	}
-	if att.GetString("site") != "" {
-		t.Errorf("site = %q, want empty", att.GetString("site"))
-	}
-	if att.GetString("status") != "present" {
-		t.Errorf("status = %q, want present", att.GetString("status"))
+	if att != nil {
+		t.Fatalf("expected NO attendance record for no-location intake, got one")
 	}
 }
 

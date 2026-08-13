@@ -974,7 +974,8 @@
   <input type="hidden" name="from" value="{{.From}}">
   <input type="hidden" name="to" value="{{.To}}">
   {{if .EventID}}<input type="hidden" name="event_id" value="{{.EventID}}">{{end}}
-  <button type="submit" class="matrix-dot {{if .Status}}dot-{{.Status}}{{else}}dot-empty{{end}}" aria-label="Toggle status for {{.Date}}"></button>
+  {{if .Disabled}}<span class="matrix-dot dot-disabled" aria-label="Attendance requires a location"></span>
+  {{else}}<button type="submit" class="matrix-dot {{if .Status}}dot-present{{else}}dot-empty{{end}}" aria-label="Toggle status for {{.Date}}"></button>{{end}}
 </form>
 {{end}}
 

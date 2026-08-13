@@ -59,11 +59,12 @@ type MatrixSummary struct {
 type MatrixCell struct {
 	IntakeID string
 	Date     string
-	Status   string // "", "present", "absent", "excused", "walk_in"
+	Status   string // "present" (here) or "" (not here)
 	SiteID   string
 	EventID  string
 	From     string
 	To       string
+	Disabled bool // true when the participant has no location; attendance cannot be toggled
 }
 
 // attendanceCollection returns the attendance collection.
@@ -350,6 +351,7 @@ func (s *Server) loadMatrixRows(u *sessionUser, siteID string, dates []string, e
 				EventID:  eventID,
 				From:     from,
 				To:       toDate,
+				Disabled: cellSiteID == "",
 			})
 			if status == "present" {
 				row.PresentCount++
@@ -443,22 +445,13 @@ func (s *Server) loadEvents(siteID string) ([]Event, error) {
 	return out, nil
 }
 
-// cycleStatus returns the next status in the cycle
-// "" -> present -> absent -> excused -> walk_in -> "".
+// cycleStatus returns the next status in the cycle.
+// "" -> present -> "" (a simple here / not-here toggle).
 func cycleStatus(current string) string {
-	order := []string{"present", "absent", "excused", "walk_in"}
 	if current == "" {
-		return order[0]
+		return "present"
 	}
-	for i, st := range order {
-		if st == current {
-			if i+1 < len(order) {
-				return order[i+1]
-			}
-			return ""
-		}
-	}
-	return order[0]
+	return ""
 }
 
 // handleToggle handles the HTMX cell toggle POST. It cycles the attendance
@@ -525,6 +518,13 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Attendance cannot be toggled for a participant with no assigned
+	// location. The intake record is the source of truth for the site.
+	if siteID == "" {
+		http.Error(w, "attendance requires a location", http.StatusBadRequest)
+		return
+	}
+
 	attCol, err := s.attendanceCollection()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -581,6 +581,7 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 		EventID:  eventID,
 		From:     from,
 		To:       to,
+		Disabled: siteID == "",
 	}
 
 	if r.Header.Get("HX-Request") == "true" {

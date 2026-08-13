@@ -84,8 +84,8 @@ func TestMatrixContentRender(t *testing.T) {
 		Rows: []MatrixRow{
 			{IntakeID: "i2", Name: "Bob", TotalDays: 2, NoLocation: true,
 				Cells: []MatrixCell{
-					{IntakeID: "i2", Date: "2026-08-01", Status: "absent", SiteID: "", From: "2026-08-01", To: "2026-08-14"},
-					{IntakeID: "i2", Date: "2026-08-02", Status: "", SiteID: "", From: "2026-08-01", To: "2026-08-14"},
+					{IntakeID: "i2", Date: "2026-08-01", Status: "absent", SiteID: "", From: "2026-08-01", To: "2026-08-14", Disabled: true},
+					{IntakeID: "i2", Date: "2026-08-02", Status: "", SiteID: "", From: "2026-08-01", To: "2026-08-14", Disabled: true},
 				}},
 			{IntakeID: "i1", Name: "Alice", TotalDays: 2,
 				Cells: []MatrixCell{
@@ -110,7 +110,7 @@ func TestMatrixContentRender(t *testing.T) {
 		"Total check-ins", "Active participants", "Stopped", "Avg attendance rate",
 		"Morning Program", "Alice",
 		`>2</div><div class="stat-label">Total check-ins`, "25%",
-		"No Location", "matrix-group-header", "row-no-location", "no location",
+		"No Location", "matrix-group-header", "row-no-location", "dot-disabled",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("matrix-content output missing %q", want)
