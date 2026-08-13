@@ -118,6 +118,12 @@ func (s *Server) Mux() http.Handler {
 	// Per-participant notes screen + add (auth-only)
 	mux.HandleFunc("/notes/", s.requireAuth(s.handleNotes))
 
+	// Attendance matrix (auth-only)
+	mux.HandleFunc("/attendance", s.requireAuth(s.handleMatrix))
+	mux.HandleFunc("/attendance/toggle", s.requireAuth(s.handleToggle))
+	mux.HandleFunc("/attendance/walkin-search", s.requireAuth(s.handleWalkinSearch))
+	mux.HandleFunc("/attendance/walkin", s.requireAuth(s.handleWalkin))
+
 	// PB admin UI — only when --admin / R3_ADMIN=1
 	mux.HandleFunc("/_/", s.handlePBAdmin)
 

@@ -262,3 +262,45 @@ a:hover { color: #b5502e; }
 .action-create { background: #eef3ea; color: #3f6b34; }
 .action-update { background: #fef5e7; color: #8a6d3b; }
 .action-delete { background: #fbeeec; color: #8f3a2e; }
+
+/* Attendance matrix */
+.matrix-wrap { overflow-x: auto; border: 1px solid #e4d9c8; border-radius: 10px; background: #fffdfa; }
+.matrix-table { border-collapse: collapse; width: 100%; font: 14px 'Public Sans', sans-serif; }
+.matrix-table th, .matrix-table td { padding: 8px 10px; border-bottom: 1px solid #eee3d2; text-align: center; }
+.matrix-name-col { position: sticky; left: 0; background: #fffdfa; z-index: 2; text-align: left; min-width: 200px; box-shadow: 1px 0 0 #e4d9c8; }
+.matrix-date-col { min-width: 44px; color: #6b5f52; font-size: 12px; }
+.matrix-total-col { min-width: 70px; font-weight: 600; }
+.matrix-total-badge { background: #f7f1e6; border: 1px solid #e4d9c8; border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+.matrix-cell-form { margin: 0; display: inline-block; }
+.matrix-dot { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #e4d9c8; background: transparent; cursor: pointer; padding: 0; }
+.matrix-dot.dot-present { background: #3f6b34; border-color: #3f6b34; }
+.matrix-dot.dot-absent { background: #eee; border-color: #d9cbb6; }
+.matrix-dot.dot-excused { background: #8a6a1e; border-color: #8a6a1e; }
+.matrix-dot.dot-walk_in { background: #2a4d8a; border-color: #2a4d8a; }
+.matrix-dot.dot-empty { background: transparent; }
+.matrix-table tr.row-dropout td { background: #fbeeec; }
+.matrix-name { font-weight: 600; color: #2b2320; }
+.matrix-table tr.row-dropout .matrix-name { color: #8f3a2e; }
+.matrix-table .status-badge {
+  font: 600 10px 'Public Sans', sans-serif;
+  color: #8f3a2e;
+  background: #fbeeec;
+  border-radius: 4px;
+  padding: 3px 9px;
+  margin-left: 6px;
+}
+.walkin-panel { margin: 16px 0; }
+.walkin-search { margin-top: 10px; padding: 12px; background: #fffdfa; border: 1px solid #e4d9c8; border-radius: 10px; }
+.walkin-search.hidden { display: none; }
+.walkin-search .field-input { width: 100%; margin-bottom: 8px; }
+.walkin-results { margin-bottom: 8px; }
+.walkin-result { margin-bottom: 4px; }
+.walkin-result-form { margin: 0; }
+.walkin-result-btn {
+  display: block; width: 100%; text-align: left; padding: 8px 10px;
+  background: #f7f1e6; border: 1px solid #e4d9c8; border-radius: 6px;
+  font: 500 14px 'Public Sans', sans-serif; color: #2b2320; cursor: pointer;
+}
+.walkin-result-btn:hover { background: #efe6d4; border-color: #b5502e; }
+.walkin-create { display: flex; gap: 8px; }
+.walkin-create .field-input { flex: 1; margin-bottom: 0; }
