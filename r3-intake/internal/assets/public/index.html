@@ -812,6 +812,32 @@
       <button type="submit" class="btn btn-primary">Apply</button>
     </form>
 
+    <div class="walkin-panel">
+      <button type="button" class="btn btn-primary" id="walkin-toggle"
+              onclick="document.getElementById('walkin-search').classList.toggle('hidden')">Add walk-in</button>
+      <div id="walkin-search" class="walkin-search hidden">
+        <div class="walkin-search-filters">
+          <input type="hidden" name="site_id" value="{{.SiteID}}">
+          <input type="hidden" name="from" value="{{.DateFrom}}">
+          <input type="hidden" name="to" value="{{.DateTo}}">
+          {{if .EventID}}<input type="hidden" name="event_id" value="{{.EventID}}">{{end}}
+        </div>
+        <input type="text" name="name" class="field-input" placeholder="Search existing participant…"
+               hx-get="/attendance/walkin-search" hx-trigger="keyup changed delay:500ms"
+               hx-target="#walkin-results" hx-swap="innerHTML"
+               hx-include="closest .walkin-search-filters">
+        <div id="walkin-results" class="walkin-results"></div>
+        <form method="post" action="/attendance/walkin" class="walkin-create">
+          <input type="hidden" name="site_id" value="{{.SiteID}}">
+          <input type="hidden" name="from" value="{{.DateFrom}}">
+          <input type="hidden" name="to" value="{{.DateTo}}">
+          {{if .EventID}}<input type="hidden" name="event_id" value="{{.EventID}}">{{end}}
+          <input type="text" name="name" class="field-input" placeholder="Or create new participant (name only)">
+          <button type="submit" class="btn btn-primary">Check in walk-in</button>
+        </form>
+      </div>
+    </div>
+
     {{if .Rows}}
     <div class="matrix-wrap">
       <table class="matrix-table">
@@ -856,4 +882,17 @@
   {{if .EventID}}<input type="hidden" name="event_id" value="{{.EventID}}">{{end}}
   <button type="submit" class="matrix-dot {{if .Status}}dot-{{.Status}}{{else}}dot-empty{{end}}" aria-label="Toggle status for {{.Date}}"></button>
 </form>
+{{end}}
+
+{{define "walkin-results"}}
+{{range .}}<div class="walkin-result">
+  <form method="post" action="/attendance/walkin" class="walkin-result-form">
+    <input type="hidden" name="intake_id" value="{{.ID}}">
+    <input type="hidden" name="site_id" value="{{.SiteID}}">
+    <input type="hidden" name="from" value="{{.From}}">
+    <input type="hidden" name="to" value="{{.To}}">
+    {{if .EventID}}<input type="hidden" name="event_id" value="{{.EventID}}">{{end}}
+    <button type="submit" class="walkin-result-btn">{{.Name}}</button>
+  </form>
+</div>{{end}}
 {{end}}
