@@ -346,3 +346,206 @@ a:hover { color: #b5502e; }
 .roster-table { margin-top: 8px; }
 .rate-good { background: #eef3ea; color: #3f6b34; }
 .rate-low  { background: #fbeeec; color: #8f3a2e; }
+
+/* Person attendance calendar */
+.person-att-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 16px;
+  align-items: center;
+}
+
+.person-att-stat {
+  font: 600 13px 'Public Sans', sans-serif;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #e4d9c8;
+  background: #fffdfa;
+  color: #2b2320;
+}
+
+/* Rate stat must override the neutral pill background */
+.person-att-stat.rate-good {
+  background: #eef3ea;
+  color: #3f6b34;
+}
+
+.person-att-stat.rate-low {
+  background: #fbeeec;
+  color: #8f3a2e;
+}
+
+.person-att-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.person-att-month {
+  font: 600 18px 'Lora', serif;
+  color: #2b2320;
+}
+
+.person-att-calendar {
+  border-collapse: collapse;
+  width: 100%;
+  font: 14px 'Public Sans', sans-serif;
+  background: #fffdfa;
+  border: 1px solid #e4d9c8;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.person-att-calendar th {
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee3d2;
+  font: 600 12px 'Public Sans', sans-serif;
+  color: #6b5f52;
+  text-align: center;
+}
+
+.person-att-cell {
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee3d2;
+  text-align: center;
+  vertical-align: top;
+  min-height: 64px;
+  cursor: pointer;
+}
+
+.person-att-daynum {
+  font: 600 14px 'Public Sans', sans-serif;
+  color: #2b2320;
+}
+
+.person-att-status {
+  display: inline-block;
+  margin-top: 4px;
+  font: 600 10px 'Public Sans', sans-serif;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: capitalize;
+}
+
+/* Cell states */
+.person-att-cell.is-other-month .person-att-daynum {
+  color: #c9bda8;
+}
+
+.person-att-cell.has-record {
+  background: #fbf7ef;
+}
+
+.person-att-cell.is-today {
+  background: #fdf3e3;
+  box-shadow: inset 0 0 0 1px #b5502e;
+}
+
+/* Status colors — scoped to the calendar cells and legend items only */
+.person-att-cell.status-present .person-att-status {
+  background: #3f6b34;
+  color: #fffdfa;
+}
+
+.person-att-cell.status-absent .person-att-status {
+  background: #eee;
+  color: #6b5f52;
+  border: 1px solid #d9cbb6;
+}
+
+.person-att-cell.status-excused .person-att-status {
+  background: #8a6a1e;
+  color: #fffdfa;
+}
+
+.person-att-cell.status-walk_in .person-att-status {
+  background: #2a4d8a;
+  color: #fffdfa;
+}
+
+/* Legend */
+.person-att-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 0;
+}
+
+.person-att-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 12px 'Public Sans', sans-serif;
+  color: #6b5f52;
+}
+
+.person-att-legend-item::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.person-att-legend-item.status-present::before {
+  background: #3f6b34;
+}
+
+.person-att-legend-item.status-absent::before {
+  background: #eee;
+  border: 1px solid #d9cbb6;
+}
+
+.person-att-legend-item.status-excused::before {
+  background: #8a6a1e;
+}
+
+.person-att-legend-item.status-walk_in::before {
+  background: #2a4d8a;
+}
+
+/* Day-detail inline card */
+.person-att-day-detail {
+  background: #fffdfa;
+  border: 1px solid #e4d9c8;
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin: 16px 0;
+}
+
+.person-att-day-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  align-items: center;
+}
+
+/* Separate Delete form that appears below the Save/Cancel actions */
+.person-att-day-detail form + form {
+  margin-top: 12px;
+}
+
+@media (max-width: 620px) {
+  #person-attendance-calendar {
+    overflow-x: auto;
+  }
+
+  .person-att-calendar {
+    min-width: 560px;
+  }
+
+  .person-att-cell {
+    padding: 6px 6px;
+  }
+
+  .person-att-status {
+    font-size: 9px;
+  }
+
+  .person-att-day-detail {
+    padding: 14px 16px;
+  }
+}
