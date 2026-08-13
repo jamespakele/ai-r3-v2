@@ -231,6 +231,22 @@ a:hover { color: #b5502e; }
 .accordion.open .accordion-icon { transform: rotate(180deg); }
 .accordion.open .accordion-body { max-height: 2000px; padding: 0 24px 24px; }
 
+/* ---------- admin tabs ---------- */
+.tabs { margin: 24px 0; }
+.tab-list { display: flex; gap: 4px; border-bottom: 1px solid #e4d9c8; margin-bottom: 0; }
+.tab {
+  padding: 12px 20px; border: none; background: transparent; cursor: pointer;
+  font: 600 15px 'Public Sans', sans-serif; color: #6b5f52;
+  border-bottom: 3px solid transparent; border-radius: 8px 8px 0 0;
+}
+.tab:hover { color: #2b2320; background: #f7f1e6; }
+.tab[aria-selected="true"] { color: #b5502e; border-bottom-color: #b5502e; }
+.tab-panel {
+  border: 1px solid #e4d9c8; border-top: none; border-radius: 0 0 14px 14px;
+  background: #fffdfa; padding: 24px;
+}
+.tab-panel[hidden] { display: none; }
+
 /* Event status badges — distinct from existing .status-* to avoid recoloring intake badges */
 .event-status-active { background: #eef3ea; color: #3f6b34; }
 .event-status-completed { background: #fdf3e3; color: #8a6a1e; }

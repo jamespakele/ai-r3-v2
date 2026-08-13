@@ -516,7 +516,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Admin Settings</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=4">
+<link rel="stylesheet" href="/static/app.css?v=5">
 </head>
 <body>
 <div class="page-bg">
@@ -537,12 +537,16 @@
   </div>
 
   <div class="container container-admin">
-    <div class="accordion">
-      <button type="button" class="accordion-header" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'false' ? 'true' : 'false'); this.parentElement.classList.toggle('open')">
-        <span class="accordion-title">Sites</span>
-        <svg class="accordion-icon" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M6 8.5L1 3.5h10z" fill="currentColor"/></svg>
-      </button>
-      <div class="accordion-body">
+    <div class="tabs" data-tabs>
+      <div class="tab-list" role="tablist" aria-label="Admin sections">
+        <button type="button" class="tab" role="tab" id="tab-sites" aria-controls="panel-sites" aria-selected="true" data-tab-target="panel-sites">Sites</button>
+        {{if .IsAdmin}}
+        <button type="button" class="tab" role="tab" id="tab-users" aria-controls="panel-users" aria-selected="false" data-tab-target="panel-users" tabindex="-1">Users</button>
+        <button type="button" class="tab" role="tab" id="tab-events" aria-controls="panel-events" aria-selected="false" data-tab-target="panel-events" tabindex="-1">Events</button>
+        {{end}}
+      </div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-sites" aria-labelledby="tab-sites">
         <table class="admin-table">
           <thead><tr><th>Name</th><th>Address</th><th>Active</th><th>Default</th><th>Order</th>{{if .IsAdmin}}<th></th>{{end}}</tr></thead>
           <tbody>
@@ -574,15 +578,9 @@
         </form>
         {{end}}
       </div>
-    </div>
 
-    {{if .IsAdmin}}
-    <div class="accordion">
-      <button type="button" class="accordion-header" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'false' ? 'true' : 'false'); this.parentElement.classList.toggle('open')">
-        <span class="accordion-title">Users</span>
-        <svg class="accordion-icon" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M6 8.5L1 3.5h10z" fill="currentColor"/></svg>
-      </button>
-      <div class="accordion-body">
+      {{if .IsAdmin}}
+      <div class="tab-panel" role="tabpanel" id="panel-users" aria-labelledby="tab-users" hidden>
         <table class="admin-table">
           <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
           <tbody>
@@ -625,14 +623,8 @@
           <button type="submit" class="btn btn-primary">Add user</button>
         </form>
       </div>
-    </div>
 
-    <div class="accordion">
-      <button type="button" class="accordion-header" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'false' ? 'true' : 'false'); this.parentElement.classList.toggle('open')">
-        <span class="accordion-title">Events</span>
-        <svg class="accordion-icon" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M6 8.5L1 3.5h10z" fill="currentColor"/></svg>
-      </button>
-      <div class="accordion-body">
+      <div class="tab-panel" role="tabpanel" id="panel-events" aria-labelledby="tab-events" hidden>
         <table class="admin-table">
           <thead><tr><th>Event Name</th><th>Location</th><th>Dates</th><th>Enrolled</th><th>Status</th><th></th></tr></thead>
           <tbody>
@@ -667,10 +659,38 @@
           <button type="submit" class="btn btn-primary grid-full">Create Event</button>
         </form>
       </div>
+      {{end}}
     </div>
-    {{end}}
   </div>
 </div>
+<script>
+(function () {
+  var tabs = document.querySelector('[data-tabs]');
+  if (!tabs) return;
+  var buttons = tabs.querySelectorAll('.tab');
+  var panels = tabs.querySelectorAll('.tab-panel');
+  function activate(id) {
+    buttons.forEach(function (b) {
+      var on = b.getAttribute('aria-controls') === id;
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.tabIndex = on ? 0 : -1;
+    });
+    panels.forEach(function (p) {
+      p.hidden = p.id !== id;
+    });
+  }
+  tabs.addEventListener('click', function (e) {
+    var b = e.target.closest('.tab');
+    if (b) activate(b.getAttribute('aria-controls'));
+  });
+  var evtPanel = document.getElementById('panel-events');
+  var evtTab = document.getElementById('tab-events');
+  if (evtPanel && evtTab &&
+      ({{if .EventError}}true{{else}}false{{end}} || {{if .EventName}}true{{else}}false{{end}})) {
+    activate('panel-events');
+  }
+})();
+</script>
 </body>
 </html>{{end}}
 
