@@ -1,44 +1,41 @@
-# RESULT — CSV Attendance Export: Handler + Tests (Story 3.1)
+# RESULT — Story 4.3: Day Detail and Edit (t_1030de8b)
 
 ## What was built
-Implemented the CSV attendance export endpoint (FR14, UX-DR5) and added unit +
-integration tests covering it end-to-end. Two child cards were merged:
-`wt/t_54a1f19a` (implementation) and `wt/t_7c6efa05` (tests).
+Interactive day-level detail + inline attendance edit UI for the per-person
+monthly attendance calendar (Epic 4, FR17). This card added the client-side
+wiring layer on top of the sibling backend (t_aefcfde6) and CSS (t_cca37bee):
 
-### Implementation — `internal/server/attendance.go`
-- **Route:** `GET /attendance/export` → `handleExportCSV`, registered in `server.go` with `requireRole("admin", ...)` (admin-only per PRD §10; overrides §09 generic "auth").
-- **Handler** (`attendance.go`): parses `?event={id}&site={id}&from=YYYY-MM-DD&to=YYYY-MM-DD` with the same defaults as the matrix (last 14 days, resolved site, no event filter), 30-day cap, inverted-range swap. Sets `Content-Type: text/csv` and `Content-Disposition: attachment; filename="attendance_export_YYYY-MM-DD.csv"` (HST today). Streams via `encoding/csv` with Flush/Error checks.
-- **`loadExportRows`:** queries raw `attendance` records (NOT `loadMatrixRows`, which drops recorded_by/check_in_time/note), filters by date/site/event with `mcpmod.EscapeFilter`, resolves names via `nameFor`.
-- **Pure builders (testable):** `exportCSVRecords` (header + data rows + summary row), `exportStatus` (title-case), `summaryCSVRow` (total check-ins, unique participants, avg rate).
-- **Columns:** Participant, Site, Event, Date, Status, Recorded By, Check-in Time, Note (PRD §05 Screen 2).
+1. **Clickable day cells** — each `td.person-att-cell` now issues
+   `hx-get="/intake/{id}/attendance/day?date=YYYY-MM-DD"` on click, loading the
+   `person-attendance-day` fragment into a new `#person-att-detail-slot`.
+2. **Detail slot** — `<div id="person-att-detail-slot">` placed inside
+   `#person-attendance-calendar`, so the Save/Delete forms' `hx-swap="outerHTML"`
+   on the calendar div replaces the slot too — the detail **auto-closes** on
+   save/delete with zero extra JS.
+3. **Cancel** — existing `this.closest('.person-att-day-detail').remove()`
+   closes the detail without a request.
+4. **Delete** — existing `confirm('Delete this attendance record?')` prompt.
 
-### Tests
-#### Pure unit tests — `internal/server/attendance_export_test.go`
-- `TestExportStatus` — status → title-case mapping (present/absent/excused/walk_in), unknown/empty → "".
-- `TestSummaryCSVRow` — check-in counting (present+walk_in), unique participants, avg-rate math, empty-set no-division-by-zero, trailing empty cells.
-- `TestExportCSVRecords_Header` — exact header row equality (order-sensitive).
-- `TestExportCSVRecords_FieldFormatting` — title-cased status, verbatim check_in_time/note/recorded_by pass-through, comma-in-note quoting.
-- `TestExportCSVRecords_Empty` — empty input → header + empty summary row only.
-- `TestExportCSVRecords` (in `attendance_test.go`) — header, status title-casing, empty relations, comma-in-note, summary math.
+No Go files or CSS were modified by this card. Only
+`r3-intake/internal/assets/public/index.html` changed (the two wiring edits).
 
-#### Integration tests — `internal/server/attendance_export_integration_test.go`
-Boots a real in-process PocketBase (embedded JS migrations + Go stubs + pb.Bootstrap(), temp data dir) and drives the handler through `srv.Mux()` with signed session cookies:
-- `TestExportCSVPermissions` — unauthenticated / case_manager / tampered-cookie → 303 redirect to /login; admin → 200 + CSV headers.
-- `TestExportCSVDateRangeFilter` — ordered range, swapped range (from>to), 30-day cap, defaults.
-- `TestExportCSVSiteFilter` — site1/site2/invalid-site (all locations)/no-site.
-- `TestExportCSVEventFilter` — ev1/ev2/no-event.
-- `TestExportCSVHeaderAndFormatting` — full-wire header, resolved names, summary row, Content-Type/Disposition.
-- `TestExportCSVEmptyResultSet` — 200, header + empty summary row.
-- `TestExportCSVNameResolution` — nameFor + loadExportRows against booted PB.
+## Files changed
+- `r3-intake/internal/assets/public/index.html` — added `hx-get`/`hx-target`/
+  `hx-swap`/`hx-trigger` to day cells + `#person-att-detail-slot` div.
+- `docs/plans/omp-plan-day-detail-edit.md` — MOA working plan (artifact).
 
 ## Verification
-- `go build ./...` — pass
-- `go vet ./...` — pass
-- `go test ./...` — all pass (ok r3-intake/internal/server), including `TestExportCSVRecords` and the 12 new tests.
+- `go build ./...` — clean
+- `go vet ./...` — clean
+- `go test ./...` — green (internal/server ok)
+- `go test ./internal/server/ -run PersonAttendance -v` — all pass
+  (month render, day get with/without record, save create/update, delete,
+  validation, template renders)
+- Manual browser check of click-to-open flow deferred to post-merge review.
 
-## Artifacts
-- Plans: `docs/plans/omp-plan-csv-export.md`, `docs/plans/omp-plan-csv-export-tests.md`
-- Changed: `r3-intake/internal/server/attendance.go`, `server.go`, `attendance_test.go`, `attendance_export_test.go`, `attendance_export_integration_test.go`
-
-## Handoff
-The pure `exportCSVRecords`/`summaryCSVRow`/`exportStatus` functions are the intended test surface. No production files were dropped during the merge; both child cards' feature sets are preserved.
+## Handoff to parent (t_3813c631)
+This worktree contains the sibling backend (person_attendance.go + tests,
+server.go routes) and CSS (app.css) copied in so the branch is self-contained.
+The parent must merge this worktree with t_aefcfde6 (backend) and t_cca37bee
+(CSS) onto the epic branch. The merged `person-attendance` template references
+`/static/app.css?v=7` to match the CSS sibling's cache-buster.

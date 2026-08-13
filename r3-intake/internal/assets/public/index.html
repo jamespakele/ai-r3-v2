@@ -1131,3 +1131,136 @@
 </div>
 </body>
 </html>{{end}}
+
+{{define "person-attendance"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R3 Intake — Attendance — {{.IntakeName}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css?v=7">
+<script src="/static/htmx.min.js" defer></script>
+<script src="/static/alpine.min.js" defer></script>
+</head>
+<body>
+<div class="page-bg">
+  <div class="topbar topbar-admin" data-no-print>
+    <div class="topbar-inner">
+      <div class="brand"><div class="brand-badge">R3</div>
+        <div><div class="brand-title">Restore, Reconnect, Revive</div>
+        <div class="brand-sub">Attendance — {{.UserName}} ({{.Role}})</div></div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/intake/{{.IntakeID}}" class="btn btn-ghost">← Intake</a>
+        <a href="/" class="btn btn-ghost">View All</a>
+        <a href="/logout" class="btn btn-ghost">Sign out</a>
+      </div>
+    </div>
+  </div>
+  <div class="container container-admin">
+    <h2 class="section-title">Attendance — {{.IntakeName}}{{if .SiteName}} ({{.SiteName}}){{end}}</h2>
+    {{template "person-attendance-calendar" .}}
+  </div>
+</div>
+</body>
+</html>{{end}}
+
+{{define "person-attendance-calendar"}}
+<div id="person-attendance-calendar">
+  <div class="person-att-stats">
+    <span class="person-att-stat {{if eq .Stats.RateColor "green"}}rate-good{{else}}rate-low{{end}}">
+      {{.Stats.PresentCount}} of {{.Stats.TotalDays}} days ({{.Stats.Rate}}%)
+    </span>
+    <span class="person-att-stat">Current streak: {{.Stats.Streak}}</span>
+  </div>
+  {{if not .Stats.HasRecords}}<p class="empty-state">No attendance recorded yet</p>{{end}}
+  <div class="person-att-nav">
+    <a href="/intake/{{.IntakeID}}/attendance?month={{.PrevMonth}}" class="btn btn-ghost">← Prev</a>
+    <span class="person-att-month">{{.Month}}</span>
+    <a href="/intake/{{.IntakeID}}/attendance?month={{.NextMonth}}" class="btn btn-ghost">Next →</a>
+  </div>
+  <table class="person-att-calendar">
+    <thead>
+      <tr>{{range .Weekdays}}<th>{{.}}</th>{{end}}</tr>
+    </thead>
+    <tbody>
+      {{range .Weeks}}
+      <tr>
+        {{range .}}
+        <td class="person-att-cell {{if .IsOtherMonth}}is-other-month{{end}} {{if .IsToday}}is-today{{end}} {{if .HasRecord}}has-record status-{{.Status}}{{end}}"
+            data-date="{{.Date}}"
+            hx-get="/intake/{{$.IntakeID}}/attendance/day?date={{.Date}}"
+            hx-target="#person-att-detail-slot"
+            hx-swap="innerHTML"
+            hx-trigger="click">
+          <div class="person-att-daynum">{{.DayNum}}</div>
+          {{if .HasRecord}}<div class="person-att-status">{{.StatusLabel}}</div>{{end}}
+        </td>
+        {{end}}
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  <div class="person-att-legend">
+    {{range .Legend}}<span class="person-att-legend-item status-{{.Status}}">{{.Label}}</span>{{end}}
+  </div>
+  <div id="person-att-detail-slot"></div>
+</div>
+{{end}}
+
+{{define "person-attendance-day"}}
+<div class="person-att-day-detail">
+  {{if .Error}}<div class="form-error">{{.Error}}</div>{{end}}
+  {{if .HasRecord}}
+  <form method="post" action="/intake/{{.IntakeID}}/attendance/day?date={{.Date}}"
+        hx-post="/intake/{{.IntakeID}}/attendance/day?date={{.Date}}" hx-target="#person-attendance-calendar" hx-swap="outerHTML">
+    <input type="hidden" name="date" value="{{.Date}}">
+    <div class="field-group">
+      <label class="field-label">Status</label>
+      <select name="status" class="field-input">
+        {{range .StatusOptions}}<option value="{{.Value}}" {{if .Selected}}selected{{end}}>{{.Label}}</option>{{end}}
+      </select>
+    </div>
+    {{if .EventName}}<div class="field-group"><label class="field-label">Event</label><div class="field-input">{{.EventName}}</div></div>{{end}}
+    {{if .RecordedBy}}<div class="field-group"><label class="field-label">Recorded by</label><div class="field-input">{{.RecordedBy}}</div></div>{{end}}
+    {{if .CheckInTime}}<div class="field-group"><label class="field-label">Check-in time</label><div class="field-input">{{.CheckInTime}}</div></div>{{end}}
+    <div class="field-group">
+      <label class="field-label">Note</label>
+      <textarea name="note" rows="3" class="field-input textarea">{{.Note}}</textarea>
+    </div>
+    <div class="person-att-day-actions">
+      <button type="submit" class="btn btn-primary">Save</button>
+      <button type="button" class="btn btn-ghost" onclick="this.closest('.person-att-day-detail').remove()">Cancel</button>
+    </div>
+  </form>
+  <form method="post" action="/intake/{{.IntakeID}}/attendance/day/delete"
+        hx-post="/intake/{{.IntakeID}}/attendance/day/delete" hx-target="#person-attendance-calendar" hx-swap="outerHTML"
+        onsubmit="return confirm('Delete this attendance record?')">
+    <input type="hidden" name="date" value="{{.Date}}">
+    <button type="submit" class="btn btn-tiny btn-danger">Delete</button>
+  </form>
+  {{else}}
+  <p class="empty-state">No attendance recorded</p>
+  <form method="post" action="/intake/{{.IntakeID}}/attendance/day?date={{.Date}}"
+        hx-post="/intake/{{.IntakeID}}/attendance/day?date={{.Date}}" hx-target="#person-attendance-calendar" hx-swap="outerHTML">
+    <input type="hidden" name="date" value="{{.Date}}">
+    <div class="field-group">
+      <label class="field-label">Status</label>
+      <select name="status" class="field-input">
+        {{range .StatusOptions}}<option value="{{.Value}}" {{if .Selected}}selected{{end}}>{{.Label}}</option>{{end}}
+      </select>
+    </div>
+    <div class="field-group">
+      <label class="field-label">Note</label>
+      <textarea name="note" rows="3" class="field-input textarea"></textarea>
+    </div>
+    <div class="person-att-day-actions">
+      <button type="submit" class="btn btn-primary">Save</button>
+      <button type="button" class="btn btn-ghost" onclick="this.closest('.person-att-day-detail').remove()">Cancel</button>
+    </div>
+  </form>
+  {{end}}
+</div>
+{{end}}
