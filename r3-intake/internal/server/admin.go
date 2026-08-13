@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -30,16 +31,64 @@ type IntakeRow struct {
 
 // AdminView is the view model for the admin dashboard template.
 type AdminView struct {
-	UserName     string
-	Role         string
-	IsAdmin      bool
-	Rows         []IntakeRow
-	Sites        []Site
-	Users        []UserRow
-	Query        string
-	StatusFilter string
-	SiteFilter   string
-	Total        int
+	UserName         string
+	Role             string
+	IsAdmin          bool
+	Rows             []IntakeRow
+	Sites            []Site
+	Users            []UserRow
+	Events           []EventRow
+	EventError       string
+	EventName        string
+	EventSite        string
+	EventStart       string
+	EventEnd         string
+	EventDescription string
+	Query            string
+	StatusFilter     string
+	SiteFilter       string
+	Total            int
+	EventID          string
+	EventSiteName    string
+	EventStatus      string
+	EnrolledCount    int
+	Enrolled         []EnrolledRow
+}
+
+// EventRow is the flat admin list view of an events record.
+type EventRow struct {
+	ID        string
+	Name      string
+	SiteName  string
+	StartDate string
+	EndDate   string
+	Enrolled  int
+	Status    string
+}
+
+// EnrolledRow is one row of the event roster with attendance stats.
+type EnrolledRow struct {
+	IntakeID     string
+	Name         string
+	EnrolledDate string // YYYY-MM-DD
+	DaysAttended int
+	TotalDays    int
+	Rate         int    // 0-100
+	LastPresent  string // YYYY-MM-DD or ""
+}
+
+// EnrollSearchResult is one hit in the "Add participant" name search.
+type EnrollSearchResult struct {
+	ID       string
+	Name     string
+	SiteName string
+	Already  bool
+}
+
+// EnrollSearchView is passed to the enroll-search-results fragment.
+type EnrollSearchView struct {
+	EventID string
+	Results []EnrollSearchResult
 }
 
 // UserOption is a minimal user label/value for dropdowns.
@@ -143,6 +192,7 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 	view := &AdminView{UserName: u.Name, Role: u.Role, IsAdmin: true}
 	view.Sites = must(s.loadSites(true))
 	view.Users = s.loadUsers()
+	view.Events = must(s.loadAllEvents())
 	_ = s.tpl.ExecuteTemplate(w, "admin", view)
 }
 
@@ -180,6 +230,8 @@ func (s *Server) handleAdminSub(w http.ResponseWriter, r *http.Request) {
 		s.adminUserAdd(w, r)
 	case strings.HasPrefix(path, "users/") && strings.HasSuffix(path, "/update") && u.Role == "admin":
 		s.adminUserUpdate(w, r, path)
+	case path == "events" && u.Role == "admin":
+		s.adminEventAdd(w, r, u)
 	default:
 		http.NotFound(w, r)
 	}
@@ -339,6 +391,370 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request, path st
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
+// adminEventAdd creates a new event. Validation failures re-render the admin
+// page with an error and the submitted values preserved.
+func (s *Server) adminEventAdd(w http.ResponseWriter, r *http.Request, u *sessionUser) {
+	name := strings.TrimSpace(r.FormValue("name"))
+	site := strings.TrimSpace(r.FormValue("site"))
+	start := strings.TrimSpace(r.FormValue("start_date"))
+	end := strings.TrimSpace(r.FormValue("end_date"))
+	desc := strings.TrimSpace(r.FormValue("description"))
+
+	view := &AdminView{
+		UserName:         u.Name,
+		Role:             u.Role,
+		IsAdmin:          true,
+		EventName:        name,
+		EventSite:        site,
+		EventStart:       start,
+		EventEnd:         end,
+		EventDescription: desc,
+	}
+
+	errMsg := ""
+	startT, startErr := time.Parse("2006-01-02", start)
+	endT, endErr := time.Parse("2006-01-02", end)
+	switch {
+	case name == "" || site == "":
+		errMsg = "Event name and location are required."
+	case startErr != nil || endErr != nil:
+		errMsg = "Start and end dates must be valid dates."
+	case endT.Before(startT):
+		errMsg = "End date must be on or after start date."
+	case len(desc) > 500:
+		errMsg = "Description must be 500 characters or fewer."
+	}
+
+	if errMsg != "" {
+		view.EventError = errMsg
+		view.Sites = must(s.loadSites(true))
+		view.Users = s.loadUsers()
+		view.Events = must(s.loadAllEvents())
+		_ = s.tpl.ExecuteTemplate(w, "admin", view)
+		return
+	}
+
+	col, err := s.eventsCollection()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", name)
+	rec.Set("site", site)
+	rec.Set("start_date", start)
+	rec.Set("end_date", end)
+	rec.Set("description", desc)
+	rec.Set("status", "active")
+	rec.Set("created_by", u.ID)
+	_ = s.pb.Save(rec)
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+}
+
+// handleAdminEventManage renders the enrollment-management placeholder for an
+// event. The actual enrollment screen ships in a later story.
+func (s *Server) handleAdminEventManage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/admin/events/"), "/manage")
+	rec, err := s.pb.FindRecordById("events", id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	u := s.currentSession(r)
+	if u == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	start := rec.GetString("start_date")
+	end := rec.GetString("end_date")
+	enrolled, _ := s.loadEnrolledRoster(id, start, end)
+	siteName := s.siteNameMap()[rec.GetString("site")]
+	view := &AdminView{
+		UserName:       u.Name,
+		Role:           u.Role,
+		IsAdmin:        true,
+		EventID:        id,
+		EventName:      rec.GetString("name"),
+		EventSite:      rec.GetString("site"),
+		EventSiteName:  siteName,
+		EventStart:     start,
+		EventEnd:       end,
+		EventStatus:    rec.GetString("status"),
+		EnrolledCount:  len(enrolled),
+		Enrolled:       enrolled,
+	}
+	_ = s.tpl.ExecuteTemplate(w, "event-manage", view)
+}
+
+// loadEnrolledRoster loads the active roster for an event and computes each
+// participant's attendance stats over the event's date range.
+func (s *Server) loadEnrolledRoster(eventID, start, end string) ([]EnrolledRow, error) {
+	col, err := s.eventEnrollmentCollection()
+	if err != nil {
+		return nil, err
+	}
+	filter := fmt.Sprintf("event='%s' && deleted=false", mcpmod.EscapeFilter(eventID))
+	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "enrolled_date", 1000, 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]EnrolledRow, 0, len(recs))
+	for _, er := range recs {
+		iid := er.GetString("intake")
+		intakeRec, err := s.pb.FindRecordById("intake", iid)
+		if err != nil {
+			continue // cascade-deleted intake: skip
+		}
+		name := intakeRec.GetString("name")
+		if name == "" {
+			name = "(unnamed)"
+		}
+		daysAttended, totalDays, rate, lastPresent := s.loadEnrollmentStats(iid, eventID, start, end)
+		out = append(out, EnrolledRow{
+			IntakeID:     iid,
+			Name:         name,
+			EnrolledDate: er.GetString("enrolled_date"),
+			DaysAttended: daysAttended,
+			TotalDays:    totalDays,
+			Rate:         rate,
+			LastPresent:  lastPresent,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+// loadEnrollmentStats computes attendance stats for one intake within an
+// event's date range. totalDays is the number of elapsed (or total, when the
+// event has ended) calendar days in the range; rate guards against division
+// by zero when totalDays is 0.
+func (s *Server) loadEnrollmentStats(intakeID, eventID, start, end string) (daysAttended, totalDays, rate int, lastPresent string) {
+	attCol, err := s.attendanceCollection()
+	if err != nil {
+		return 0, 0, 0, ""
+	}
+	today := time.Now().In(hst).Format("2006-01-02")
+	capEnd := end
+	if end == "" || (today < capEnd) {
+		capEnd = today
+	}
+	totalDays = daysInRange(start, end, capEnd)
+
+	filter := fmt.Sprintf("intake='%s' && event='%s' && date>='%s' && date<='%s'",
+		mcpmod.EscapeFilter(intakeID), mcpmod.EscapeFilter(eventID),
+		mcpmod.EscapeFilter(start), mcpmod.EscapeFilter(end))
+	recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "date", 5000, 0)
+	if err != nil {
+		return 0, totalDays, 0, ""
+	}
+	for _, rec := range recs {
+		st := rec.GetString("status")
+		if st != "present" && st != "walk_in" {
+			continue
+		}
+		daysAttended++
+		d := rec.GetString("date")
+		if d > lastPresent {
+			lastPresent = d
+		}
+	}
+	if totalDays > 0 {
+		rate = enrollmentRate(daysAttended, totalDays)
+	}
+	return daysAttended, totalDays, rate, lastPresent
+}
+
+// enrollmentRate returns attendance as an integer percentage, guarding
+// against division by zero.
+func enrollmentRate(daysAttended, totalDays int) int {
+	if totalDays <= 0 {
+		return 0
+	}
+	return daysAttended * 100 / totalDays
+}
+
+// daysInRange returns the number of calendar days from `start` up to the
+// earlier of `end` and `cap` (inclusive). If `start` is after `cap`, returns 0.
+func daysInRange(start, end, cap string) int {
+	st, err1 := time.Parse("2006-01-02", start)
+	en, err2 := time.Parse("2006-01-02", end)
+	cp, err3 := time.Parse("2006-01-02", cap)
+	if err1 != nil || err2 != nil || err3 != nil {
+		return 0
+	}
+	if st.After(en) {
+		return 0
+	}
+	if st.After(cp) {
+		return 0
+	}
+	if cp.After(en) {
+		cp = en
+	}
+	return int(cp.Sub(st).Hours()/24) + 1
+}
+
+// handleEventEnroll enrolls an existing intake participant into an event. It
+// is idempotent: an existing active enrollment for (event, intake) is a no-op.
+// HTMX requests render the roster fragment; others get a 303 redirect.
+func (s *Server) handleEventEnroll(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	id := r.PathValue("id")
+	intakeID := strings.TrimSpace(r.FormValue("intake_id"))
+	if intakeID == "" {
+		http.Error(w, "missing intake_id", http.StatusBadRequest)
+		return
+	}
+	if _, err := s.pb.FindRecordById("events", id); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if _, err := s.pb.FindRecordById("intake", intakeID); err != nil {
+		http.Error(w, "intake not found", http.StatusBadRequest)
+		return
+	}
+	col, err := s.eventEnrollmentCollection()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// Idempotent: skip when an active enrollment already exists.
+	existing, err := s.pb.FindRecordsByFilter(col.Id,
+		fmt.Sprintf("event='%s' && intake='%s' && deleted=false", mcpmod.EscapeFilter(id), mcpmod.EscapeFilter(intakeID)),
+		"", 1, 0)
+	if err == nil && len(existing) > 0 {
+		s.respondRoster(w, r, id)
+		return
+	}
+	rec := core.NewRecord(col)
+	rec.Set("event", id)
+	rec.Set("intake", intakeID)
+	rec.Set("enrolled_date", time.Now().In(hst).Format("2006-01-02"))
+	rec.Set("deleted", false)
+	if err := s.pb.Save(rec); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.respondRoster(w, r, id)
+}
+
+// handleEventUnenroll soft-deletes an event enrollment, preserving attendance
+// history. Idempotent: an absent or already-deleted enrollment is a no-op.
+func (s *Server) handleEventUnenroll(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	id := r.PathValue("id")
+	intakeID := strings.TrimSpace(r.FormValue("intake_id"))
+	if intakeID == "" {
+		http.Error(w, "missing intake_id", http.StatusBadRequest)
+		return
+	}
+	col, err := s.eventEnrollmentCollection()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	recs, err := s.pb.FindRecordsByFilter(col.Id,
+		fmt.Sprintf("event='%s' && intake='%s' && deleted=false", mcpmod.EscapeFilter(id), mcpmod.EscapeFilter(intakeID)),
+		"", 1, 0)
+	if err != nil || len(recs) == 0 {
+		s.respondRoster(w, r, id)
+		return
+	}
+	recs[0].Set("deleted", true)
+	_ = s.pb.Save(recs[0])
+	s.respondRoster(w, r, id)
+}
+
+// respondRoster re-renders the roster fragment for HTMX requests, or issues a
+// 303 redirect to the manage screen for no-JS fallback.
+func (s *Server) respondRoster(w http.ResponseWriter, r *http.Request, eventID string) {
+	if r.Header.Get("HX-Request") != "true" {
+		http.Redirect(w, r, "/admin/events/"+eventID+"/manage", http.StatusSeeOther)
+		return
+	}
+	eventRec, err := s.pb.FindRecordById("events", eventID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	start := eventRec.GetString("start_date")
+	end := eventRec.GetString("end_date")
+	enrolled, _ := s.loadEnrolledRoster(eventID, start, end)
+	view := &AdminView{
+		EventID:        eventID,
+		EnrolledCount:  len(enrolled),
+		Enrolled:       enrolled,
+	}
+	_ = s.tpl.ExecuteTemplate(w, "event-roster", view)
+}
+
+// handleEnrollSearch returns an HTML fragment listing intake records at the
+// event's site whose name matches the ?name= query. Min 2 chars, max 10
+// results. Already-enrolled results are marked.
+func (s *Server) handleEnrollSearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	id := r.PathValue("id")
+	q := strings.TrimSpace(r.URL.Query().Get("name"))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if len(q) < 2 {
+		return
+	}
+	eventRec, err := s.pb.FindRecordById("events", id)
+	if err != nil {
+		return
+	}
+	eventSite := eventRec.GetString("site")
+	col, err := s.intakeCollection()
+	if err != nil {
+		return
+	}
+	filter := fmt.Sprintf(`name ~ "%s"`, mcpmod.EscapeFilter(q))
+	if eventSite != "" {
+		filter += fmt.Sprintf(" && site='%s'", mcpmod.EscapeFilter(eventSite))
+	}
+	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "-created", 10, 0)
+	if err != nil {
+		return
+	}
+	encCol, err := s.eventEnrollmentCollection()
+	if err != nil {
+		return
+	}
+	siteMap := s.siteNameMap()
+	results := make([]EnrollSearchResult, 0, len(recs))
+	for _, rec := range recs {
+		name := rec.GetString("name")
+		if name == "" {
+			name = "(unnamed)"
+		}
+		already := false
+		existing, _ := s.pb.FindRecordsByFilter(encCol.Id,
+			fmt.Sprintf("event='%s' && intake='%s' && deleted=false", mcpmod.EscapeFilter(id), mcpmod.EscapeFilter(rec.Id)),
+			"", 1, 0)
+		already = len(existing) > 0
+		results = append(results, EnrollSearchResult{
+			ID:       rec.Id,
+			Name:     name,
+			SiteName: siteMap[rec.GetString("site")],
+			Already:  already,
+		})
+	}
+	_ = s.tpl.ExecuteTemplate(w, "enroll-search-results", EnrollSearchView{EventID: id, Results: results})
+}
+
 // loadUsers returns all users for the admin users list.
 func (s *Server) loadUsers() []UserRow {
 	col, err := s.pb.FindCollectionByNameOrId("users")
@@ -359,6 +775,50 @@ func (s *Server) loadUsers() []UserRow {
 		})
 	}
 	return out
+}
+
+// loadAllEvents returns every event regardless of status (admin list view).
+func (s *Server) loadAllEvents() ([]EventRow, error) {
+	col, err := s.eventsCollection()
+	if err != nil {
+		return nil, err
+	}
+	recs, err := s.pb.FindRecordsByFilter(col.Id, "1=1", "-start_date,name", 1000, 0)
+	if err != nil {
+		return nil, err
+	}
+	siteMap := s.siteNameMap()
+	out := make([]EventRow, 0, len(recs))
+	for _, r := range recs {
+		site := siteMap[r.GetString("site")]
+		if site == "" {
+			site = "—"
+		}
+		out = append(out, EventRow{
+			ID:        r.Id,
+			Name:      r.GetString("name"),
+			SiteName:  site,
+			StartDate: r.GetString("start_date"),
+			EndDate:   r.GetString("end_date"),
+			Enrolled:  s.loadEnrolledCount(r.Id),
+			Status:    r.GetString("status"),
+		})
+	}
+	return out, nil
+}
+
+// loadEnrolledCount returns the number of event_enrollment records for an event.
+func (s *Server) loadEnrolledCount(eventID string) int {
+	col, err := s.pb.FindCollectionByNameOrId("event_enrollment")
+	if err != nil {
+		return 0
+	}
+	filter := fmt.Sprintf("event='%s' && deleted=false", mcpmod.EscapeFilter(eventID))
+	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "", 1000, 0)
+	if err != nil {
+		return 0
+	}
+	return len(recs)
 }
 
 // siteNameMap returns {siteID: name} for all sites.

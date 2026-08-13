@@ -225,18 +225,63 @@ func (s *Server) loadMatrixRows(u *sessionUser, siteID string, dates []string, e
 	}
 
 	// Participants.
-	var intakeFilter string
-	switch {
-	case u.Role == "case_manager":
-		intakeFilter = fmt.Sprintf("assigned_to='%s'", mcpmod.EscapeFilter(u.ID))
-	case siteID != "":
-		intakeFilter = fmt.Sprintf("site='%s'", mcpmod.EscapeFilter(siteID))
-	default:
-		intakeFilter = "1=1"
-	}
-	intakeRecs, err := s.pb.FindRecordsByFilter(intakeCol.Id, intakeFilter, "name", 1000, 0)
-	if err != nil {
-		return nil, err
+	var intakeRecs []*core.Record
+	if eventID != "" {
+		// Event selected: rows are enrolled participants plus any walk-ins
+		// for this event in the date range.
+		ids := map[string]bool{}
+		encCol, err := s.eventEnrollmentCollection()
+		if err != nil {
+			return nil, err
+		}
+		enrollRecs, err := s.pb.FindRecordsByFilter(encCol.Id,
+			fmt.Sprintf("event='%s' && deleted=false", mcpmod.EscapeFilter(eventID)),
+			"enrolled_date", 2000, 0)
+		if err != nil {
+			return nil, err
+		}
+		for _, er := range enrollRecs {
+			if iid := er.GetString("intake"); iid != "" {
+				ids[iid] = true
+			}
+		}
+		// Unenrolled walk-ins for this event in the range.
+		walkFilter := fmt.Sprintf("event='%s' && status='walk_in' && date>='%s' && date<='%s'",
+			mcpmod.EscapeFilter(eventID), mcpmod.EscapeFilter(dates[0]), mcpmod.EscapeFilter(dates[len(dates)-1]))
+		walkRecs, err := s.pb.FindRecordsByFilter(attCol.Id, walkFilter, "date", 5000, 0)
+		if err != nil {
+			return nil, err
+		}
+		for _, ar := range walkRecs {
+			if iid := ar.GetString("intake"); iid != "" {
+				ids[iid] = true
+			}
+		}
+		if len(ids) == 0 {
+			return nil, nil // empty roster
+		}
+		parts := make([]string, 0, len(ids))
+		for iid := range ids {
+			parts = append(parts, fmt.Sprintf("id='%s'", mcpmod.EscapeFilter(iid)))
+		}
+		intakeRecs, err = s.pb.FindRecordsByFilter(intakeCol.Id, strings.Join(parts, " || "), "name", 2000, 0)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var intakeFilter string
+		switch {
+		case u.Role == "case_manager":
+			intakeFilter = fmt.Sprintf("assigned_to='%s'", mcpmod.EscapeFilter(u.ID))
+		case siteID != "":
+			intakeFilter = fmt.Sprintf("site='%s'", mcpmod.EscapeFilter(siteID))
+		default:
+			intakeFilter = "1=1"
+		}
+		intakeRecs, err = s.pb.FindRecordsByFilter(intakeCol.Id, intakeFilter, "name", 1000, 0)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Attendance map: intakeID -> date -> status.

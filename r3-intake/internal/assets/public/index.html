@@ -516,7 +516,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Admin Settings</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=3">
+<link rel="stylesheet" href="/static/app.css?v=4">
 </head>
 <body>
 <div class="page-bg">
@@ -623,6 +623,47 @@
             <option value="admin">admin</option>
           </select>
           <button type="submit" class="btn btn-primary">Add user</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="accordion">
+      <button type="button" class="accordion-header" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'false' ? 'true' : 'false'); this.parentElement.classList.toggle('open')">
+        <span class="accordion-title">Events</span>
+        <svg class="accordion-icon" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M6 8.5L1 3.5h10z" fill="currentColor"/></svg>
+      </button>
+      <div class="accordion-body">
+        <table class="admin-table">
+          <thead><tr><th>Event Name</th><th>Location</th><th>Dates</th><th>Enrolled</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+          {{range .Events}}
+            <tr>
+              <td>{{.Name}}</td>
+              <td>{{.SiteName}}</td>
+              <td>{{.StartDate}} – {{.EndDate}}</td>
+              <td>{{.Enrolled}}</td>
+              <td><span class="status-badge event-status-{{.Status}}">{{.Status}}</span></td>
+              <td class="admin-actions">
+                <a href="/admin/events/{{.ID}}/manage" class="btn btn-tiny">Manage</a>
+                <a href="/attendance?event={{.ID}}" class="btn btn-tiny">Matrix</a>
+              </td>
+            </tr>
+          {{end}}
+          {{if not .Events}}<tr><td colspan="6" class="empty-state">No events yet.</td></tr>{{end}}
+          </tbody>
+        </table>
+
+        {{if .EventError}}<div class="form-error">{{.EventError}}</div>{{end}}
+        <form method="post" action="/admin/events" class="form-grid-4">
+          <input type="text" name="name" placeholder="Event name" required class="field-input" value="{{.EventName}}">
+          <select name="site" class="field-input" required>
+            <option value="">Select a location</option>
+            {{range .Sites}}{{if .Active}}<option value="{{.ID}}" {{if eq .ID $.EventSite}}selected{{end}}>{{.Name}}</option>{{end}}{{end}}
+          </select>
+          <input type="date" name="start_date" placeholder="Start date" required class="field-input" value="{{.EventStart}}">
+          <input type="date" name="end_date" placeholder="End date" required class="field-input" value="{{.EventEnd}}">
+          <textarea name="description" placeholder="Description (optional)" class="grid-full textarea textarea-sm" rows="3" maxlength="500">{{.EventDescription}}</textarea>
+          <button type="submit" class="btn btn-primary grid-full">Create Event</button>
         </form>
       </div>
     </div>
@@ -919,4 +960,120 @@
     <button type="submit" class="walkin-result-btn">{{.Name}}</button>
   </form>
 </div>{{end}}
+{{end}}
+
+{{define "event-manage"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R3 Intake — Manage Event</title>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css?v=5">
+</head>
+<body>
+<div class="page-bg">
+  <div class="topbar topbar-admin" data-no-print>
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-badge">R3</div>
+        <div>
+          <div class="brand-title">Restore, Reconnect, Revive</div>
+          <div class="brand-sub">Admin settings — {{.UserName}} ({{.Role}})</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/admin" class="btn btn-ghost">Back to Admin</a>
+        <a href="/logout" class="btn btn-ghost">Sign out</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container container-admin">
+    <div class="section-header-row">
+      <div>
+        <h2 class="section-title" style="margin-bottom:6px;">{{.EventName}}</h2>
+        <p class="intro" style="margin:0;">
+          {{.EventSiteName}}{{if .EventSiteName}} · {{end}}{{.EventStart}} – {{.EventEnd}}
+          <span class="status-badge event-status-{{.EventStatus}}">{{.EventStatus}}</span>
+        </p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="/admin" class="btn btn-ghost">← All Events</a>
+        <a href="/attendance?event={{.EventID}}" class="btn btn-primary">View Matrix</a>
+      </div>
+    </div>
+
+    <div class="enroll-tabs">
+      <span class="enroll-tab active">Enrolled ({{.EnrolledCount}})</span>
+      <span class="enroll-tab">Attendance History</span>
+      <span class="enroll-tab">Summary</span>
+    </div>
+
+    <div class="r3-card search-panel">
+      <label class="field-label" for="enroll-search">Add participant</label>
+      <div style="display:flex;gap:8px;align-items:flex-end;">
+        <input type="text" id="enroll-search" name="name" class="field-input" placeholder="Search name..." style="max-width:300px;"
+               hx-get="/admin/events/{{.EventID}}/enroll-search" hx-target="#enroll-results" hx-swap="innerHTML"
+               hx-trigger="input changed delay:300ms, search">
+      </div>
+      <div id="enroll-results" class="enroll-results"></div>
+    </div>
+
+    <div id="roster-container">
+      {{template "event-roster" .}}
+    </div>
+  </div>
+</div>
+</body>
+</html>{{end}}
+
+{{define "event-roster"}}
+<div class="r3-card" style="padding:0;overflow:hidden;">
+  <table class="admin-table roster-table">
+    <thead>
+      <tr><th>Participant</th><th>Enrolled</th><th>Days Attended</th><th>Rate</th><th>Last Present</th><th></th></tr>
+    </thead>
+    <tbody>
+    {{range .Enrolled}}
+      <tr>
+        <td><strong>{{.Name}}</strong></td>
+        <td class="mono">{{.EnrolledDate}}</td>
+        <td>{{.DaysAttended}} / {{.TotalDays}}</td>
+        <td><span class="status-badge {{if ge .Rate 50}}rate-good{{else}}rate-low{{end}}">{{.Rate}}%</span></td>
+        <td class="mono">{{if .LastPresent}}{{.LastPresent}}{{else}}—{{end}}</td>
+        <td>
+          <form method="post" action="/admin/events/{{$.EventID}}/unenroll" hx-post="/admin/events/{{$.EventID}}/unenroll" hx-target="#roster-container"
+                onsubmit="return confirm('Remove {{.Name}} from this event? Attendance history is kept.')">
+            <input type="hidden" name="intake_id" value="{{.IntakeID}}">
+            <button type="submit" class="btn btn-tiny btn-danger">Remove</button>
+          </form>
+        </td>
+      </tr>
+    {{end}}
+    {{if not .Enrolled}}
+      <tr><td colspan="6" class="empty-state">No participants enrolled yet. Search above to add one.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+
+{{define "enroll-search-results"}}
+{{range .Results}}
+<div class="enroll-result">
+  <form method="post" action="/admin/events/{{$.EventID}}/enroll" hx-post="/admin/events/{{$.EventID}}/enroll" hx-target="#roster-container"
+        class="enroll-result-form">
+    <input type="hidden" name="intake_id" value="{{.ID}}">
+    <span class="enroll-result-name">{{.Name}}</span>
+    {{if .SiteName}}<span class="enroll-result-meta">{{.SiteName}}</span>{{end}}
+    {{if .Already}}
+      <button type="button" class="btn btn-tiny" disabled>Already enrolled</button>
+    {{else}}
+      <button type="submit" class="btn btn-tiny">+ Enroll</button>
+    {{end}}
+  </form>
+</div>
+{{end}}
+{{if not .Results}}<p class="empty-state">No matching participants.</p>{{end}}
 {{end}}

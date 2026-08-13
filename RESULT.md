@@ -1,29 +1,34 @@
-# RESULT — Epic 1: Daily Attendance Tracking (Calendar Matrix)
+# RESULT — Story 2.2: Event Enrollment and Roster Management
 
-All five stories implemented and integrated on branch `epic/1-daily-attendance-tracking-calendar-matri`.
+Implemented via omp-plan-execute (MOA plan → omp --plan-yolo --advisor).
 
-## Stories
-- **1.1** Database migration `007_events_attendance.js` (events, event_enrollment, attendance; null rules, cascade deletes, nullable attendance.event) + Attendance tab + Go skeleton.
-- **1.2** Calendar Matrix grid: sticky participant column, MM/DD date headers, Total present-count badge, filter bar (site/from/to, 30-day cap, 14-day HST default, role-based site scoping).
-- **1.3** HTMX cell toggle: 5-state cycle (empty→present→absent→excused→walk_in→empty), Go-enforced uniqueness, recorded_by + HST check_in_time, matrix-cell fragment swap, no-JS 303 fallback.
-- **1.4** Walk-in check-in (HTMX name search + select-existing or create-minimal-intake + idempotent walk_in upsert) + dropout highlighting (AC colors #fbeeec / #8f3a2e).
-- **1.5** Four summary stat cards (Total check-ins, Active, Stopped, Avg rate) computed from the same rows as the grid, program/event filter dropdown (site-scoped), HTMX dynamic updates via #matrix-and-stats partial.
+## What was built
+- **Real enrollment screen** replacing the Story 2.1 placeholder at `/admin/events/{id}/manage`: event header (name, site, dates, status badge), tabs (Enrolled (N) active; History/Summary inert), "Add participant" HTMX name search, and an enrolled-roster table (Participant, Enrolled date, Days Attended N/M, Rate badge %, Last Present, Remove).
+- **Backend handlers** (admin-only):
+  - `POST /admin/events/{id}/enroll` — idempotent (no duplicate event+intake), sets enrolled_date (HST).
+  - `POST /admin/events/{id}/unenroll` — soft delete (sets `deleted=true`), preserving attendance history (FR12).
+  - `GET /admin/events/{id}/enroll-search` — site-scoped name search (min 2 chars, max 10), marks already-enrolled.
+- **Attendance stats** per enrolled participant scoped to the event date range: days attended (present+walk_in), total elapsed-or-total days, rate %, last present. Division-by-zero guarded.
+- **Matrix integration:** when an event is selected, `loadMatrixRows` now scopes rows to active enrollments ∪ walk-ins for that event (PRD: "Enrolled = expected — they appear in the matrix by default").
+- **Migration `008_event_enrollment_deleted.go`** adds a `deleted` bool to `event_enrollment` (soft-delete seam); registered in `002_encryption.go`. `loadEnrolledCount` filters `deleted=false` so the admin events list count stays consistent.
 
-## Integration
-Four parallel child worktrees (one per story) were merged into this epic branch. Conflicts in
-`attendance.go`, `server.go`, `index.html`, `app.css` reconciled (disjoint-intent combined; superseded
-placeholder dropped; walk-in + stats both preserved).
+## Files
+- `r3-intake/internal/server/admin.go` (EnrolledRow/EnrollSearchResult/EnrollSearchView structs; handlers; roster/stats helpers)
+- `r3-intake/internal/server/server.go` (routes + eventEnrollmentCollection)
+- `r3-intake/internal/server/attendance.go` (matrix event scoping)
+- `r3-intake/internal/assets/public/index.html` (event-manage screen + event-roster + enroll-search-results fragments; ?v=5)
+- `r3-intake/internal/assets/public/app.css` (enroll tabs, search panel, roster, rate badges)
+- `r3-intake/pocketbase/migrations/008_event_enrollment_deleted.go` + `002_encryption.go` (migration registration)
+- `r3-intake/internal/migrations/pocketbase/migrations/008_event_enrollment_deleted.go` (mirror)
+- `r3-intake/internal/server/admin_events_test.go` (TestAdminEventsRender extended, TestEnrollSearchResultsRender, TestEnrollmentStatsCompute)
+- `docs/plans/omp-plan-event-enrollment.md` (plan artifact)
 
 ## Verification
 - `go build ./...` — OK
 - `go vet ./...` — OK
-- `go test ./...` — all pass (incl. TestComputeSummary, TestMatrixContentRender)
-- Template parse+render verified for matrix, matrix-content, matrix-cell, stat-cards, walkin-results
+- `go test ./...` — all pass (incl. TestAdminEventsRender, TestEnrollSearchResultsRender, TestEnrollmentStatsCompute)
+- Template parse + render verified for event-manage, event-roster, enroll-search-results.
 
-## Files
-- `r3-intake/pocketbase/migrations/007_events_attendance.js` (new)
-- `r3-intake/internal/server/attendance.go` (new)
-- `r3-intake/internal/server/attendance_test.go` (new)
-- `r3-intake/internal/server/server.go` (routes)
-- `r3-intake/internal/assets/public/index.html` (templates)
-- `r3-intake/internal/assets/public/app.css` (grid, dots, sticky column, stat cards, walk-in)
+## Notes
+- No runnable server binary in this worktree (no cmd/main.go), so DB-backed handler paths are covered by unit tests only; no fake-PocketBase harness exists in the suite (infra gap, not a defect).
+- This is a child story card; integration/merge to the epic branch is the parent's (t_9c800987) job.
