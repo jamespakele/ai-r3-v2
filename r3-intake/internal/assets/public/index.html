@@ -969,7 +969,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Manage Event</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=4">
+<link rel="stylesheet" href="/static/app.css?v=5">
 </head>
 <body>
 <div class="page-bg">
@@ -990,10 +990,90 @@
   </div>
 
   <div class="container container-admin">
-    <h2 class="section-title">Manage Enrollment — {{.EventName}}</h2>
-    <p class="intro">Enrollment management will be added in the next story.</p>
-    <a href="/admin" class="btn btn-ghost">Back to Admin</a>
+    <div class="section-header-row">
+      <div>
+        <h2 class="section-title" style="margin-bottom:6px;">{{.EventName}}</h2>
+        <p class="intro" style="margin:0;">
+          {{.EventSiteName}}{{if .EventSiteName}} · {{end}}{{.EventStart}} – {{.EventEnd}}
+          <span class="status-badge event-status-{{.EventStatus}}">{{.EventStatus}}</span>
+        </p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="/admin" class="btn btn-ghost">← All Events</a>
+        <a href="/attendance?event={{.EventID}}" class="btn btn-primary">View Matrix</a>
+      </div>
+    </div>
+
+    <div class="enroll-tabs">
+      <span class="enroll-tab active">Enrolled ({{.EnrolledCount}})</span>
+      <span class="enroll-tab">Attendance History</span>
+      <span class="enroll-tab">Summary</span>
+    </div>
+
+    <div class="r3-card search-panel">
+      <label class="field-label" for="enroll-search">Add participant</label>
+      <div style="display:flex;gap:8px;align-items:flex-end;">
+        <input type="text" id="enroll-search" name="name" class="field-input" placeholder="Search name..." style="max-width:300px;"
+               hx-get="/admin/events/{{.EventID}}/enroll-search" hx-target="#enroll-results" hx-swap="innerHTML"
+               hx-trigger="input changed delay:300ms, search">
+      </div>
+      <div id="enroll-results" class="enroll-results"></div>
+    </div>
+
+    <div id="roster-container">
+      {{template "event-roster" .}}
+    </div>
   </div>
 </div>
 </body>
 </html>{{end}}
+
+{{define "event-roster"}}
+<div class="r3-card" style="padding:0;overflow:hidden;">
+  <table class="admin-table roster-table">
+    <thead>
+      <tr><th>Participant</th><th>Enrolled</th><th>Days Attended</th><th>Rate</th><th>Last Present</th><th></th></tr>
+    </thead>
+    <tbody>
+    {{range .Enrolled}}
+      <tr>
+        <td><strong>{{.Name}}</strong></td>
+        <td class="mono">{{.EnrolledDate}}</td>
+        <td>{{.DaysAttended}} / {{.TotalDays}}</td>
+        <td><span class="status-badge {{if ge .Rate 50}}rate-good{{else}}rate-low{{end}}">{{.Rate}}%</span></td>
+        <td class="mono">{{if .LastPresent}}{{.LastPresent}}{{else}}—{{end}}</td>
+        <td>
+          <form method="post" action="/admin/events/{{$.EventID}}/unenroll" hx-post="/admin/events/{{$.EventID}}/unenroll" hx-target="#roster-container"
+                onsubmit="return confirm('Remove {{.Name}} from this event? Attendance history is kept.')">
+            <input type="hidden" name="intake_id" value="{{.IntakeID}}">
+            <button type="submit" class="btn btn-tiny btn-danger">Remove</button>
+          </form>
+        </td>
+      </tr>
+    {{end}}
+    {{if not .Enrolled}}
+      <tr><td colspan="6" class="empty-state">No participants enrolled yet. Search above to add one.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+
+{{define "enroll-search-results"}}
+{{range .Results}}
+<div class="enroll-result">
+  <form method="post" action="/admin/events/{{$.EventID}}/enroll" hx-post="/admin/events/{{$.EventID}}/enroll" hx-target="#roster-container"
+        class="enroll-result-form">
+    <input type="hidden" name="intake_id" value="{{.ID}}">
+    <span class="enroll-result-name">{{.Name}}</span>
+    {{if .SiteName}}<span class="enroll-result-meta">{{.SiteName}}</span>{{end}}
+    {{if .Already}}
+      <button type="button" class="btn btn-tiny" disabled>Already enrolled</button>
+    {{else}}
+      <button type="submit" class="btn btn-tiny">+ Enroll</button>
+    {{end}}
+  </form>
+</div>
+{{end}}
+{{if not .Results}}<p class="empty-state">No matching participants.</p>{{end}}
+{{end}}

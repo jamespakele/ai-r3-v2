@@ -113,6 +113,10 @@ func (s *Server) Mux() http.Handler {
 	mux.HandleFunc("/admin/", s.requireAuth(s.handleAdminSub))
 	// Event enrollment-management placeholder — admin only
 	mux.HandleFunc("/admin/events/", s.requireRole("admin", s.handleAdminEventManage))
+	// Event enrollment (admin only)
+	mux.HandleFunc("/admin/events/{id}/enroll", s.requireRole("admin", s.handleEventEnroll))
+	mux.HandleFunc("/admin/events/{id}/unenroll", s.requireRole("admin", s.handleEventUnenroll))
+	mux.HandleFunc("/admin/events/{id}/enroll-search", s.requireRole("admin", s.handleEnrollSearch))
 
 	// Duplicate search (auth-only)
 	mux.HandleFunc("/search/duplicates", s.requireAuth(s.handleDuplicateSearch))
@@ -209,6 +213,11 @@ func (s *Server) sitesCollection() (*core.Collection, error) {
 // notesCollection returns the notes collection.
 func (s *Server) notesCollection() (*core.Collection, error) {
 	return s.pb.FindCollectionByNameOrId("notes")
+}
+
+// eventEnrollmentCollection returns the event_enrollment junction collection.
+func (s *Server) eventEnrollmentCollection() (*core.Collection, error) {
+	return s.pb.FindCollectionByNameOrId("event_enrollment")
 }
 
 // Site is a flat view of a sites record for templates.
