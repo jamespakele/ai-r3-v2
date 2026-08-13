@@ -130,6 +130,9 @@ func (s *Server) Mux() http.Handler {
 
 	// Attendance matrix (auth-only)
 	mux.HandleFunc("/attendance", s.requireAuth(s.handleMatrix))
+	// CSV export (FR14) — admin only. PRD §10 marks Export CSV as admin-only
+	// (✓ admin, ✗ case_manager), overriding the generic auth note in §09.
+	mux.HandleFunc("GET /attendance/export", s.requireRole("admin", s.handleExportCSV))
 	mux.HandleFunc("/attendance/toggle", s.requireAuth(s.handleToggle))
 	mux.HandleFunc("/attendance/walkin-search", s.requireAuth(s.handleWalkinSearch))
 	mux.HandleFunc("/attendance/walkin", s.requireAuth(s.handleWalkin))

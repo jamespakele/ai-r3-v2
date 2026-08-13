@@ -1,55 +1,22 @@
-# RESULT — Epic 2: Event Program Management
+# RESULT — CSV Attendance Export Handler (Story 3.1)
 
-Implemented via omp-plan-execute (MOA plan → omp --plan-yolo --advisor) across
-three child story worktrees, integrated onto `epic/2-event-program-management`
-and merged to master.
+## What was built
+Implemented the CSV attendance export endpoint (FR14, UX-DR5) via omp-plan-execute.
 
-## Stories delivered
-- **2.1 Event List & Creation** — admin Events accordion (list table: name,
-  location, dates, enrolled count, status badges, Manage/Matrix actions) and a
-  "+ New Event" 4-column create form with validation (FR10/FR11, UX-DR6).
-- **2.2 Event Enrollment & Roster** — real enrollment screen at
-  `/admin/events/{id}/manage` (event header, tabs, HTMX name search,
-  enrolled-roster table with attendance stats), idempotent enroll + soft-delete
-  unenroll handlers, site-scoped enroll-search, matrix scoped to enrolled
-  participants when an event is selected, and migration 008 adding a soft-delete
-  flag to `event_enrollment` (FR12).
-- **2.3 Event Lifecycle & Status** — `handleEventStatus`
-  (POST /admin/events/{id}/status, admin-only) with `validEventTransition`
-  enforcing active→completed|cancelled only, terminal states read-only, JS
-  confirm on cancel, Report button for completed events, event-report stub
-  (FR13, FR19).
-
-## Files changed
-- `r3-intake/internal/server/admin.go` — EventRow/EnrolledRow/EnrollSearchResult
-  structs, loadAllEvents, loadEnrolledRoster, loadEnrolledCount (deleted=false),
-  adminEventAdd, handleAdminEventManage, handleEventEnroll/Unenroll/EnrollSearch,
-  handleEventStatus, handleEventReport, validEventTransition, renderEventManage.
-- `r3-intake/internal/server/server.go` — routes for /admin/events/,
-  enroll/unenroll/enroll-search, status, report.
-- `r3-intake/internal/server/attendance.go` — matrix event scoping.
-- `r3-intake/internal/assets/public/index.html` — Events accordion, event-manage
-  screen, event-roster + enroll-search-results fragments, event-report; ?v=6.
-- `r3-intake/internal/assets/public/app.css` — event status badges, form grid,
-  enroll tabs, search panel, roster, rate badges, event-manage lifecycle styles.
-- `r3-intake/pocketbase/migrations/008_event_enrollment_deleted.go` +
-  `002_encryption.go` (migration registration) + internal mirror.
-- `r3-intake/internal/server/admin_events_test.go` — TestAdminEventsRender,
-  TestEnrollSearchResultsRender, TestEnrollmentStatsCompute,
-  TestEventStatusTransition.
-- `docs/plans/omp-plan-event-*.md` — plan artifacts.
+- **Route:** `GET /attendance/export` → `handleExportCSV`, registered in `server.go` with `requireRole("admin", ...)` (admin-only per PRD §10; overrides §09 generic "auth").
+- **Handler** (`attendance.go`): parses `?event={id}&site={id}&from=YYYY-MM-DD&to=YYYY-MM-DD` with the same defaults as the matrix (last 14 days, resolved site, no event filter), 30-day cap, inverted-range swap. Sets `Content-Type: text/csv` and `Content-Disposition: attachment; filename="attendance_export_YYYY-MM-DD.csv"` (HST today). Streams via `encoding/csv` with Flush/Error checks.
+- **`loadExportRows`:** queries raw `attendance` records (NOT `loadMatrixRows`, which drops recorded_by/check_in_time/note), filters by date/site/event with `mcpmod.EscapeFilter`, resolves names via `nameFor`.
+- **Pure builders (testable):** `exportCSVRecords` (header + data rows + summary row), `exportStatus` (title-case), `summaryCSVRow` (total check-ins, unique participants, avg rate).
+- **Columns:** Participant, Site, Event, Date, Status, Recorded By, Check-in Time, Note (PRD §05 Screen 2).
 
 ## Verification
 - `go build ./...` — pass
 - `go vet ./...` — pass
-- `go test ./...` — all pass (incl. TestAdminEventsRender,
-  TestEnrollSearchResultsRender, TestEnrollmentStatsCompute,
-  TestEventStatusTransition)
+- `go test ./...` — pass (incl. new `TestExportCSVRecords` covering header, status title-casing, empty relations, comma-in-note, summary math)
 
-## Notes
-- No runnable server binary in the worktrees (no cmd/main.go), so DB-backed
-  handler paths are covered by unit tests only; no fake-PocketBase harness
-  exists in the suite (infra gap, not a defect).
-- Matrix keeps `loadEvents` active-only (completed events are read-only; enrollment
-  disabled). Flagged to parent if completed events must appear in matrix.
-- Report page is a placeholder; CSV export is Epic 3.
+## Artifacts
+- Plan: `docs/plans/omp-plan-csv-export.md`
+- Changed: `r3-intake/internal/server/attendance.go`, `server.go`, `attendance_test.go`
+
+## Handoff
+Sibling test card `t_7c6efa05` (unit/integration tests) is released by this completion. The pure `exportCSVRecords`/`summaryCSVRow` functions are the intended test surface.
