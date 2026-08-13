@@ -1,85 +1,43 @@
-# Epic 6: Clicking a participant in the Attendance list should navigate to their record — RESULT
+# RESULT: Restructure event form layout
 
-**Status:** COMPLETE — child story branches `wt/t_ee889325` (identification) and `wt/t_c0b8b3b4` (implementation) merged into `epic/6-clicking-a-participant-in-the-attendance`.
+## What was built
+Restructured the "Create Event" form on the admin screen from a 4-column grid
+(`form-grid-4`) to a 2-column grid (`form-grid-2`) to use screen real estate
+better. All three requirements met:
 
-## Stories implemented
+1. **Start and End dates side by side** — both date inputs now occupy one
+   column each on the same row (previously each took a full line).
+2. **Create Event button below the description box** — moved to its own
+   full-width row beneath the textarea (previously on the same row).
+3. **Description box bigger** — now spans the full 2-column width (same width
+   as the event name textbox) and bumped from `rows="3"` to `rows="5"`.
 
-- **6.1 Identification** — `wt/t_ee889325` — identified the attendance list component and the participant record route.
-- **6.2 Implementation** — `wt/t_c0b8b3b4` — made participant rows clickable with navigation and hover cue.
+## Files changed
+- `r3-intake/internal/assets/public/index.html` — event form markup: class
+  `form-grid-4` → `form-grid-2`; name + location get `grid-full` (own rows);
+  dates unspanned (side by side); textarea `rows=5`; button `grid-full`.
+- `r3-intake/internal/assets/public/app.css` — replaced `.form-grid-4` block
+  with `.form-grid-2` (`grid-template-columns: 1fr 1fr`), preserved
+  `.form-error`, kept the 620px single-column responsive fallback.
 
-## Identification (from `wt/t_ee889325`)
+## Backend contract preserved
+- `method="post"`, `action="/admin/events"`, and all field `name` attributes
+  (`name`, `site`, `start_date`, `end_date`, `description`) unchanged.
+- No Go code touched. No new dependencies.
 
-The "Attendance list" is the **attendance matrix** screen, rendered by the `matrix-content` template block.
+## Verification
+- `go build ./...` → exit 0
+- `go vet ./...` → clean
+- `go test ./...` → `ok r3-intake/internal/server` (3.571s), all packages pass
+- `grep form-grid-4` → no remaining references
+- Template render test `TestAdminEventsRender` PASS (asserts action + Create Event)
 
-- **Template:** `r3-intake/internal/assets/public/index.html`, `{{define "matrix-content"}}` (lines ~850–937)
-- **Handler:** `r3-intake/internal/server/attendance.go`, `handleMatrix` (line 76)
-- **Route:** `GET /attendance` (auth-only) — registered in `r3-intake/internal/server/server.go` line 136
-- **Row data struct:** `MatrixRow` in `attendance.go` (line 37) — carries `IntakeID` (the participant's intake record id) and `Name`.
+## Notes
+- `make build` fails in this worktree because the Makefile targets
+  `./cmd/r3-intake` which does not exist here (pre-existing condition, not
+  caused by this change). `go build ./...` confirms all packages compile.
+- Live-server responsive/functional checks can't run in this isolated worktree;
+  covered by the template-render test + direct source inspection.
 
-### The participant row markup (the clickable target)
-
-```html
-{{range .Rows}}
-<tr class="{{if .IsDropout}}row-dropout {{end}}{{if .NoLocation}}row-no-location{{end}}">
-  <td class="matrix-name-col">
-    <span class="matrix-name">{{.Name}}</span>
-    {{if .IsDropout}}<span class="status-badge">STOPPED</span>{{end}}
-    {{if .NoLocation}}<span class="matrix-no-location-note">no location</span>{{end}}
-  </td>
-  {{range .Cells}}<td>{{template "matrix-cell" .}}</td>{{end}}
-  <td class="matrix-total-col"><span class="matrix-total-badge">{{.PresentCount}}/{{.TotalDays}}</span></td>
-</tr>
-{{end}}
-```
-
-- The row was a plain `<tr>` — **no link, no click handler** before this epic.
-- The participant's record id is available in the template as `{{.IntakeID}}` on each `MatrixRow`.
-- CSS hooks already exist: `.matrix-name`, `.matrix-name-col`, `.matrix-table tr.row-dropout` / `.row-no-location`.
-
-### The participant record route
-
-The participant's full record (intake form) is served at:
-
-- **Route:** `GET /intake/{id}` — registered in `server.go` (`mux.HandleFunc("/intake/", s.handleIntakeCmd)`)
-- **Handler:** `handleIntakeCmd` in `r3-intake/internal/server/handlers.go`. For `GET /intake/{id}` it loads the record via `findIntake(id)` and renders the full form (`stateFromRecord`).
-- **Auth:** The intake view route is NOT wrapped in `requireAuth` — it renders for any session (the form itself is the public intake form; the attendance matrix is auth-only). The matrix is auth-only, so navigation from it is fine.
-- **Existing precedent:** The walk-in flow already navigates to `/intake/{id}` after creating a participant, and Epic 4's per-participant attendance history uses `/intake/{id}/attendance`.
-
-## Implementation (from `wt/t_c0b8b3b4`)
-
-Made each participant row in the attendance matrix (GET /attendance, `matrix-content` template) navigate to that participant's record page at `GET /intake/{id}` when clicked, with a clear hover cue — without breaking the per-cell attendance toggle forms.
-
-### Changes
-
-- `r3-intake/internal/assets/public/index.html` (matrix-content block, ~line 917)
-  - Wrapped the participant name in a real link: `{{if .IntakeID}}<a href="/intake/{{.IntakeID}}" class="matrix-name-link"><span class="matrix-name">{{.Name}}</span></a>{{else}}<span class="matrix-name">{{.Name}}</span>{{end}}`.
-  - `{{if .IntakeID}}` guard falls back to plain text if a row ever lacks an ID.
-  - `.status-badge` (STOPPED) and `.matrix-no-location-note` remain outside the link.
-- `r3-intake/internal/assets/public/app.css`
-  - `.matrix-name-link` — inherits name color, no underline, `cursor: pointer`; `:hover` → accent `#b5502e` + underline; `:focus-visible` → accent outline (keyboard-accessible).
-  - Row hover tint variants (respect existing row-state backgrounds):
-    - normal rows `#f3ead9`, dropout `#f6ddd9`, no-location `#f5ecd8`, dropout+no-location `#f6ddd9`.
-    - These apply to the sticky `.matrix-name-col` td too, so no horizontal seam on scroll.
-
-### Design decisions
-
-- **Name link is the primary affordance** (not a whole-row JS click handler). It is a genuine `<a href>` — works without JS, keyboard-focusable, server-rendered so it survives HTMX re-renders, and structurally cannot interfere with the per-cell `.matrix-dot` toggle forms. The plan's optional whole-row click handler was skipped (no `app.js` exists; the name-link satisfies the ACs).
-- **No Go changes required** — `MatrixRow.IntakeID` and the `GET /intake/{id}` route already existed.
-
-## Verification criteria
-
-- `go build ./... && go vet ./... && go test ./...` pass.
-- Clicking a participant name/row in the attendance matrix navigates to `GET /intake/{id}` showing that participant's full record.
-- Hovering a participant name shows a clear clickability cue.
-- Attendance dot toggles still work (row click must not swallow the cell form clicks).
-
-## Verification (run after merge)
-
-- `go build ./...` — clean
-- `go vet ./...` — no issues
-- `go test ./...` — `internal/server` passes; tests parse the full embedded template, confirming template syntax is valid
-
-## Artifacts
-
-- Plan: `docs/plans/omp-plan-clickable-matrix-rows.md`
-- Plan (hermes): `.hermes/plans/2026-08-13_clickable-matrix-rows.md`
+## Commit
+`7cac38f` Restructure event form layout: 2-col grid, dates side by side, button below description, larger description box
