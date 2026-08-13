@@ -1,55 +1,31 @@
-# RESULT — Epic 2: Event Program Management
+# RESULT — Add unit and integration tests for CSV attendance export
 
-Implemented via omp-plan-execute (MOA plan → omp --plan-yolo --advisor) across
-three child story worktrees, integrated onto `epic/2-event-program-management`
-and merged to master.
+## What was built
+Added comprehensive tests for the CSV attendance export route (GET /attendance/export) in `r3-intake/internal/server/`, extending the sibling card's `TestExportCSVRecords`.
 
-## Stories delivered
-- **2.1 Event List & Creation** — admin Events accordion (list table: name,
-  location, dates, enrolled count, status badges, Manage/Matrix actions) and a
-  "+ New Event" 4-column create form with validation (FR10/FR11, UX-DR6).
-- **2.2 Event Enrollment & Roster** — real enrollment screen at
-  `/admin/events/{id}/manage` (event header, tabs, HTMX name search,
-  enrolled-roster table with attendance stats), idempotent enroll + soft-delete
-  unenroll handlers, site-scoped enroll-search, matrix scoped to enrolled
-  participants when an event is selected, and migration 008 adding a soft-delete
-  flag to `event_enrollment` (FR12).
-- **2.3 Event Lifecycle & Status** — `handleEventStatus`
-  (POST /admin/events/{id}/status, admin-only) with `validEventTransition`
-  enforcing active→completed|cancelled only, terminal states read-only, JS
-  confirm on cancel, Report button for completed events, event-report stub
-  (FR13, FR19).
+### Pure unit tests — `internal/server/attendance_export_test.go`
+- `TestExportStatus` — status → title-case mapping (present/absent/excused/walk_in), unknown/empty → "".
+- `TestSummaryCSVRow` — check-in counting (present+walk_in), unique participants, avg-rate math, empty-set no-division-by-zero, trailing empty cells.
+- `TestExportCSVRecords_Header` — exact header row equality (order-sensitive).
+- `TestExportCSVRecords_FieldFormatting` — title-cased status, verbatim check_in_time/note/recorded_by pass-through, comma-in-note quoting.
+- `TestExportCSVRecords_Empty` — empty input → header + empty summary row only.
 
-## Files changed
-- `r3-intake/internal/server/admin.go` — EventRow/EnrolledRow/EnrollSearchResult
-  structs, loadAllEvents, loadEnrolledRoster, loadEnrolledCount (deleted=false),
-  adminEventAdd, handleAdminEventManage, handleEventEnroll/Unenroll/EnrollSearch,
-  handleEventStatus, handleEventReport, validEventTransition, renderEventManage.
-- `r3-intake/internal/server/server.go` — routes for /admin/events/,
-  enroll/unenroll/enroll-search, status, report.
-- `r3-intake/internal/server/attendance.go` — matrix event scoping.
-- `r3-intake/internal/assets/public/index.html` — Events accordion, event-manage
-  screen, event-roster + enroll-search-results fragments, event-report; ?v=6.
-- `r3-intake/internal/assets/public/app.css` — event status badges, form grid,
-  enroll tabs, search panel, roster, rate badges, event-manage lifecycle styles.
-- `r3-intake/pocketbase/migrations/008_event_enrollment_deleted.go` +
-  `002_encryption.go` (migration registration) + internal mirror.
-- `r3-intake/internal/server/admin_events_test.go` — TestAdminEventsRender,
-  TestEnrollSearchResultsRender, TestEnrollmentStatsCompute,
-  TestEventStatusTransition.
-- `docs/plans/omp-plan-event-*.md` — plan artifacts.
+### Integration tests — `internal/server/attendance_export_integration_test.go`
+Boots a real in-process PocketBase (embedded JS migrations + Go stubs + pb.Bootstrap(), temp data dir) and drives the handler through `srv.Mux()` with signed session cookies:
+- `TestExportCSVPermissions` — unauthenticated / case_manager / tampered-cookie → 303 redirect to /login; admin → 200 + CSV headers.
+- `TestExportCSVDateRangeFilter` — ordered range, swapped range (from>to), 30-day cap, defaults.
+- `TestExportCSVSiteFilter` — site1/site2/invalid-site (all locations)/no-site.
+- `TestExportCSVEventFilter` — ev1/ev2/no-event.
+- `TestExportCSVHeaderAndFormatting` — full-wire header, resolved names, summary row, Content-Type/Disposition.
+- `TestExportCSVEmptyResultSet` — 200, header + empty summary row.
+- `TestExportCSVNameResolution` — nameFor + loadExportRows against booted PB.
 
 ## Verification
 - `go build ./...` — pass
 - `go vet ./...` — pass
-- `go test ./...` — all pass (incl. TestAdminEventsRender,
-  TestEnrollSearchResultsRender, TestEnrollmentStatsCompute,
-  TestEventStatusTransition)
+- `go test ./...` — all pass (ok r3-intake/internal/server), including sibling's TestExportCSVRecords
+- 12 new tests + sibling's test all green.
 
 ## Notes
-- No runnable server binary in the worktrees (no cmd/main.go), so DB-backed
-  handler paths are covered by unit tests only; no fake-PocketBase harness
-  exists in the suite (infra gap, not a defect).
-- Matrix keeps `loadEvents` active-only (completed events are read-only; enrollment
-  disabled). Flagged to parent if completed events must appear in matrix.
-- Report page is a placeholder; CSV export is Epic 3.
+- No production files modified (attendance.go/server.go identical to sibling's implementation).
+- Plan artifact: `docs/plans/omp-plan-csv-export-tests.md`.

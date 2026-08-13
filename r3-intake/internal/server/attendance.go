@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/csv"
 	"fmt"
 	"net/http"
 	"strings"
@@ -734,4 +735,191 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 		url += "?" + strings.Join(qs, "&")
 	}
 	http.Redirect(w, r, url, http.StatusSeeOther)
+}
+
+// ExportRow is one raw attendance record with relation names already resolved.
+type ExportRow struct {
+	ParticipantName string
+	SiteName        string
+	EventName       string
+	Date            string
+	Status          string
+	RecordedByName  string
+	CheckInTime     string
+	Note            string
+}
+
+// handleExportCSV streams attendance records as a CSV download.
+// It is wrapped with requireRole("admin"), so u is non-nil here.
+func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
+	u := s.currentSession(r)
+
+	now := time.Now().In(hst)
+	defTo := now.Format("2006-01-02")
+	defFrom := now.AddDate(0, 0, -13).Format("2006-01-02")
+
+	from := strings.TrimSpace(r.URL.Query().Get("from"))
+	to := strings.TrimSpace(r.URL.Query().Get("to"))
+	fromT, errFrom := time.Parse("2006-01-02", from)
+	toT, errTo := time.Parse("2006-01-02", to)
+	if errFrom != nil || errTo != nil {
+		from, to = defFrom, defTo
+		fromT, _ = time.Parse("2006-01-02", from)
+		toT, _ = time.Parse("2006-01-02", to)
+	}
+	if fromT.After(toT) {
+		fromT, toT = toT, fromT
+		from, to = fromT.Format("2006-01-02"), toT.Format("2006-01-02")
+	}
+	if toT.Sub(fromT) > 30*24*time.Hour {
+		toT = fromT.AddDate(0, 0, 29)
+		to = toT.Format("2006-01-02")
+	}
+
+	eventID := strings.TrimSpace(r.URL.Query().Get("event"))
+	siteID, _ := s.resolveSite(u, strings.TrimSpace(r.URL.Query().Get("site")))
+
+	rows, err := s.loadExportRows(siteID, eventID, from, to)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	records := exportCSVRecords(rows)
+
+	filename := "attendance_export_" + now.Format("2006-01-02") + ".csv"
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+
+	cw := csv.NewWriter(w)
+	for _, rec := range records {
+		if err := cw.Write(rec); err != nil {
+			http.Error(w, "csv write failed", http.StatusInternalServerError)
+			return
+		}
+	}
+	cw.Flush()
+	if err := cw.Error(); err != nil {
+		http.Error(w, "csv flush failed", http.StatusInternalServerError)
+		return
+	}
+}
+
+// loadExportRows fetches raw attendance records matching the filters and
+// resolves participant/site/event/recorder names for display.
+func (s *Server) loadExportRows(siteID, eventID, from, to string) ([]ExportRow, error) {
+	attCol, err := s.attendanceCollection()
+	if err != nil {
+		return nil, err
+	}
+	filter := fmt.Sprintf("date>='%s' && date<='%s'",
+		mcpmod.EscapeFilter(from), mcpmod.EscapeFilter(to))
+	if siteID != "" {
+		filter += fmt.Sprintf(" && site='%s'", mcpmod.EscapeFilter(siteID))
+	}
+	if eventID != "" {
+		filter += fmt.Sprintf(" && event='%s'", mcpmod.EscapeFilter(eventID))
+	}
+	recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "date,intake", 10000, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]ExportRow, 0, len(recs))
+	for _, rec := range recs {
+		out = append(out, ExportRow{
+			ParticipantName: s.nameFor("intake", rec.GetString("intake")),
+			SiteName:        s.nameFor("sites", rec.GetString("site")),
+			EventName:       s.nameFor("events", rec.GetString("event")),
+			Date:            rec.GetString("date"),
+			Status:          rec.GetString("status"),
+			RecordedByName:  s.nameFor("users", rec.GetString("recorded_by")),
+			CheckInTime:     formatTime(rec.GetString("check_in_time")),
+			Note:            rec.GetString("note"),
+		})
+	}
+	return out, nil
+}
+
+// nameFor resolves a related record id to its display name. It returns ""
+// for empty ids or failed lookups (e.g., cascade-deleted related records).
+func (s *Server) nameFor(collection, id string) string {
+	if id == "" {
+		return ""
+	}
+	rec, err := s.pb.FindRecordById(collection, id)
+	if err != nil {
+		return ""
+	}
+	return rec.GetString("name")
+}
+
+// exportCSVRecords builds the full CSV table: header, one row per record,
+// then a summary row. It is pure (no *Server/pb dependency) so unit tests
+// can call it directly.
+func exportCSVRecords(rows []ExportRow) [][]string {
+	records := [][]string{
+		{"Participant", "Site", "Event", "Date", "Status", "Recorded By", "Check-in Time", "Note"},
+	}
+	for _, r := range rows {
+		records = append(records, []string{
+			r.ParticipantName,
+			r.SiteName,
+			r.EventName,
+			r.Date,
+			exportStatus(r.Status),
+			r.RecordedByName,
+			r.CheckInTime,
+			r.Note,
+		})
+	}
+	records = append(records, summaryCSVRow(rows))
+	return records
+}
+
+// exportStatus maps the stored status select value to title-case display.
+func exportStatus(s string) string {
+	switch s {
+	case "present":
+		return "Present"
+	case "absent":
+		return "Absent"
+	case "excused":
+		return "Excused"
+	case "walk_in":
+		return "Walk-in"
+	}
+	return ""
+}
+
+// summaryCSVRow returns the trailing summary row. The summary text is placed
+// in the first column as a single human-readable string; remaining columns
+// are empty. If the sibling test card t_7c6efa05 needs different wording,
+// change only this function.
+func summaryCSVRow(rows []ExportRow) []string {
+	totalCheckIns := 0
+	seen := map[string]bool{}
+	presentCount := 0
+	days := map[string]bool{}
+	for _, r := range rows {
+		if r.Status == "present" || r.Status == "walk_in" {
+			totalCheckIns++
+		}
+		if r.Status == "present" {
+			presentCount++
+		}
+		if r.ParticipantName != "" {
+			seen[r.ParticipantName] = true
+		}
+		days[r.Date] = true
+	}
+	rate := 0
+	if len(seen) > 0 && len(days) > 0 {
+		rate = presentCount * 100 / (len(seen) * len(days))
+	}
+	return []string{
+		fmt.Sprintf("Summary: %d check-ins, %d unique participants, %d%% avg rate",
+			totalCheckIns, len(seen), rate),
+		"", "", "", "", "", "", "",
+	}
 }

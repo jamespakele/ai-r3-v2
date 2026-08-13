@@ -119,3 +119,63 @@ func TestMatrixContentRender(t *testing.T) {
 		t.Errorf("matrix output missing page title")
 	}
 }
+
+// TestExportCSVRecords verifies the pure CSV builder: header row, per-record
+// rows with title-cased status and empty-relation cells, and a trailing
+// summary row with the expected counts and rate.
+func TestExportCSVRecords(t *testing.T) {
+	rows := []ExportRow{
+		{ParticipantName: "Alice", SiteName: "Hilo", EventName: "", Date: "2026-08-01", Status: "present", RecordedByName: "", CheckInTime: "", Note: "on time"},
+		{ParticipantName: "Alice", SiteName: "Hilo", EventName: "Job Fair", Date: "2026-08-02", Status: "walk_in", RecordedByName: "Bob", CheckInTime: "", Note: "late, note with, comma"},
+		{ParticipantName: "Bob", SiteName: "Hilo", EventName: "", Date: "2026-08-01", Status: "absent", RecordedByName: "", CheckInTime: "", Note: ""},
+	}
+
+	records := exportCSVRecords(rows)
+
+	// Header row.
+	wantHeader := []string{"Participant", "Site", "Event", "Date", "Status", "Recorded By", "Check-in Time", "Note"}
+	for i, want := range wantHeader {
+		if records[0][i] != want {
+			t.Errorf("header[%d] = %q, want %q", i, records[0][i], want)
+		}
+	}
+
+	// Data rows: status title-cased, empty relations stay empty (not "<nil>").
+	if got := records[1][4]; got != "Present" {
+		t.Errorf("row1 status = %q, want Present", got)
+	}
+	if got := records[1][2]; got != "" {
+		t.Errorf("row1 event = %q, want empty", got)
+	}
+	if got := records[2][4]; got != "Walk-in" {
+		t.Errorf("row2 status = %q, want Walk-in", got)
+	}
+	if got := records[2][7]; got != "late, note with, comma" {
+		t.Errorf("row2 note = %q, want comma note", got)
+	}
+	if got := records[2][5]; got != "Bob" {
+		t.Errorf("row2 recorded_by = %q, want Bob", got)
+	}
+	if got := records[3][4]; got != "Absent" {
+		t.Errorf("row3 status = %q, want Absent", got)
+	}
+	if got := records[3][7]; got != "" {
+		t.Errorf("row3 note = %q, want empty", got)
+	}
+	if got := records[3][5]; got != "" {
+		t.Errorf("row3 recorded_by = %q, want empty", got)
+	}
+
+	// Summary row: 2 check-ins (present + walk_in), 2 unique participants,
+	// 1 present over 2 unique x 2 days = 25% avg rate.
+	sum := records[len(records)-1]
+	wantSum := "Summary: 2 check-ins, 2 unique participants, 25% avg rate"
+	if sum[0] != wantSum {
+		t.Errorf("summary first cell = %q, want %q", sum[0], wantSum)
+	}
+	for i := 1; i < len(sum); i++ {
+		if sum[i] != "" {
+			t.Errorf("summary col %d = %q, want empty", i, sum[i])
+		}
+	}
+}
