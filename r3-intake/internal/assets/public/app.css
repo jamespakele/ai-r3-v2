@@ -304,3 +304,13 @@ a:hover { color: #b5502e; }
 .walkin-result-btn:hover { background: #efe6d4; border-color: #b5502e; }
 .walkin-create { display: flex; gap: 8px; }
 .walkin-create .field-input { flex: 1; margin-bottom: 0; }
+
+/* Stat cards */
+.stat-cards { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0 0; }
+.stat-card { flex: 1 1 160px; min-width: 140px; background: #fffdfa; border: 1px solid #e4d9c8; border-radius: 14px; padding: 14px 16px; }
+.stat-number { font: 600 26px 'Lora', serif; line-height: 1.1; }
+.stat-label { font: 13px 'Public Sans', sans-serif; color: #6b5f52; margin-top: 4px; }
+.stat-green  { color: #3f6b34; }
+.stat-accent { color: #b5502e; }
+.stat-red    { color: #8f3a2e; }
+.stat-yellow { color: #8a6a1e; }

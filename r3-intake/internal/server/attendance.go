@@ -23,6 +23,8 @@ type MatrixViewData struct {
 	Dates    []string // YYYY-MM-DD, inclusive
 	Rows     []MatrixRow
 	Sites    []Site
+	Events   []Event
+	Summary  MatrixSummary
 	EventID  string // optional event filter ("" = none)
 }
 
@@ -33,8 +35,18 @@ type MatrixRow struct {
 	Cells        []MatrixCell // one per date, in Dates order
 	TotalDays    int
 	PresentCount int
+	WalkInCount  int
 	LastPresent  string // YYYY-MM-DD or ""
 	IsDropout    bool
+}
+
+// MatrixSummary holds the aggregate stat cards below the matrix, computed
+// from the same rows that rendered the grid so cards always match the matrix.
+type MatrixSummary struct {
+	TotalCheckIns      int
+	ActiveParticipants int
+	Stopped            int
+	AvgRate            int // 0–100, truncated (integer division)
 }
 
 // MatrixCell is a single date cell for a participant.
@@ -100,6 +112,12 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	events, err := s.loadEvents(siteID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	view := MatrixViewData{
 		UserName: u.Name,
 		Role:     u.Role,
@@ -111,7 +129,14 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		Dates:    dates,
 		Rows:     rows,
 		Sites:    sites,
+		Events:   events,
+		Summary:  computeSummary(rows, len(dates)),
 		EventID:  eventID,
+	}
+
+	if r.Header.Get("HX-Request") == "true" {
+		_ = s.tpl.ExecuteTemplate(w, "matrix-content", view)
+		return
 	}
 	_ = s.tpl.ExecuteTemplate(w, "matrix", view)
 }
@@ -268,11 +293,84 @@ func (s *Server) loadMatrixRows(u *sessionUser, siteID string, dates []string, e
 					row.LastPresent = d
 				}
 			}
+			if status == "walk_in" {
+				row.WalkInCount++
+				if d > row.LastPresent {
+					row.LastPresent = d
+				}
+			}
 		}
 		row.IsDropout = row.LastPresent != "" && row.LastPresent < thresholdStr
 		rows = append(rows, row)
 	}
 	return rows, nil
+}
+
+// computeSummary aggregates the summary stat cards from the matrix rows.
+// days is the number of dates in the range; when rows or days are empty, all
+// stats return 0 to avoid a division-by-zero on the average rate.
+func computeSummary(rows []MatrixRow, days int) MatrixSummary {
+	if len(rows) == 0 || days == 0 {
+		return MatrixSummary{}
+	}
+	s := MatrixSummary{}
+	totalPresent := 0
+	for _, row := range rows {
+		s.TotalCheckIns += row.PresentCount + row.WalkInCount
+		if row.PresentCount >= 1 {
+			s.ActiveParticipants++
+		}
+		if row.IsDropout {
+			s.Stopped++
+		}
+		totalPresent += row.PresentCount
+	}
+	s.AvgRate = totalPresent * 100 / (len(rows) * days)
+	return s
+}
+
+// Event is a flat view of an events record for templates.
+type Event struct {
+	ID        string
+	Name      string
+	SiteID    string
+	StartDate string
+	EndDate   string
+	Status    string
+}
+
+// eventsCollection returns the events collection.
+func (s *Server) eventsCollection() (*core.Collection, error) {
+	return s.pb.FindCollectionByNameOrId("events")
+}
+
+// loadEvents returns active events, optionally scoped to a single site. When
+// siteID is "", all active events are returned (admin view).
+func (s *Server) loadEvents(siteID string) ([]Event, error) {
+	col, err := s.eventsCollection()
+	if err != nil {
+		return nil, err
+	}
+	filter := "status='active'"
+	if siteID != "" {
+		filter += fmt.Sprintf(" && site='%s'", mcpmod.EscapeFilter(siteID))
+	}
+	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "start_date,name", 1000, 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Event, 0, len(recs))
+	for _, r := range recs {
+		out = append(out, Event{
+			ID:        r.Id,
+			Name:      r.GetString("name"),
+			SiteID:    r.GetString("site"),
+			StartDate: r.GetString("start_date"),
+			EndDate:   r.GetString("end_date"),
+			Status:    r.GetString("status"),
+		})
+	}
+	return out, nil
 }
 
 // cycleStatus returns the next status in the cycle

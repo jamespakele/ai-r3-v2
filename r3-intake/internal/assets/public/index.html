@@ -798,77 +798,100 @@
   <div class="container container-admin">
     <h2 class="section-title section-title-sm">Attendance</h2>
 
-    <form method="get" action="/attendance" class="inline-form">
-      {{if .IsAdmin}}
-      <select class="field-input" name="site">
-        <option value="">All locations</option>
-        {{range .Sites}}<option value="{{.ID}}" {{if eq $.SiteID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
-      </select>
-      {{else}}
-      <span class="muted">Site: {{.SiteName}}</span>
-      {{end}}
-      <input type="date" class="field-input" name="from" value="{{.DateFrom}}">
-      <input type="date" class="field-input" name="to" value="{{.DateTo}}">
-      <button type="submit" class="btn btn-primary">Apply</button>
-    </form>
-
-    <div class="walkin-panel">
-      <button type="button" class="btn btn-primary" id="walkin-toggle"
-              onclick="document.getElementById('walkin-search').classList.toggle('hidden')">Add walk-in</button>
-      <div id="walkin-search" class="walkin-search hidden">
-        <div class="walkin-search-filters">
-          <input type="hidden" name="site_id" value="{{.SiteID}}">
-          <input type="hidden" name="from" value="{{.DateFrom}}">
-          <input type="hidden" name="to" value="{{.DateTo}}">
-          {{if .EventID}}<input type="hidden" name="event_id" value="{{.EventID}}">{{end}}
-        </div>
-        <input type="text" name="name" class="field-input" placeholder="Search existing participant…"
-               hx-get="/attendance/walkin-search" hx-trigger="keyup changed delay:500ms"
-               hx-target="#walkin-results" hx-swap="innerHTML"
-               hx-include="closest .walkin-search-filters">
-        <div id="walkin-results" class="walkin-results"></div>
-        <form method="post" action="/attendance/walkin" class="walkin-create">
-          <input type="hidden" name="site_id" value="{{.SiteID}}">
-          <input type="hidden" name="from" value="{{.DateFrom}}">
-          <input type="hidden" name="to" value="{{.DateTo}}">
-          {{if .EventID}}<input type="hidden" name="event_id" value="{{.EventID}}">{{end}}
-          <input type="text" name="name" class="field-input" placeholder="Or create new participant (name only)">
-          <button type="submit" class="btn btn-primary">Check in walk-in</button>
-        </form>
-      </div>
-    </div>
-
-    {{if .Rows}}
-    <div class="matrix-wrap">
-      <table class="matrix-table">
-        <thead>
-          <tr>
-            <th class="matrix-name-col">Participant</th>
-            {{range .Dates}}<th class="matrix-date-col">{{slice . 5 7}}/{{slice . 8 10}}</th>{{end}}
-            <th class="matrix-total-col">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{range .Rows}}
-          <tr {{if .IsDropout}}class="row-dropout"{{end}}>
-            <td class="matrix-name-col">
-              <span class="matrix-name">{{.Name}}</span>
-              {{if .IsDropout}}<span class="status-badge">STOPPED</span>{{end}}
-            </td>
-            {{range .Cells}}{{template "matrix-cell" .}}{{end}}
-            <td class="matrix-total-col"><span class="matrix-total-badge">{{.PresentCount}}/{{.TotalDays}}</span></td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
-    </div>
-    {{else}}
-    <p class="empty-state">No participants for this filter.</p>
-    {{end}}
+    {{template "matrix-content" .}}
   </div>
 </div>
 </body>
 </html>{{end}}
+
+{{define "matrix-content"}}
+<div id="matrix-and-stats">
+  <form method="get" action="/attendance" class="inline-form"
+        hx-get="/attendance" hx-target="#matrix-and-stats" hx-swap="outerHTML"
+        hx-trigger="change, submit">
+    <select class="field-input" name="event">
+      <option value="">All dates — no event filter</option>
+      {{range .Events}}<option value="{{.ID}}" {{if eq $.EventID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+    {{if .IsAdmin}}
+    <select class="field-input" name="site">
+      <option value="">All locations</option>
+      {{range .Sites}}<option value="{{.ID}}" {{if eq $.SiteID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+    {{else}}
+    <span class="muted">Site: {{.SiteName}}</span>
+    {{end}}
+    <input type="date" class="field-input" name="from" value="{{.DateFrom}}">
+    <input type="date" class="field-input" name="to" value="{{.DateTo}}">
+    <button type="submit" class="btn btn-primary">Apply</button>
+  </form>
+
+  <div class="walkin-panel">
+    <button type="button" class="btn btn-primary" id="walkin-toggle"
+            onclick="document.getElementById('walkin-search').classList.toggle('hidden')">Add walk-in</button>
+    <div id="walkin-search" class="walkin-search hidden">
+      <div class="walkin-search-filters">
+        <input type="hidden" name="site_id" value="{{.SiteID}}">
+        <input type="hidden" name="from" value="{{.DateFrom}}">
+        <input type="hidden" name="to" value="{{.DateTo}}">
+        {{if .EventID}}<input type="hidden" name="event_id" value="{{.EventID}}">{{end}}
+      </div>
+      <input type="text" name="name" class="field-input" placeholder="Search existing participant…"
+             hx-get="/attendance/walkin-search" hx-trigger="keyup changed delay:500ms"
+             hx-target="#walkin-results" hx-swap="innerHTML"
+             hx-include="closest .walkin-search-filters">
+      <div id="walkin-results" class="walkin-results"></div>
+      <form method="post" action="/attendance/walkin" class="walkin-create">
+        <input type="hidden" name="site_id" value="{{.SiteID}}">
+        <input type="hidden" name="from" value="{{.DateFrom}}">
+        <input type="hidden" name="to" value="{{.DateTo}}">
+        {{if .EventID}}<input type="hidden" name="event_id" value="{{.EventID}}">{{end}}
+        <input type="text" name="name" class="field-input" placeholder="Or create new participant (name only)">
+        <button type="submit" class="btn btn-primary">Check in walk-in</button>
+      </form>
+    </div>
+  </div>
+
+  {{if .Rows}}
+  <div class="matrix-wrap">
+    <table class="matrix-table">
+      <thead>
+        <tr>
+          <th class="matrix-name-col">Participant</th>
+          {{range .Dates}}<th class="matrix-date-col">{{slice . 5 7}}/{{slice . 8 10}}</th>{{end}}
+          <th class="matrix-total-col">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Rows}}
+        <tr {{if .IsDropout}}class="row-dropout"{{end}}>
+          <td class="matrix-name-col">
+            <span class="matrix-name">{{.Name}}</span>
+            {{if .IsDropout}}<span class="status-badge">STOPPED</span>{{end}}
+          </td>
+          {{range .Cells}}{{template "matrix-cell" .}}{{end}}
+          <td class="matrix-total-col"><span class="matrix-total-badge">{{.PresentCount}}/{{.TotalDays}}</span></td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="empty-state">No participants for this filter.</p>
+  {{end}}
+
+  {{template "stat-cards" .}}
+</div>
+{{end}}
+
+{{define "stat-cards"}}
+<div class="stat-cards">
+  <div class="stat-card"><div class="stat-number stat-green">{{.Summary.TotalCheckIns}}</div><div class="stat-label">Total check-ins</div></div>
+  <div class="stat-card"><div class="stat-number stat-accent">{{.Summary.ActiveParticipants}}</div><div class="stat-label">Active participants</div></div>
+  <div class="stat-card"><div class="stat-number stat-red">{{.Summary.Stopped}}</div><div class="stat-label">Stopped</div></div>
+  <div class="stat-card"><div class="stat-number stat-yellow">{{.Summary.AvgRate}}%</div><div class="stat-label">Avg attendance rate</div></div>
+</div>
+{{end}}
 
 {{define "matrix-cell"}}
 <form method="post" action="/attendance/toggle" class="matrix-cell-form"
