@@ -377,3 +377,83 @@ func TestAdminEventCreateValidation(t *testing.T) {
 		t.Errorf("expected NO event created on validation failure, got one")
 	}
 }
+
+// TestAdminEventCreateAuthBoundary proves an unauthenticated POST to
+// /admin/events is rejected by requireRole and never reaches adminEventAdd,
+// so no event is created.
+func TestAdminEventCreateAuthBoundary(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedToggleData(t, srv.pb)
+
+	form := url.Values{
+		"name":        {"AuthBoundary Event"},
+		"site":        {fx.site},
+		"start_date":  {"2026-08-01"},
+		"end_date":    {"2026-08-14"},
+		"description": {"should not be created"},
+	}
+
+	rec := doEventCreate(srv, nil, form)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 redirect to /login", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/login" {
+		t.Errorf("Location = %q, want /login", loc)
+	}
+	if ev := findEventByName(t, srv, "AuthBoundary Event"); ev != nil {
+		t.Fatalf("expected no event created for unauthenticated request, got %q", ev.GetString("name"))
+	}
+}
+
+// TestAdminEventCreateNonAdminRejected proves a case_manager POST to
+// /admin/events is rejected by requireRole and never reaches adminEventAdd,
+// so no event is created. The session id is fx.admin1 because requireRole only
+// inspects the signed role, not the DB record.
+func TestAdminEventCreateNonAdminRejected(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedToggleData(t, srv.pb)
+	cm := cmCookie(srv, fx.admin1)
+
+	form := url.Values{
+		"name":        {"NonAdmin Event"},
+		"site":        {fx.site},
+		"start_date":  {"2026-08-01"},
+		"end_date":    {"2026-08-14"},
+		"description": {"should not be created"},
+	}
+
+	rec := doEventCreate(srv, cm, form)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 redirect to /login", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/login" {
+		t.Errorf("Location = %q, want /login", loc)
+	}
+	if ev := findEventByName(t, srv, "NonAdmin Event"); ev != nil {
+		t.Fatalf("expected no event created for non-admin request, got %q", ev.GetString("name"))
+	}
+}
+
+// TestAdminEventCreateGetNoCreate proves a plain GET to /admin/events (no
+// trailing slash) does not create an event. Go ServeMux auto-redirects
+// /admin/events to the /admin/events/ subtree (301).
+func TestAdminEventCreateGetNoCreate(t *testing.T) {
+	srv := newTestServer(t)
+	_ = seedToggleData(t, srv.pb)
+	admin := adminCookie(srv, "admin-id-1")
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/events", nil)
+	req.AddCookie(admin)
+	rec := httptest.NewRecorder()
+	srv.Mux().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMovedPermanently {
+		t.Fatalf("status = %d, want 301 redirect to /admin/events/", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/admin/events/" {
+		t.Errorf("Location = %q, want /admin/events/", loc)
+	}
+	if ev := findEventByName(t, srv, "GET Event"); ev != nil {
+		t.Fatalf("GET /admin/events must not create an event, got %q", ev.GetString("name"))
+	}
+}
