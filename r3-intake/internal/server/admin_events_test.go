@@ -3,9 +3,14 @@ package server
 import (
 	"bytes"
 	"html/template"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pocketbase/pocketbase/core"
 
 	"r3-intake/internal/assets"
 )
@@ -280,5 +285,95 @@ func TestEventStatusTransition(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("validEventTransition(%q, %q) = %v, want %v", tt.from, tt.to, got, tt.want)
 		}
+	}
+}
+
+// findEventByName returns the first events record with the given name, or nil.
+func findEventByName(t *testing.T, srv *Server, name string) *core.Record {
+	t.Helper()
+	col, err := srv.pb.FindCollectionByNameOrId("events")
+	if err != nil {
+		t.Fatalf("events collection: %v", err)
+	}
+	recs, err := srv.pb.FindRecordsByFilter(col.Id, "name='"+name+"'", "", 1, 0)
+	if err != nil {
+		t.Fatalf("find event: %v", err)
+	}
+	if len(recs) == 0 {
+		return nil
+	}
+	return recs[0]
+}
+
+// doEventCreate POSTs the Create Event form to /admin/events (no trailing
+// slash) with the given form values.
+func doEventCreate(srv *Server, cookie *http.Cookie, form url.Values) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/admin/events", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if cookie != nil {
+		req.AddCookie(cookie)
+	}
+	rec := httptest.NewRecorder()
+	srv.Mux().ServeHTTP(rec, req)
+	return rec
+}
+
+// TestAdminEventCreateRouting proves a POST to /admin/events (the form action,
+// no trailing slash) is handled directly by the explicit route and creates the
+// event, instead of 301-redirecting to the /admin/events/ subtree (which is
+// GET-only and 404s on the follow-up GET).
+func TestAdminEventCreateRouting(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedToggleData(t, srv.pb)
+	admin := adminCookie(srv, fx.admin1)
+
+	form := url.Values{
+		"name":        {"New Event"},
+		"site":        {fx.site},
+		"start_date":  {"2026-08-01"},
+		"end_date":    {"2026-08-14"},
+		"description": {"optional"},
+	}
+	rec := doEventCreate(srv, admin, form)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (event created)", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/admin" {
+		t.Errorf("Location = %q, want /admin", loc)
+	}
+	ev := findEventByName(t, srv, "New Event")
+	if ev == nil {
+		t.Fatal("expected event 'New Event' to be created, got none")
+	}
+	if got := ev.GetString("site"); got != fx.site {
+		t.Errorf("event site = %q, want %q", got, fx.site)
+	}
+	if got := ev.GetString("status"); got != "active" {
+		t.Errorf("event status = %q, want active", got)
+	}
+}
+
+// TestAdminEventCreateValidation proves a POST with an empty name re-renders
+// the admin page (200) with the validation error through the new route.
+func TestAdminEventCreateValidation(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedToggleData(t, srv.pb)
+	admin := adminCookie(srv, fx.admin1)
+
+	form := url.Values{
+		"name":       {""},
+		"site":       {fx.site},
+		"start_date": {"2026-08-01"},
+		"end_date":   {"2026-08-14"},
+	}
+	rec := doEventCreate(srv, admin, form)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (validation re-render)", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Event name and location are required.") {
+		t.Errorf("validation response missing error message")
+	}
+	if ev := findEventByName(t, srv, ""); ev != nil {
+		t.Errorf("expected NO event created on validation failure, got one")
 	}
 }

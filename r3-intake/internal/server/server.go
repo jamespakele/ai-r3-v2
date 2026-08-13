@@ -123,6 +123,10 @@ func (s *Server) Mux() http.Handler {
 	mux.HandleFunc("/admin/events/{id}/enroll-search", s.requireRole("admin", s.handleEnrollSearch))
 	// Story 2.3 lifecycle routes
 	mux.HandleFunc("POST /admin/events/{id}/status", s.requireRole("admin", s.handleEventStatus))
+	// Create Event — explicit method-scoped route so the POST to /admin/events
+	// is handled directly instead of 301-redirecting to the /admin/events/
+	// subtree (which is GET-only and 404s on the follow-up GET).
+	mux.HandleFunc("POST /admin/events", s.requireRole("admin", s.handleAdminEventAdd))
 	// Report placeholder — admin only
 	mux.HandleFunc("GET /admin/events/{id}/report", s.requireRole("admin", s.handleEventReport))
 
