@@ -453,6 +453,7 @@
       </div>
       <div class="topbar-actions">
         <a href="/public/intake" class="btn btn-primary">New Intake</a>
+        <a href="/attendance" class="btn btn-ghost">Attendance</a>
         {{if .IsAdmin}}<a href="/admin" class="btn btn-ghost">Admin</a>{{end}}
         <a href="/logout" class="btn btn-ghost">Sign out</a>
       </div>
@@ -765,3 +766,117 @@
 </div>
 </body>
 </html>{{end}}
+
+{{define "matrix"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R3 Intake — Attendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css?v=4">
+</head>
+<body>
+<div class="page-bg">
+  <div class="topbar topbar-admin" data-no-print>
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-badge">R3</div>
+        <div>
+          <div class="brand-title">Restore, Reconnect, Revive</div>
+          <div class="brand-sub">Attendance — {{.UserName}} ({{.Role}})</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/" class="btn btn-ghost">Records</a>
+        {{if .IsAdmin}}<a href="/admin" class="btn btn-ghost">Admin</a>{{end}}
+        <a href="/logout" class="btn btn-ghost">Sign out</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container container-admin">
+    <h2 class="section-title section-title-sm">Attendance</h2>
+
+    {{template "matrix-content" .}}
+  </div>
+</div>
+</body>
+</html>{{end}}
+
+{{define "matrix-content"}}
+<div id="matrix-and-stats">
+  <form method="get" action="/attendance" class="inline-form"
+        hx-get="/attendance" hx-target="#matrix-and-stats" hx-swap="outerHTML"
+        hx-trigger="change, submit">
+    <select class="field-input" name="event">
+      <option value="">All dates — no event filter</option>
+      {{range .Events}}<option value="{{.ID}}" {{if eq $.EventID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+    {{if .IsAdmin}}
+    <select class="field-input" name="site">
+      <option value="">All locations</option>
+      {{range .Sites}}<option value="{{.ID}}" {{if eq $.SiteID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+    {{else}}
+    <span class="muted">Site: {{.SiteName}}</span>
+    {{end}}
+    <input type="date" class="field-input" name="from" value="{{.DateFrom}}">
+    <input type="date" class="field-input" name="to" value="{{.DateTo}}">
+    <button type="submit" class="btn btn-primary">Apply</button>
+  </form>
+
+  {{if .Rows}}
+  <div class="matrix-wrap">
+    <table class="matrix-table">
+      <thead>
+        <tr>
+          <th class="matrix-name-col">Participant</th>
+          {{range .Dates}}<th class="matrix-date-col">{{slice . 5 7}}/{{slice . 8 10}}</th>{{end}}
+          <th class="matrix-total-col">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Rows}}
+        <tr {{if .IsDropout}}class="row-dropout"{{end}}>
+          <td class="matrix-name-col">
+            <span class="matrix-name">{{.Name}}</span>
+            {{if .IsDropout}}<span class="status-badge">STOPPED</span>{{end}}
+          </td>
+          {{range .Cells}}{{template "matrix-cell" .}}{{end}}
+          <td class="matrix-total-col"><span class="matrix-total-badge">{{.PresentCount}}/{{.TotalDays}}</span></td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="empty-state">No participants for this filter.</p>
+  {{end}}
+
+  {{template "stat-cards" .}}
+</div>
+{{end}}
+
+{{define "stat-cards"}}
+<div class="stat-cards">
+  <div class="stat-card"><div class="stat-number stat-green">{{.Summary.TotalCheckIns}}</div><div class="stat-label">Total check-ins</div></div>
+  <div class="stat-card"><div class="stat-number stat-accent">{{.Summary.ActiveParticipants}}</div><div class="stat-label">Active participants</div></div>
+  <div class="stat-card"><div class="stat-number stat-red">{{.Summary.Stopped}}</div><div class="stat-label">Stopped</div></div>
+  <div class="stat-card"><div class="stat-number stat-yellow">{{.Summary.AvgRate}}%</div><div class="stat-label">Avg attendance rate</div></div>
+</div>
+{{end}}
+
+{{define "matrix-cell"}}
+<form method="post" action="/attendance/toggle" class="matrix-cell-form"
+      hx-post="/attendance/toggle" hx-target="closest form" hx-swap="outerHTML"
+      hx-trigger="click" hx-include="closest form">
+  <input type="hidden" name="intake_id" value="{{.IntakeID}}">
+  <input type="hidden" name="date" value="{{.Date}}">
+  <input type="hidden" name="site_id" value="{{.SiteID}}">
+  <input type="hidden" name="from" value="{{.From}}">
+  <input type="hidden" name="to" value="{{.To}}">
+  {{if .EventID}}<input type="hidden" name="event_id" value="{{.EventID}}">{{end}}
+  <button type="submit" class="matrix-dot {{if .Status}}dot-{{.Status}}{{else}}dot-empty{{end}}" aria-label="Toggle status for {{.Date}}"></button>
+</form>
+{{end}}
