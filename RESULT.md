@@ -1,33 +1,32 @@
-# RESULT — Epic 4: Participant Attendance History
+# Epic 4: Participant Attendance History — RESULT
 
-## What was built
-- Backend endpoints and handlers for per-participant monthly attendance and day-level edits.
-  - **GET /intake/{id}/attendance** — full-page monthly calendar render (defaults to current HST month, `?month=YYYY-MM` nav), per-person stats (X of Y days (Z%), rate color, current streak), legend data.
-  - **GET /intake/{id}/attendance/day?date=YYYY-MM-DD** — day-detail modal fragment (status, event name, recorded-by, check-in time, note) or empty state.
-  - **POST /intake/{id}/attendance/day** — save/update attendance record (creates if none, updates existing; site derived from intake, recorded_by = current user).
-  - **POST /intake/{id}/attendance/day/delete** — delete record for a date (idempotent).
-- Vanilla-CSS styling layer for the per-participant monthly attendance calendar and attendance-stats UI.
-  - Stats pills, nav/month, 7-column calendar table + cells, daynum/status labels, cell-state classes (is-other-month dim, is-today highlight, has-record), status colors scoped to .person-att-cell.status-* and .person-att-legend-item.status-* (present #3f6b34, absent #eee/#d9cbb6, excused #8a6a1e, walk_in #2a4d8a), legend swatches via ::before, day-detail inline card, day-actions, delete-form spacing, and a @media (max-width: 620px) responsive block.
-- Interactive day-level detail + inline attendance edit UI (client-side wiring layer on top of the backend and CSS):
-  1. **Clickable day cells** — each `td.person-att-cell` issues `hx-get="/intake/{id}/attendance/day?date=YYYY-MM-DD"` on click, loading the `person-attendance-day` fragment into a new `#person-att-detail-slot`.
-  2. **Detail slot** — `<div id="person-att-detail-slot">` placed inside `#person-attendance-calendar`, so the Save/Delete forms' `hx-swap="outerHTML"` on the calendar div replaces the slot too — the detail **auto-closes** on save/delete with zero extra JS.
-  3. **Cancel** — existing `this.closest('.person-att-day-detail').remove()` closes the detail without a request.
-  4. **Delete** — existing `confirm('Delete this attendance record?')` prompt.
+**Status:** COMPLETE — merged to master (4935c2f), GitHub issue #4 CLOSED.
 
-## Files
-- Created: `r3-intake/internal/server/person_attendance.go`, `person_attendance_test.go`, `person_attendance_integration_test.go`
-- Modified: `r3-intake/internal/server/server.go` (3 routes), `r3-intake/internal/assets/public/index.html` (3 template stubs, stylesheet link bumped to `?v=7`, day-cell HTMX wiring, `#person-att-detail-slot` div), `r3-intake/internal/assets/public/app.css` (Person attendance calendar section)
-- Plans: `docs/plans/omp-plan-person-attendance-backend.md`, `docs/plans/omp-plan-person-attendance-css.md`, `docs/plans/omp-plan-day-detail-edit.md`
+## Stories implemented (via omp-plan-execute)
+- **4.1 Per-Person Calendar View** — monthly calendar, 7-column grid, status colors, legend, prev/next month nav with `?month=YYYY-MM`.
+- **4.2 Per-Person Attendance Stats** — total/present/rate/streak stats pills.
+- **4.3 Day Detail and Edit** — day-level detail fragment + inline attendance edit (save/delete), auto-close via HTMX.
+
+## FRs / UX-DRs
+FR15, FR16, FR17, FR20 · UX-DR9, UX-DR10, UX-DR11, UX-DR13.
+
+## Files changed (merged to master)
+- `r3-intake/internal/server/person_attendance.go` (new, 448 lines)
+- `r3-intake/internal/server/person_attendance_test.go` (new)
+- `r3-intake/internal/server/person_attendance_integration_test.go` (new)
+- `r3-intake/internal/server/server.go` (3 routes registered)
+- `r3-intake/internal/assets/public/index.html` (calendar + day-detail templates, HTMX wiring, `?v=7`)
+- `r3-intake/internal/assets/public/app.css` (person-attendance calendar/stats/detail styles)
+- `docs/plans/omp-plan-*.md` (3 working plans)
+
+## Routes added
+- `GET /intake/{id}/attendance`
+- `GET /intake/{id}/attendance/day`
+- `POST /intake/{id}/attendance/day`
+- `POST /intake/{id}/attendance/day/delete`
 
 ## Verification
-- `go build ./...` — clean
-- `go vet ./...` — clean
-- `go test ./...` — full suite green (server package 3.22s)
-- `go test ./internal/server/ -run PersonAttendance -v` — all pass (month render, day get with/without record, save create/update, delete, validation, template renders)
-- Unit tests: stats, streak, month grid, template render
-- Integration tests: authz (admin/cm/403), month render, day GET, save create/update (no dup), delete, validation
-- CSS brace balance verified; status colors match existing matrix dots; rules scoped to avoid leaking onto other .status-* elements.
-- Manual browser check of click-to-open flow performed during post-merge review.
-
-## Handoff
-View structs (`PersonAttendanceView`, `PersonDayCell`, `PersonStats`, `PersonDayDetailView`) and template names (`person-attendance`, `person-attendance-calendar`, `person-attendance-day`) are consumed by the calendar UI and day-detail/edit UI. The merged `person-attendance` template references `/static/app.css?v=7` to match the CSS sibling's cache-buster.
+- `go build ./...` clean · `go vet ./...` clean · `go test ./...` green (server 3.5s)
+- `go test ./internal/server/ -run PersonAttendance -v` — all 12 subtests pass
+- No conflict markers; every child story feature preserved.
+- master tip = 4935c2f; issue #4 CLOSED; worktrees + child branches cleaned up.
