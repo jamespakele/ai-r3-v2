@@ -30,16 +30,34 @@ type IntakeRow struct {
 
 // AdminView is the view model for the admin dashboard template.
 type AdminView struct {
-	UserName     string
-	Role         string
-	IsAdmin      bool
-	Rows         []IntakeRow
-	Sites        []Site
-	Users        []UserRow
-	Query        string
-	StatusFilter string
-	SiteFilter   string
-	Total        int
+	UserName         string
+	Role             string
+	IsAdmin          bool
+	Rows             []IntakeRow
+	Sites            []Site
+	Users            []UserRow
+	Events           []EventRow
+	EventError       string
+	EventName        string
+	EventSite        string
+	EventStart       string
+	EventEnd         string
+	EventDescription string
+	Query            string
+	StatusFilter     string
+	SiteFilter       string
+	Total            int
+}
+
+// EventRow is the flat admin list view of an events record.
+type EventRow struct {
+	ID        string
+	Name      string
+	SiteName  string
+	StartDate string
+	EndDate   string
+	Enrolled  int
+	Status    string
 }
 
 // UserOption is a minimal user label/value for dropdowns.
@@ -143,6 +161,7 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 	view := &AdminView{UserName: u.Name, Role: u.Role, IsAdmin: true}
 	view.Sites = must(s.loadSites(true))
 	view.Users = s.loadUsers()
+	view.Events = must(s.loadAllEvents())
 	_ = s.tpl.ExecuteTemplate(w, "admin", view)
 }
 
@@ -180,6 +199,8 @@ func (s *Server) handleAdminSub(w http.ResponseWriter, r *http.Request) {
 		s.adminUserAdd(w, r)
 	case strings.HasPrefix(path, "users/") && strings.HasSuffix(path, "/update") && u.Role == "admin":
 		s.adminUserUpdate(w, r, path)
+	case path == "events" && u.Role == "admin":
+		s.adminEventAdd(w, r, u)
 	default:
 		http.NotFound(w, r)
 	}
@@ -339,6 +360,93 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request, path st
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
+// adminEventAdd creates a new event. Validation failures re-render the admin
+// page with an error and the submitted values preserved.
+func (s *Server) adminEventAdd(w http.ResponseWriter, r *http.Request, u *sessionUser) {
+	name := strings.TrimSpace(r.FormValue("name"))
+	site := strings.TrimSpace(r.FormValue("site"))
+	start := strings.TrimSpace(r.FormValue("start_date"))
+	end := strings.TrimSpace(r.FormValue("end_date"))
+	desc := strings.TrimSpace(r.FormValue("description"))
+
+	view := &AdminView{
+		UserName:         u.Name,
+		Role:             u.Role,
+		IsAdmin:          true,
+		EventName:        name,
+		EventSite:        site,
+		EventStart:       start,
+		EventEnd:         end,
+		EventDescription: desc,
+	}
+
+	errMsg := ""
+	startT, startErr := time.Parse("2006-01-02", start)
+	endT, endErr := time.Parse("2006-01-02", end)
+	switch {
+	case name == "" || site == "":
+		errMsg = "Event name and location are required."
+	case startErr != nil || endErr != nil:
+		errMsg = "Start and end dates must be valid dates."
+	case endT.Before(startT):
+		errMsg = "End date must be on or after start date."
+	case len(desc) > 500:
+		errMsg = "Description must be 500 characters or fewer."
+	}
+
+	if errMsg != "" {
+		view.EventError = errMsg
+		view.Sites = must(s.loadSites(true))
+		view.Users = s.loadUsers()
+		view.Events = must(s.loadAllEvents())
+		_ = s.tpl.ExecuteTemplate(w, "admin", view)
+		return
+	}
+
+	col, err := s.eventsCollection()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rec := core.NewRecord(col)
+	rec.Set("name", name)
+	rec.Set("site", site)
+	rec.Set("start_date", start)
+	rec.Set("end_date", end)
+	rec.Set("description", desc)
+	rec.Set("status", "active")
+	rec.Set("created_by", u.ID)
+	_ = s.pb.Save(rec)
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+}
+
+// handleAdminEventManage renders the enrollment-management placeholder for an
+// event. The actual enrollment screen ships in a later story.
+func (s *Server) handleAdminEventManage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/admin/events/"), "/manage")
+	rec, err := s.pb.FindRecordById("events", id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	u := s.currentSession(r)
+	if u == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	view := &AdminView{
+		UserName:  u.Name,
+		Role:      u.Role,
+		IsAdmin:   u.Role == "admin",
+		EventName: rec.GetString("name"),
+	}
+	_ = s.tpl.ExecuteTemplate(w, "event-manage", view)
+}
+
 // loadUsers returns all users for the admin users list.
 func (s *Server) loadUsers() []UserRow {
 	col, err := s.pb.FindCollectionByNameOrId("users")
@@ -359,6 +467,50 @@ func (s *Server) loadUsers() []UserRow {
 		})
 	}
 	return out
+}
+
+// loadAllEvents returns every event regardless of status (admin list view).
+func (s *Server) loadAllEvents() ([]EventRow, error) {
+	col, err := s.eventsCollection()
+	if err != nil {
+		return nil, err
+	}
+	recs, err := s.pb.FindRecordsByFilter(col.Id, "1=1", "-start_date,name", 1000, 0)
+	if err != nil {
+		return nil, err
+	}
+	siteMap := s.siteNameMap()
+	out := make([]EventRow, 0, len(recs))
+	for _, r := range recs {
+		site := siteMap[r.GetString("site")]
+		if site == "" {
+			site = "—"
+		}
+		out = append(out, EventRow{
+			ID:        r.Id,
+			Name:      r.GetString("name"),
+			SiteName:  site,
+			StartDate: r.GetString("start_date"),
+			EndDate:   r.GetString("end_date"),
+			Enrolled:  s.loadEnrolledCount(r.Id),
+			Status:    r.GetString("status"),
+		})
+	}
+	return out, nil
+}
+
+// loadEnrolledCount returns the number of event_enrollment records for an event.
+func (s *Server) loadEnrolledCount(eventID string) int {
+	col, err := s.pb.FindCollectionByNameOrId("event_enrollment")
+	if err != nil {
+		return 0
+	}
+	filter := fmt.Sprintf("event='%s'", mcpmod.EscapeFilter(eventID))
+	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "", 1000, 0)
+	if err != nil {
+		return 0
+	}
+	return len(recs)
 }
 
 // siteNameMap returns {siteID: name} for all sites.

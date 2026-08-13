@@ -111,6 +111,8 @@ func (s *Server) Mux() http.Handler {
 	mux.HandleFunc("/admin", s.requireRole("admin", s.handleAdminSettings))
 	// Admin mutations (per-action role checks inside)
 	mux.HandleFunc("/admin/", s.requireAuth(s.handleAdminSub))
+	// Event enrollment-management placeholder — admin only
+	mux.HandleFunc("/admin/events/", s.requireRole("admin", s.handleAdminEventManage))
 
 	// Duplicate search (auth-only)
 	mux.HandleFunc("/search/duplicates", s.requireAuth(s.handleDuplicateSearch))
