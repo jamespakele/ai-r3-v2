@@ -453,6 +453,7 @@
       </div>
       <div class="topbar-actions">
         <a href="/public/intake" class="btn btn-primary">New Intake</a>
+        <a href="/attendance" class="btn btn-ghost">Attendance</a>
         {{if .IsAdmin}}<a href="/admin" class="btn btn-ghost">Admin</a>{{end}}
         <a href="/logout" class="btn btn-ghost">Sign out</a>
       </div>
@@ -761,6 +762,42 @@
       {{end}}
       {{if not .Entries}}<p class="empty-state">No change history.</p>{{end}}
     </div>
+  </div>
+</div>
+</body>
+</html>{{end}}
+
+{{define "matrix"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R3 Intake — Attendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css?v=3">
+</head>
+<body>
+<div class="page-bg">
+  <div class="topbar topbar-admin" data-no-print>
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-badge">R3</div>
+        <div>
+          <div class="brand-title">Restore, Reconnect, Revive</div>
+          <div class="brand-sub">Attendance — {{.UserName}} ({{.Role}})</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a href="/" class="btn btn-ghost">Records</a>
+        {{if .IsAdmin}}<a href="/admin" class="btn btn-ghost">Admin</a>{{end}}
+        <a href="/logout" class="btn btn-ghost">Sign out</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container container-admin">
+    <h2 class="section-title section-title-sm">Attendance</h2>
+    <p class="empty-state">Attendance matrix coming soon.</p>
   </div>
 </div>
 </body>
