@@ -917,7 +917,7 @@
         {{range .Rows}}
         <tr class="{{if .IsDropout}}row-dropout {{end}}{{if .NoLocation}}row-no-location{{end}}">
           <td class="matrix-name-col">
-            <span class="matrix-name">{{.Name}}</span>
+            {{if .IntakeID}}<a href="/intake/{{.IntakeID}}" class="matrix-name-link"><span class="matrix-name">{{.Name}}</span></a>{{else}}<span class="matrix-name">{{.Name}}</span>{{end}}
             {{if .IsDropout}}<span class="status-badge">STOPPED</span>{{end}}
             {{if .NoLocation}}<span class="matrix-no-location-note">no location</span>{{end}}
           </td>
