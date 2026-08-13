@@ -775,6 +775,7 @@
 <title>R3 Intake — Attendance</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=4">
+<script src="/static/htmx.min.js" defer></script>
 </head>
 <body>
 <div class="page-bg">
@@ -869,7 +870,7 @@
             <span class="matrix-name">{{.Name}}</span>
             {{if .IsDropout}}<span class="status-badge">STOPPED</span>{{end}}
           </td>
-          {{range .Cells}}{{template "matrix-cell" .}}{{end}}
+          {{range .Cells}}<td>{{template "matrix-cell" .}}</td>{{end}}
           <td class="matrix-total-col"><span class="matrix-total-badge">{{.PresentCount}}/{{.TotalDays}}</span></td>
         </tr>
         {{end}}
@@ -896,7 +897,7 @@
 {{define "matrix-cell"}}
 <form method="post" action="/attendance/toggle" class="matrix-cell-form"
       hx-post="/attendance/toggle" hx-target="closest form" hx-swap="outerHTML"
-      hx-trigger="click" hx-include="closest form">
+      hx-trigger="submit" hx-include="closest form">
   <input type="hidden" name="intake_id" value="{{.IntakeID}}">
   <input type="hidden" name="date" value="{{.Date}}">
   <input type="hidden" name="site_id" value="{{.SiteID}}">

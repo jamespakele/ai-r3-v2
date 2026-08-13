@@ -270,6 +270,10 @@ func (s *Server) loadMatrixRows(u *sessionUser, siteID string, dates []string, e
 	rows := make([]MatrixRow, 0, len(intakeRecs))
 	for _, rec := range intakeRecs {
 		iid := rec.Id
+		cellSiteID := siteID
+		if cellSiteID == "" {
+			cellSiteID = rec.GetString("site")
+		}
 		row := MatrixRow{
 			IntakeID:  iid,
 			Name:      rec.GetString("name"),
@@ -282,7 +286,7 @@ func (s *Server) loadMatrixRows(u *sessionUser, siteID string, dates []string, e
 				IntakeID: iid,
 				Date:     d,
 				Status:   status,
-				SiteID:   siteID,
+				SiteID:   cellSiteID,
 				EventID:  eventID,
 				From:     from,
 				To:       toDate,
@@ -467,7 +471,7 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	next := cycleStatus(existingStatus)
-	now := time.Now().In(hst).Format("2006-01-02 15:04:05.000Z")
+	now := time.Now().In(hst).Format("2006-01-02 15:04:05")
 
 	switch {
 	case next == "" && existing != nil:
@@ -647,7 +651,7 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	now := time.Now().In(hst).Format("2006-01-02 15:04:05.000Z")
+	now := time.Now().In(hst).Format("2006-01-02 15:04:05")
 	if len(recs) > 0 {
 		existing := recs[0]
 		existing.Set("status", "walk_in")
