@@ -44,10 +44,6 @@ type AdminView struct {
 	EventStart       string
 	EventEnd         string
 	EventDescription string
-	Query            string
-	StatusFilter     string
-	SiteFilter       string
-	Total            int
 	EventID          string
 	EventSiteName    string
 	EventStatus      string
@@ -55,6 +51,10 @@ type AdminView struct {
 	EventEnrolled    int
 	EnrolledCount    int
 	Enrolled         []EnrolledRow
+	Query            string
+	StatusFilter     string
+	SiteFilter       string
+	Total            int
 }
 
 // EventRow is the flat admin list view of an events record.
@@ -453,6 +453,38 @@ func (s *Server) adminEventAdd(w http.ResponseWriter, r *http.Request, u *sessio
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
+// validEventTransition reports whether moving from -> to is a legal lifecycle step.
+func validEventTransition(from, to string) bool {
+	switch from {
+	case "active":
+		return to == "completed" || to == "cancelled"
+	default:
+		return false // completed/cancelled are terminal; no transitions out
+	}
+}
+
+// renderEventManage renders the enrollment-management page for a single event.
+func (s *Server) renderEventManage(w http.ResponseWriter, r *http.Request, u *sessionUser, rec *core.Record, statusErr string) {
+	start := rec.GetString("start_date")
+	end := rec.GetString("end_date")
+	enrolled, _ := s.loadEnrolledRoster(rec.Id, start, end)
+	view := &AdminView{
+		UserName:         u.Name,
+		Role:             u.Role,
+		IsAdmin:          u.Role == "admin",
+		EventID:          rec.Id,
+		EventName:        rec.GetString("name"),
+		EventSiteName:    s.siteNameMap()[rec.GetString("site")],
+		EventStart:       start,
+		EventEnd:         end,
+		EventStatus:      rec.GetString("status"),
+		EventEnrolled:    s.loadEnrolledCount(rec.Id),
+		EnrolledCount:    len(enrolled),
+		Enrolled:         enrolled,
+		EventStatusError: statusErr,
+	}
+	_ = s.tpl.ExecuteTemplate(w, "event-manage", view)
+}
 // handleAdminEventManage renders the enrollment-management placeholder for an
 // event. The actual enrollment screen ships in a later story.
 func (s *Server) handleAdminEventManage(w http.ResponseWriter, r *http.Request) {
@@ -471,25 +503,7 @@ func (s *Server) handleAdminEventManage(w http.ResponseWriter, r *http.Request) 
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
-	start := rec.GetString("start_date")
-	end := rec.GetString("end_date")
-	enrolled, _ := s.loadEnrolledRoster(id, start, end)
-	siteName := s.siteNameMap()[rec.GetString("site")]
-	view := &AdminView{
-		UserName:       u.Name,
-		Role:           u.Role,
-		IsAdmin:        true,
-		EventID:        id,
-		EventName:      rec.GetString("name"),
-		EventSite:      rec.GetString("site"),
-		EventSiteName:  siteName,
-		EventStart:     start,
-		EventEnd:       end,
-		EventStatus:    rec.GetString("status"),
-		EnrolledCount:  len(enrolled),
-		Enrolled:       enrolled,
-	}
-	_ = s.tpl.ExecuteTemplate(w, "event-manage", view)
+	s.renderEventManage(w, r, u, rec, "")
 }
 
 // loadEnrolledRoster loads the active roster for an event and computes each
@@ -755,6 +769,58 @@ func (s *Server) handleEnrollSearch(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	_ = s.tpl.ExecuteTemplate(w, "enroll-search-results", EnrollSearchView{EventID: id, Results: results})
+}
+
+// handleEventStatus applies a status change to an event. Only active events may
+// transition, and only to completed or cancelled. Admin-only (route-gated).
+func (s *Server) handleEventStatus(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	rec, err := s.pb.FindRecordById("events", id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	u := s.currentSession(r)
+	if u == nil || u.Role != "admin" {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	to := strings.TrimSpace(r.FormValue("status"))
+	from := rec.GetString("status")
+	if !validEventTransition(from, to) {
+		s.renderEventManage(w, r, u, rec, "Invalid status transition: "+from+" → "+to)
+		return
+	}
+	rec.Set("status", to)
+	if err := s.pb.Save(rec); err != nil {
+		s.renderEventManage(w, r, u, rec, "Could not update event status.")
+		return
+	}
+	http.Redirect(w, r, "/admin/events/"+id+"/manage", http.StatusSeeOther)
+}
+
+// handleEventReport renders a placeholder report page (CSV export ships later).
+func (s *Server) handleEventReport(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	rec, err := s.pb.FindRecordById("events", id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	u := s.currentSession(r)
+	if u == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	view := &AdminView{
+		UserName:    u.Name,
+		Role:        u.Role,
+		IsAdmin:     u.Role == "admin",
+		EventID:     rec.Id,
+		EventName:   rec.GetString("name"),
+		EventStatus: rec.GetString("status"),
+	}
+	_ = s.tpl.ExecuteTemplate(w, "event-report", view)
 }
 
 // loadUsers returns all users for the admin users list.

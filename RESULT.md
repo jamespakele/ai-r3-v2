@@ -29,9 +29,9 @@ and merged to master.
   enroll/unenroll/enroll-search, status, report.
 - `r3-intake/internal/server/attendance.go` — matrix event scoping.
 - `r3-intake/internal/assets/public/index.html` — Events accordion, event-manage
-  screen, event-roster + enroll-search-results fragments, event-report; ?v=5.
+  screen, event-roster + enroll-search-results fragments, event-report; ?v=6.
 - `r3-intake/internal/assets/public/app.css` — event status badges, form grid,
-  enroll tabs, search panel, roster, rate badges.
+  enroll tabs, search panel, roster, rate badges, event-manage lifecycle styles.
 - `r3-intake/pocketbase/migrations/008_event_enrollment_deleted.go` +
   `002_encryption.go` (migration registration) + internal mirror.
 - `r3-intake/internal/server/admin_events_test.go` — TestAdminEventsRender,
@@ -50,4 +50,6 @@ and merged to master.
 - No runnable server binary in the worktrees (no cmd/main.go), so DB-backed
   handler paths are covered by unit tests only; no fake-PocketBase harness
   exists in the suite (infra gap, not a defect).
-- CSV export for completed events is Epic 3.
+- Matrix keeps `loadEvents` active-only (completed events are read-only; enrollment
+  disabled). Flagged to parent if completed events must appear in matrix.
+- Report page is a placeholder; CSV export is Epic 3.

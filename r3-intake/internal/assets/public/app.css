@@ -236,6 +236,9 @@ a:hover { color: #b5502e; }
 .event-status-completed { background: #fdf3e3; color: #8a6a1e; }
 .event-status-cancelled { background: #fbeeec; color: #8f3a2e; }
 
+.event-manage-actions { display: flex; gap: 10px; margin: 16px 0; align-items: center; }
+.event-manage-actions form { display: inline; margin: 0; }
+.event-readonly { margin: 16px 0; padding: 12px 16px; background: #fdf3e3; border: 1px solid #e6d3a8; border-radius: 8px; }
 .form-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 12px 0 24px; }
 .form-grid-4 .field-input,
 .form-grid-4 .textarea,
