@@ -816,7 +816,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Attendance</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=4">
+<link rel="stylesheet" href="/static/app.css?v=5">
 <script src="/static/htmx.min.js" defer></script>
 </head>
 <body>
@@ -906,11 +906,20 @@
         </tr>
       </thead>
       <tbody>
+        {{if .HasNoLocation}}
+        <tr class="matrix-group-header">
+          <td colspan="{{len .Dates | add1 | add1}}">
+            <span class="matrix-group-title">No Location</span>
+            <span class="matrix-no-location-note">Attendance is trackable without a location — assign one in Records to group here.</span>
+          </td>
+        </tr>
+        {{end}}
         {{range .Rows}}
-        <tr {{if .IsDropout}}class="row-dropout"{{end}}>
+        <tr class="{{if .IsDropout}}row-dropout {{end}}{{if .NoLocation}}row-no-location{{end}}">
           <td class="matrix-name-col">
             <span class="matrix-name">{{.Name}}</span>
             {{if .IsDropout}}<span class="status-badge">STOPPED</span>{{end}}
+            {{if .NoLocation}}<span class="matrix-no-location-note">no location</span>{{end}}
           </td>
           {{range .Cells}}<td>{{template "matrix-cell" .}}</td>{{end}}
           <td class="matrix-total-col"><span class="matrix-total-badge">{{.PresentCount}}/{{.TotalDays}}</span></td>

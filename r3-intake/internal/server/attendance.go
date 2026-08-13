@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -27,6 +28,9 @@ type MatrixViewData struct {
 	Events   []Event
 	Summary  MatrixSummary
 	EventID  string // optional event filter ("" = none)
+	// HasNoLocation reports whether at least one row is a no-location
+	// participant, so the template can render the "No Location" group header.
+	HasNoLocation bool
 }
 
 // MatrixRow is one participant row in the matrix.
@@ -39,6 +43,7 @@ type MatrixRow struct {
 	WalkInCount  int
 	LastPresent  string // YYYY-MM-DD or ""
 	IsDropout    bool
+	NoLocation   bool // participant has no assigned site
 }
 
 // MatrixSummary holds the aggregate stat cards below the matrix, computed
@@ -119,6 +124,14 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	hasNoLocation := false
+	for _, row := range rows {
+		if row.NoLocation {
+			hasNoLocation = true
+			break
+		}
+	}
+
 	view := MatrixViewData{
 		UserName: u.Name,
 		Role:     u.Role,
@@ -133,6 +146,7 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		Events:   events,
 		Summary:  computeSummary(rows, len(dates)),
 		EventID:  eventID,
+		HasNoLocation: hasNoLocation,
 	}
 
 	if r.Header.Get("HX-Request") == "true" {
@@ -290,7 +304,7 @@ func (s *Server) loadMatrixRows(u *sessionUser, siteID string, dates []string, e
 	toDate := dates[len(dates)-1]
 	attFilter := fmt.Sprintf("date>='%s' && date<='%s'", mcpmod.EscapeFilter(from), mcpmod.EscapeFilter(toDate))
 	if siteID != "" {
-		attFilter += fmt.Sprintf(" && site='%s'", mcpmod.EscapeFilter(siteID))
+		attFilter += fmt.Sprintf(" && (site='' || site='%s')", mcpmod.EscapeFilter(siteID))
 	}
 	if eventID != "" {
 		attFilter += fmt.Sprintf(" && event='%s'", mcpmod.EscapeFilter(eventID))
@@ -351,8 +365,14 @@ func (s *Server) loadMatrixRows(u *sessionUser, siteID string, dates []string, e
 			}
 		}
 		row.IsDropout = row.LastPresent != "" && row.LastPresent < thresholdStr
+		row.NoLocation = cellSiteID == ""
 		rows = append(rows, row)
 	}
+	// Group no-location participants at the top, preserving the existing name
+	// order within each group.
+	sort.SliceStable(rows, func(i, j int) bool {
+		return rows[i].NoLocation && !rows[j].NoLocation
+	})
 	return rows, nil
 }
 
@@ -458,7 +478,7 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 	from := strings.TrimSpace(r.FormValue("from"))
 	to := strings.TrimSpace(r.FormValue("to"))
 
-	if intakeID == "" || date == "" || siteID == "" {
+	if intakeID == "" || date == "" {
 		http.Error(w, "missing required fields", http.StatusBadRequest)
 		return
 	}
@@ -480,16 +500,28 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Authorization: case managers may only toggle their own intakes.
+	// The intake record is also the source of the effective site for
+	// participants with no explicit site selected.
+	intakeCol, err := s.intakeCollection()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	intakeLoaded := false
 	if u.Role == "case_manager" {
-		intakeCol, err := s.intakeCollection()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 		rec, err := s.pb.FindRecordById(intakeCol.Id, intakeID)
 		if err != nil || rec.GetString("assigned_to") != u.ID {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
+		}
+		intakeLoaded = true
+		if siteID == "" {
+			siteID = rec.GetString("site")
+		}
+	}
+	if siteID == "" && !intakeLoaded {
+		if rec, err := s.pb.FindRecordById(intakeCol.Id, intakeID); err == nil {
+			siteID = rec.GetString("site")
 		}
 	}
 

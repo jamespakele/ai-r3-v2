@@ -82,6 +82,11 @@ func TestMatrixContentRender(t *testing.T) {
 		DateTo:   "2026-08-14",
 		Dates:    []string{"2026-08-01", "2026-08-02"},
 		Rows: []MatrixRow{
+			{IntakeID: "i2", Name: "Bob", TotalDays: 2, NoLocation: true,
+				Cells: []MatrixCell{
+					{IntakeID: "i2", Date: "2026-08-01", Status: "absent", SiteID: "", From: "2026-08-01", To: "2026-08-14"},
+					{IntakeID: "i2", Date: "2026-08-02", Status: "", SiteID: "", From: "2026-08-01", To: "2026-08-14"},
+				}},
 			{IntakeID: "i1", Name: "Alice", TotalDays: 2,
 				Cells: []MatrixCell{
 					{IntakeID: "i1", Date: "2026-08-01", Status: "present", SiteID: "site1", From: "2026-08-01", To: "2026-08-14"},
@@ -89,10 +94,11 @@ func TestMatrixContentRender(t *testing.T) {
 				},
 				PresentCount: 1, WalkInCount: 1},
 		},
-		Sites:   []Site{{ID: "site1", Name: "Kona"}},
-		Events:  []Event{{ID: "ev1", Name: "Morning Program"}},
-		Summary: MatrixSummary{TotalCheckIns: 2, ActiveParticipants: 1, Stopped: 0, AvgRate: 25},
-		EventID: "ev1",
+		Sites:         []Site{{ID: "site1", Name: "Kona"}},
+		Events:        []Event{{ID: "ev1", Name: "Morning Program"}},
+		Summary:       MatrixSummary{TotalCheckIns: 2, ActiveParticipants: 1, Stopped: 0, AvgRate: 25},
+		EventID:       "ev1",
+		HasNoLocation: true,
 	}
 
 	var buf bytes.Buffer
@@ -104,10 +110,16 @@ func TestMatrixContentRender(t *testing.T) {
 		"Total check-ins", "Active participants", "Stopped", "Avg attendance rate",
 		"Morning Program", "Alice",
 		`>2</div><div class="stat-label">Total check-ins`, "25%",
+		"No Location", "matrix-group-header", "row-no-location", "no location",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("matrix-content output missing %q", want)
 		}
+	}
+
+	// The no-location row (Bob) must render before the located row (Alice).
+	if strings.Index(out, "Bob") > strings.Index(out, "Alice") {
+		t.Errorf("expected no-location row (Bob) to precede located row (Alice)")
 	}
 
 	// The full-page matrix template must also render (no-JS path).
