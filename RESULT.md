@@ -1,11 +1,20 @@
-# Result: Tabbed layout for admin screen
+# Epic 7: Admin screen UI improvements — tabbed layout + restructured event form
 
-## What Was Done
+**Status:** COMPLETE — child story branches `wt/t_30cf5ee4` (tabbed admin layout) and `wt/t_8a12cbf2` (event form restructure) merged into `epic/7-admin-screen-ui-improvements-tabbed-layo`.
+
+## Stories implemented
+
+- **7.1 Tabbed admin layout** — `wt/t_30cf5ee4` — converted the admin settings screen from three stacked accordion sections into a tabbed interface (Sites / Users / Events).
+- **7.2 Event form restructure** — `wt/t_8a12cbf2` — restructured the "Create Event" form from a 4-column grid to a 2-column grid.
+
+## 7.1 Tabbed admin layout (`wt/t_30cf5ee4`)
+
+### What Was Done
 Converted the admin settings screen from three stacked accordion sections
 (Sites, Users, Events) into a tabbed interface with three tabs. Only one tab's
 content is visible at a time. All existing functionality preserved.
 
-## Changes
+### Changes
 - `r3-intake/internal/assets/public/index.html` (`{{define "admin"}}` block):
   - Stylesheet link cache-buster bumped `?v=4` -> `?v=5`.
   - Three `.accordion` wrappers replaced with a single `.tabs[data-tabs]`
@@ -24,21 +33,53 @@ content is visible at a time. All existing functionality preserved.
     underline, `#fffdfa` panel, 14px bottom radii). Accordion rules left
     intact (harmless).
 
-## Scope
-- Event form markup preserved verbatim (state/end dates, create button,
-  description box) - that restructuring is the sibling card t_8a12cbf2's job.
-- No Go handler changes required - `AdminView` already carried all fields.
+## 7.2 Event form restructure (`wt/t_8a12cbf2`)
 
-## Verification
-- `go build ./...` - clean
-- `go vet ./...` - no issues
-- `go test ./...` - `internal/server` passes (template-parsing tests confirm
-  the admin block is valid Go template syntax)
-- omp rendered the admin template through the in-process-PocketBase test
-  harness asserting: `data-tabs` present, three tabs with correct
-  `aria-selected`, Users/Events panels start `hidden`, Sites active by default;
-  non-admin output contains Sites but no Users/Events tabs/panels; event-error
-  view renders the script's `(true || true)` branch.
+### What was built
+Restructured the "Create Event" form on the admin screen from a 4-column grid
+(`form-grid-4`) to a 2-column grid (`form-grid-2`) to use screen real estate
+better. All three requirements met:
+
+1. **Start and End dates side by side** — both date inputs now occupy one
+   column each on the same row (previously each took a full line).
+2. **Create Event button below the description box** — moved to its own
+   full-width row beneath the textarea (previously on the same row).
+3. **Description box bigger** — now spans the full 2-column width (same width
+   as the event name textbox) and bumped from `rows="3"` to `rows="5"`.
+
+### Files changed
+- `r3-intake/internal/assets/public/index.html` — event form markup: class
+  `form-grid-4` → `form-grid-2`; name + location get `grid-full` (own rows);
+  dates unspanned (side by side); textarea `rows=5`; button `grid-full`.
+- `r3-intake/internal/assets/public/app.css` — replaced `.form-grid-4` block
+  with `.form-grid-2` (`grid-template-columns: 1fr 1fr`), preserved
+  `.form-error`, kept the 620px single-column responsive fallback.
+
+### Backend contract preserved
+- `method="post"`, `action="/admin/events"`, and all field `name` attributes
+  (`name`, `site`, `start_date`, `end_date`, `description`) unchanged.
+- No Go code touched. No new dependencies.
+
+## Merge resolution notes
+
+- Both story branches diverged from `e5804c6` and touched
+  `r3-intake/internal/assets/public/index.html`, `app.css`, and `RESULT.md`.
+  The branches edited disjoint regions of the template/CSS (7.1 the accordion
+  wrapper, 7.2 the event form), so the source files auto-merged cleanly.
+- `RESULT.md` conflicted (each branch replaced it wholesale) and was resolved
+  by synthesizing this single epic-level result covering both stories.
+- Both features are preserved: tabbed admin layout AND the restructured
+  2-column event form.
+
+## Verification (after merge)
+
+- `go build ./...` → exit 0
+- `go vet ./...` → no issues
+- `go test ./...` → `ok r3-intake/internal/server`, all packages pass
+- `grep form-grid-4` → no remaining references
+- `grep -RIn '<<<<<<<'` across source files → no conflict markers
+- Template render tests confirm the admin block is valid Go template syntax.
 
 ## Artifacts
-- Plan: `docs/plans/omp-plan-tabbed-admin-layout.md`
+- Plan (7.1): `docs/plans/omp-plan-tabbed-admin-layout.md`
+- Plan (7.2): `docs/plans/omp-plan-event-form-layout.md`

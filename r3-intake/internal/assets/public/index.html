@@ -647,15 +647,15 @@
         </table>
 
         {{if .EventError}}<div class="form-error">{{.EventError}}</div>{{end}}
-        <form method="post" action="/admin/events" class="form-grid-4">
-          <input type="text" name="name" placeholder="Event name" required class="field-input" value="{{.EventName}}">
-          <select name="site" class="field-input" required>
+        <form method="post" action="/admin/events" class="form-grid-2">
+          <input type="text" name="name" placeholder="Event name" required class="field-input grid-full" value="{{.EventName}}">
+          <select name="site" class="field-input grid-full" required>
             <option value="">Select a location</option>
             {{range .Sites}}{{if .Active}}<option value="{{.ID}}" {{if eq .ID $.EventSite}}selected{{end}}>{{.Name}}</option>{{end}}{{end}}
           </select>
           <input type="date" name="start_date" placeholder="Start date" required class="field-input" value="{{.EventStart}}">
           <input type="date" name="end_date" placeholder="End date" required class="field-input" value="{{.EventEnd}}">
-          <textarea name="description" placeholder="Description (optional)" class="grid-full textarea textarea-sm" rows="3" maxlength="500">{{.EventDescription}}</textarea>
+          <textarea name="description" placeholder="Description (optional)" class="grid-full textarea textarea-sm" rows="5" maxlength="500">{{.EventDescription}}</textarea>
           <button type="submit" class="btn btn-primary grid-full">Create Event</button>
         </form>
       </div>
