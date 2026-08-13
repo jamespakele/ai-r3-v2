@@ -1,29 +1,47 @@
-# RESULT — Epic 1: Daily Attendance Tracking (Calendar Matrix)
+# RESULT — Story 2.3: Event Lifecycle and Status Transitions
 
-All five stories implemented and integrated on branch `epic/1-daily-attendance-tracking-calendar-matri`.
+## What was built
+Implemented backend logic and UI controls for event status transitions
+(active → completed / cancelled), per FR13 and UX-DR8, with server-side
+validation that rejects invalid state transitions.
 
-## Stories
-- **1.1** Database migration `007_events_attendance.js` (events, event_enrollment, attendance; null rules, cascade deletes, nullable attendance.event) + Attendance tab + Go skeleton.
-- **1.2** Calendar Matrix grid: sticky participant column, MM/DD date headers, Total present-count badge, filter bar (site/from/to, 30-day cap, 14-day HST default, role-based site scoping).
-- **1.3** HTMX cell toggle: 5-state cycle (empty→present→absent→excused→walk_in→empty), Go-enforced uniqueness, recorded_by + HST check_in_time, matrix-cell fragment swap, no-JS 303 fallback.
-- **1.4** Walk-in check-in (HTMX name search + select-existing or create-minimal-intake + idempotent walk_in upsert) + dropout highlighting (AC colors #fbeeec / #8f3a2e).
-- **1.5** Four summary stat cards (Total check-ins, Active, Stopped, Avg rate) computed from the same rows as the grid, program/event filter dropdown (site-scoped), HTMX dynamic updates via #matrix-and-stats partial.
+- **Status transition handler** `handleEventStatus` (POST /admin/events/{id}/status,
+  admin-only): only `active → completed|cancelled` is legal. Terminal states
+  (completed/cancelled) reject all transitions. Target status is whitelisted;
+  unknown/empty/same-state values are rejected. Non-admin is double-guarded
+  (route `requireRole("admin")` + in-handler `u.Role != "admin"` → redirect to `/`).
+- **`validEventTransition(from, to)`** helper — single source of truth for the
+  lifecycle state machine.
+- **`renderEventManage`** shared render helper (refactored from the GET-only
+  `handleAdminEventManage`) so both the GET page and the error path reuse it.
+- **Event manage screen** rewritten: status badge + enrolled count, Complete /
+  Cancel buttons for `active` events, read-only notice for terminal states,
+  JS confirm prompt "Mark this event as cancelled?" on Cancel, error display.
+- **Report button** appears in the events list only for `completed` events,
+  linking to a new `event-report` placeholder stub (CSV export ships in Epic 3).
+- **CSS**: `.event-manage-actions`, `.event-readonly` (badge variants already existed).
 
-## Integration
-Four parallel child worktrees (one per story) were merged into this epic branch. Conflicts in
-`attendance.go`, `server.go`, `index.html`, `app.css` reconciled (disjoint-intent combined; superseded
-placeholder dropped; walk-in + stats both preserved).
+## Files changed
+- `r3-intake/internal/server/admin.go` — AdminView fields (EventID, EventStatus,
+  EventStatusError, EventEnrolled), validEventTransition, renderEventManage,
+  handleEventStatus, handleEventReport.
+- `r3-intake/internal/server/server.go` — registered POST /admin/events/{id}/status
+  and GET /admin/events/{id}/report (admin-only).
+- `r3-intake/internal/assets/public/index.html` — Report button for completed events;
+  rewritten event-manage template; new event-report stub; cache-buster ?v=4→?v=5.
+- `r3-intake/internal/assets/public/app.css` — .event-manage-actions, .event-readonly.
+- `r3-intake/internal/server/admin_events_test.go` — TestEventStatusTransition (9 cases)
+  + extended TestAdminEventsRender (Report presence/absence, active controls,
+  terminal read-only, error rendering, report stub).
 
 ## Verification
-- `go build ./...` — OK
-- `go vet ./...` — OK
-- `go test ./...` — all pass (incl. TestComputeSummary, TestMatrixContentRender)
-- Template parse+render verified for matrix, matrix-content, matrix-cell, stat-cards, walkin-results
+- `go build ./...` — pass
+- `go vet ./...` — pass
+- `go test ./...` — pass (TestEventStatusTransition + TestAdminEventsRender + existing)
 
-## Files
-- `r3-intake/pocketbase/migrations/007_events_attendance.js` (new)
-- `r3-intake/internal/server/attendance.go` (new)
-- `r3-intake/internal/server/attendance_test.go` (new)
-- `r3-intake/internal/server/server.go` (routes)
-- `r3-intake/internal/assets/public/index.html` (templates)
-- `r3-intake/internal/assets/public/app.css` (grid, dots, sticky column, stat cards, walk-in)
+## Notes
+- Built on Story 2.1 (Event List and Creation) work, which was applied to this
+  branch from the parent worktree (t_9c800987) since it was uncommitted there.
+- Matrix keeps `loadEvents` active-only (completed events are read-only; enrollment
+  disabled). Flagged to parent if completed events must appear in matrix.
+- Report page is a placeholder; CSV export is Epic 3.
