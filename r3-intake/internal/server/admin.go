@@ -453,6 +453,19 @@ func (s *Server) adminEventAdd(w http.ResponseWriter, r *http.Request, u *sessio
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
+// handleAdminEventAdd is the route adapter for POST /admin/events. It fetches
+// the session user and delegates to adminEventAdd. requireRole("admin", ...)
+// guarantees a non-nil admin session before this runs; the nil check is
+// defensive only.
+func (s *Server) handleAdminEventAdd(w http.ResponseWriter, r *http.Request) {
+	u := s.currentSession(r)
+	if u == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	s.adminEventAdd(w, r, u)
+}
+
 // validEventTransition reports whether moving from -> to is a legal lifecycle step.
 func validEventTransition(from, to string) bool {
 	switch from {
