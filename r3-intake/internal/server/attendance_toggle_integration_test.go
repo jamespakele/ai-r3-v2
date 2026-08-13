@@ -1,0 +1,145 @@
+package server
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"testing"
+
+	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
+)
+
+// toggleFixtures holds the record ids created by seedToggleData so tests can
+// reference them.
+type toggleFixtures struct {
+	site, admin1, iNoSite, iLocated string
+}
+
+// seedToggleData creates one active site, one admin user, one intake with no
+// assigned site, and one intake with the site assigned.
+func seedToggleData(t *testing.T, pb *pocketbase.PocketBase) toggleFixtures {
+	t.Helper()
+	save := func(name string, rec *core.Record) string {
+		t.Helper()
+		if err := pb.Save(rec); err != nil {
+			t.Fatalf("save %s: %v", name, err)
+		}
+		return rec.Id
+	}
+	rec := func(name string) *core.Record {
+		col, err := pb.FindCollectionByNameOrId(name)
+		if err != nil {
+			t.Fatalf("collection %s: %v", name, err)
+		}
+		return core.NewRecord(col)
+	}
+
+	site := save("site", func() *core.Record {
+		r := rec("sites")
+		r.Set("name", "Kona")
+		r.Set("active", true)
+		return r
+	}())
+
+	admin1 := save("admin1", func() *core.Record {
+		r := rec("users")
+		r.SetEmail("admin@example.com")
+		r.SetPassword("admin-password")
+		r.Set("name", "Admin One")
+		r.Set("role", "admin")
+		return r
+	}())
+
+	iNoSite := save("iNoSite", func() *core.Record {
+		r := rec("intake")
+		r.Set("name", "NoSite Bob")
+		return r
+	}())
+	iLocated := save("iLocated", func() *core.Record {
+		r := rec("intake")
+		r.Set("name", "Located Alice")
+		r.Set("site", site)
+		return r
+	}())
+
+	return toggleFixtures{site, admin1, iNoSite, iLocated}
+}
+
+// doToggle POSTs the attendance toggle with the HTMX request header and the
+// given form values.
+func doToggle(srv *Server, cookie *http.Cookie, form url.Values) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/attendance/toggle", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+	if cookie != nil {
+		req.AddCookie(cookie)
+	}
+	rec := httptest.NewRecorder()
+	srv.Mux().ServeHTTP(rec, req)
+	return rec
+}
+
+// TestToggleNoLocation proves a participant with no assigned site can have
+// their attendance dot toggled, and that the resulting record stores an empty
+// site.
+func TestToggleNoLocation(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedToggleData(t, srv.pb)
+	admin := adminCookie(srv, fx.admin1)
+
+	form := url.Values{
+		"intake_id": {fx.iNoSite},
+		"date":      {"2026-08-13"},
+		"site_id":   {""},
+		"from":      {"2026-08-01"},
+		"to":        {"2026-08-14"},
+	}
+	rec := doToggle(srv, admin, form)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "dot-present") {
+		t.Errorf("toggle response missing dot-present cell")
+	}
+
+	att := findAttendance(t, srv, fx.iNoSite, "2026-08-13")
+	if att == nil {
+		t.Fatalf("expected attendance record for no-location intake")
+	}
+	if att.GetString("site") != "" {
+		t.Errorf("site = %q, want empty", att.GetString("site"))
+	}
+	if att.GetString("status") != "present" {
+		t.Errorf("status = %q, want present", att.GetString("status"))
+	}
+}
+
+// TestToggleLocated proves a located participant's toggle still stores the
+// intake's site.
+func TestToggleLocated(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedToggleData(t, srv.pb)
+	admin := adminCookie(srv, fx.admin1)
+
+	form := url.Values{
+		"intake_id": {fx.iLocated},
+		"date":      {"2026-08-13"},
+		"site_id":   {fx.site},
+		"from":      {"2026-08-01"},
+		"to":        {"2026-08-14"},
+	}
+	rec := doToggle(srv, admin, form)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	att := findAttendance(t, srv, fx.iLocated, "2026-08-13")
+	if att == nil {
+		t.Fatalf("expected attendance record for located intake")
+	}
+	if att.GetString("site") != fx.site {
+		t.Errorf("site = %q, want %q", att.GetString("site"), fx.site)
+	}
+}

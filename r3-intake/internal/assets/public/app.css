@@ -297,6 +297,22 @@ a:hover { color: #b5502e; }
 .matrix-dot.dot-walk_in { background: #2a4d8a; border-color: #2a4d8a; }
 .matrix-dot.dot-empty { background: transparent; }
 .matrix-table tr.row-dropout td { background: #fbeeec; }
+.matrix-table tr.row-no-location td { background: #fbf6ee; }
+.matrix-table tr.row-dropout.row-no-location td { background: #fbeeec; }
+.matrix-group-header td {
+  background: #f7f1e6;
+  font-weight: 600;
+  color: #6b5f52;
+  text-align: left;
+  border-top: 2px solid #e4d9c8;
+}
+.matrix-group-title { margin-right: 8px; }
+.matrix-no-location-note {
+  font-size: 12px;
+  color: #8a7a68;
+  font-weight: 400;
+  margin-left: 6px;
+}
 .matrix-name { font-weight: 600; color: #2b2320; }
 .matrix-table tr.row-dropout .matrix-name { color: #8f3a2e; }
 .matrix-table .status-badge {
