@@ -98,6 +98,10 @@ func (s *Server) Mux() http.Handler {
 	mux.HandleFunc("/public/intake", s.handlePublicIntake)
 	// Intake form view/edit + finish
 	mux.HandleFunc("/intake/", s.handleIntakeCmd)
+	// Per-participant attendance history (Epic 4)
+	mux.HandleFunc("/intake/{id}/attendance", s.requireAuth(s.handlePersonAttendance))
+	mux.HandleFunc("/intake/{id}/attendance/day", s.requireAuth(s.handlePersonAttendanceDay))
+	mux.HandleFunc("/intake/{id}/attendance/day/delete", s.requireAuth(s.handlePersonAttendanceDayDelete))
 	// Section autosave
 	mux.HandleFunc("/section/", s.handleSection)
 	// Site fragment (htmx)
