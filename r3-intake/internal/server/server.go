@@ -120,6 +120,7 @@ func (s *Server) Mux() http.Handler {
 
 	// Attendance matrix (auth-only)
 	mux.HandleFunc("/attendance", s.requireAuth(s.handleMatrix))
+	mux.HandleFunc("/attendance/toggle", s.requireAuth(s.handleToggle))
 
 	// PB admin UI — only when --admin / R3_ADMIN=1
 	mux.HandleFunc("/_/", s.handlePBAdmin)
