@@ -80,35 +80,7 @@ func (s *Server) attendanceCollection() (*core.Collection, error) {
 func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 	u := s.currentSession(r)
 
-	// Parse and validate from/to.
-	now := time.Now().In(hst)
-	defTo := now.Format("2006-01-02")
-	defFrom := now.AddDate(0, 0, -13).Format("2006-01-02")
-
-	from := strings.TrimSpace(r.URL.Query().Get("from"))
-	to := strings.TrimSpace(r.URL.Query().Get("to"))
-	fromT, errFrom := time.Parse("2006-01-02", from)
-	toT, errTo := time.Parse("2006-01-02", to)
-	if errFrom != nil || errTo != nil {
-		from, to = defFrom, defTo
-		fromT, _ = time.Parse("2006-01-02", from)
-		toT, _ = time.Parse("2006-01-02", to)
-	}
-	if fromT.After(toT) {
-		fromT, toT = toT, fromT
-		from, to = fromT.Format("2006-01-02"), toT.Format("2006-01-02")
-	}
-	// Cap range at 30 days from the start date.
-	if toT.Sub(fromT) > 30*24*time.Hour {
-		toT = fromT.AddDate(0, 0, 29)
-		to = toT.Format("2006-01-02")
-	}
-
-	eventID := strings.TrimSpace(r.URL.Query().Get("event"))
-
-	siteID, siteName := s.resolveSite(u, strings.TrimSpace(r.URL.Query().Get("site")))
-
-	dates := buildDateRange(from, to)
+	from, to, eventID, siteID, siteName, dates := s.parseMatrixFilters(r, u)
 
 	rows, err := s.loadMatrixRows(u, siteID, dates, eventID, to)
 	if err != nil {
@@ -159,6 +131,67 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = s.tpl.ExecuteTemplate(w, "matrix", view)
+}
+
+// parseMatrixFilters derives the effective attendance filters from the
+// request query and the session user, applying the same defaults and
+// validation used by the matrix: a 14-day window (today and the prior 13
+// days), inverted ranges swapped, and ranges capped at 30 days. The event
+// filter is read from the query key "event" (matrix filter bar) and falls
+// back to "event_id" (toggle/walk-in forms).
+func (s *Server) parseMatrixFilters(r *http.Request, u *sessionUser) (from, to, eventID, siteID, siteName string, dates []string) {
+	// Parse and validate from/to.
+	now := time.Now().In(hst)
+	defTo := now.Format("2006-01-02")
+	defFrom := now.AddDate(0, 0, -13).Format("2006-01-02")
+
+	from = strings.TrimSpace(r.URL.Query().Get("from"))
+	to = strings.TrimSpace(r.URL.Query().Get("to"))
+	fromT, errFrom := time.Parse("2006-01-02", from)
+	toT, errTo := time.Parse("2006-01-02", to)
+	if errFrom != nil || errTo != nil {
+		from, to = defFrom, defTo
+		fromT, _ = time.Parse("2006-01-02", from)
+		toT, _ = time.Parse("2006-01-02", to)
+	}
+	if fromT.After(toT) {
+		fromT, toT = toT, fromT
+		from, to = fromT.Format("2006-01-02"), toT.Format("2006-01-02")
+	}
+	// Cap range at 30 days from the start date.
+	if toT.Sub(fromT) > 30*24*time.Hour {
+		toT = fromT.AddDate(0, 0, 29)
+		to = toT.Format("2006-01-02")
+	}
+
+	eventID = strings.TrimSpace(r.URL.Query().Get("event"))
+	if eventID == "" {
+		eventID = strings.TrimSpace(r.URL.Query().Get("event_id"))
+	}
+
+	siteID, siteName = s.resolveSite(u, strings.TrimSpace(r.URL.Query().Get("site")))
+
+	dates = buildDateRange(from, to)
+	return from, to, eventID, siteID, siteName, dates
+}
+
+// handleStats renders only the stat-cards fragment for the current filters.
+// It is wrapped with requireAuth in the mux and only ever called via HTMX
+// after a dot toggle, so it shares parseMatrixFilters with handleMatrix to
+// guarantee the cards always match the matrix.
+func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
+	u := s.currentSession(r)
+	_, to, eventID, siteID, _, dates := s.parseMatrixFilters(r, u)
+
+	rows, err := s.loadMatrixRows(u, siteID, dates, eventID, to)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	view := MatrixViewData{Summary: computeSummary(rows, len(dates))}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = s.tpl.ExecuteTemplate(w, "stat-cards", view)
 }
 
 // buildDateRange returns every YYYY-MM-DD from `from` to `to` inclusive.
