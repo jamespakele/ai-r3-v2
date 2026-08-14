@@ -1,47 +1,37 @@
-# Epic 11: CSRF 403 on plain HTML POST forms
+# RESULT — Add tests for roster rendering and enrollment flow
 
-**Status:** COMPLETE — child story branches merged into `epic/11-csrf-403-on-plainhtml-post-forms-adding`.
+## What was built
+New white-box `package server` integration test file
+`r3-intake/internal/server/event_enrollment_flow_test.go` exercising the event
+roster rendering and the enrollment / unenroll / search HTTP flow against a
+real in-process PocketBase (via the existing `newTestServer` harness).
 
-## Stories implemented
+Local helpers added in the new file: `saveActiveEnrollment` (sets
+`deleted=false` explicitly — the shared `saveEnrollment` does not, and the
+roster filter excludes NULL-deleted rows), `doEnrollPost`, `doEnrollSearch`,
+`countEnrollments`, `findEnrollment`.
 
-- **t_33247512** — Inject `csrf_token` hidden field into plain POST forms via JS.
-  Adds a self-contained vanilla-JS snippet to all 10 full-page template defines in
-  `r3-intake/internal/assets/public/index.html`. The snippet copies the
-  `r3_csrf` cookie into a hidden `input[name="csrf_token"]` on every plain
-  `method="post"` form that does not already carry one, while skipping
-  `hx-post` forms (those continue to use the `X-CSRF-Token` header). It also
-  listens for `htmx:afterProcessNode` so dynamically swapped fragments such as
-  walk-in results and `person-attendance-day` get the field too.
-
-- **t_6607a21e** — Add regression test for plain-form CSRF token injection.
-  Adds `r3-intake/internal/server/csrf_plainform_test.go` with
-  `TestPlainFormCSRFViaFormField` (cookie + form field only → 303) and
-  `TestPlainFormCSRFMissingRejected` (cookie only → 403). Guards the middleware
-  fallback used by the JS injection above.
-
-## Files changed
-
-- `r3-intake/internal/assets/public/index.html` — combined HTMX header helper
-  and plain-form `csrf_token` injection in all 10 full-page defines.
-- `r3-intake/internal/server/csrf_plainform_test.go` — new regression tests.
-- `docs/plans/omp-plan-csrf-form-field-injection.md` — working plan for the JS
-  injection story.
-- `docs/plans/omp-plan-plainform-csrf-regression.md` — working plan for the
-  regression-test story.
-
-## Merge resolution notes
-
-- `index.html` had a conflict in each full-page define because the child branch
-  branched before the epic's HTMX `X-CSRF-Token` helper existed. Resolution kept
-  the helper and added the plain-form injection logic to the same IIFE so both
-  `hx-post` and plain `method="post"` forms are covered.
-- Both children replaced `RESULT.md` with their own story-level summary; the file
-  was synthesized into this Epic 11 document.
+## Tests added (8)
+1. `TestEnrollFlowEndToEnd` — admin enroll POST → roster fragment (Alice,
+   roster-table) + record created with `deleted=false`, `enrolled_date` YYYY-MM-DD.
+2. `TestEnrollIdempotent` — double enroll → 1 record, roster lists participant once.
+3. `TestUnenrollSoftDeletes` — record kept (soft-delete), `deleted=true`, empty state rendered.
+4. `TestEnrollSearch` — same-site Al→Alice, Bo→Bob, Ca excludes Carol (site-restricted in this worktree), 1-char→empty, zz→no-match message.
+5. `TestEnrollSearchMarksAlreadyEnrolled` — disabled button, no "+ Enroll".
+6. `TestRosterRenderingWithStats` — 2 / {totalDays} via daysInRange, last-present 2026-08-14, rate badge class + value.
+7. `TestEnrollAuthBoundary` — cm + anon → 303 /login; no record created.
+8. `TestEnrollNoJSFallback` — 303 to manage screen, record still created.
 
 ## Verification
-
 - `go build ./...` — pass
 - `go vet ./...` — pass
-- `go test ./...` — pass
-- `go test -run 'TestPlainFormCSRF' -v ./internal/server/` — 2/2 PASS
-- Conflict-marker sweep — none
+- `go test ./internal/server/ -run 'TestEnroll|TestUnenroll|TestRosterRenderingWithStats' -v` — all 8 pass
+- `go test ./...` — pass (server suite 8.2s)
+- `git status --short` — only the new test file added; no production code or
+  existing tests modified.
+
+## Merge-forward compatibility
+Tests seed enrollments with explicit `deleted=false` and assert only same-site
+search results, so they pass in this worktree (unfixed `deleted=false` filter +
+site-restricted search) AND remain valid after the parent merges the sibling
+fixes (`(deleted = false || deleted = null)` roster filter, cross-site search).
