@@ -1,47 +1,43 @@
-# Epic 11: CSRF 403 on plain HTML POST forms
+# RESULT — t_dc1890be: Implement update and soft-delete handlers with list filtering
 
-**Status:** COMPLETE — child story branches merged into `epic/11-csrf-403-on-plainhtml-post-forms-adding`.
+## What was built
+Implemented by omp (omp-plan-execute pipeline) per the MOA working plan.
 
-## Stories implemented
+1. **`POST /admin/events/{id}/update`** (`adminEventUpdate` + `handleAdminEventUpdate` in admin.go)
+   - Loads the event, 404s on missing or soft-deleted records.
+   - Reads/trims name, site, start_date, end_date, description.
+   - Validates exactly like `adminEventAdd` (name+site required, valid dates, end>=start, desc<=500).
+   - On failure re-renders the `admin` template with `EventError` + preserved values.
+   - On success updates name/site/dates/description (leaves status/created_by/deleted untouched), redirects 303 to `/admin?tab=events`.
 
-- **t_33247512** — Inject `csrf_token` hidden field into plain POST forms via JS.
-  Adds a self-contained vanilla-JS snippet to all 10 full-page template defines in
-  `r3-intake/internal/assets/public/index.html`. The snippet copies the
-  `r3_csrf` cookie into a hidden `input[name="csrf_token"]` on every plain
-  `method="post"` form that does not already carry one, while skipping
-  `hx-post` forms (those continue to use the `X-CSRF-Token` header). It also
-  listens for `htmx:afterProcessNode` so dynamically swapped fragments such as
-  walk-in results and `person-attendance-day` get the field too.
+2. **`POST /admin/events/{id}/delete`** (`handleAdminEventDelete` in admin.go)
+   - Soft-delete: flips `deleted=true`, never hard-deletes. Idempotent no-op if already deleted. Redirects 303 to `/admin?tab=events`.
 
-- **t_6607a21e** — Add regression test for plain-form CSRF token injection.
-  Adds `r3-intake/internal/server/csrf_plainform_test.go` with
-  `TestPlainFormCSRFViaFormField` (cookie + form field only → 303) and
-  `TestPlainFormCSRFMissingRejected` (cookie only → 403). Guards the middleware
-  fallback used by the JS injection above.
+3. **List filtering** — soft-deleted events excluded everywhere:
+   - `loadAllEvents()` (admin.go): filter `1=1` → `deleted=false` (admin Events list).
+   - `loadEvents(siteID)` (attendance.go): filter → `status='active' && deleted=false` (matrix selector + person attendance).
+   - `handleAdminEventManage` (admin.go): 404 when `rec.GetBool("deleted")`.
 
-## Files changed
+4. **Routes** (server.go): registered both new POST routes under `csrfMiddleware(requireRole("admin", ...))`.
 
-- `r3-intake/internal/assets/public/index.html` — combined HTMX header helper
-  and plain-form `csrf_token` injection in all 10 full-page defines.
-- `r3-intake/internal/server/csrf_plainform_test.go` — new regression tests.
-- `docs/plans/omp-plan-csrf-form-field-injection.md` — working plan for the JS
-  injection story.
-- `docs/plans/omp-plan-plainform-csrf-regression.md` — working plan for the
-  regression-test story.
-
-## Merge resolution notes
-
-- `index.html` had a conflict in each full-page define because the child branch
-  branched before the epic's HTMX `X-CSRF-Token` helper existed. Resolution kept
-  the helper and added the plain-form injection logic to the same IIFE so both
-  `hx-post` and plain `method="post"` forms are covered.
-- Both children replaced `RESULT.md` with their own story-level summary; the file
-  was synthesized into this Epic 11 document.
+## Schema dependency
+Copied `014_events_deleted.go` (deleted bool field) from parent worktree t_7d99815c and registered it in `migrations.go` so handlers build/test against the field. No new migration authored here.
 
 ## Verification
-
 - `go build ./...` — pass
 - `go vet ./...` — pass
-- `go test ./...` — pass
-- `go test -run 'TestPlainFormCSRF' -v ./internal/server/` — 2/2 PASS
-- Conflict-marker sweep — none
+- `go test ./...` — pass (internal/server ok, 7.2s)
+
+## Files changed
+- r3-intake/internal/server/admin.go
+- r3-intake/internal/server/attendance.go
+- r3-intake/internal/server/server.go
+- r3-intake/pocketbase/migrations/migrations.go (register 014)
+- r3-intake/pocketbase/migrations/014_events_deleted.go (copied dependency)
+
+## Artifacts
+- docs/plans/omp-plan-events-update-softdelete.md
+
+## Notes
+- No UI templates or tests added (sibling cards t_a06d5f82 UI, t_2644b842 tests own those).
+- Runtime behavioral checks (update/delete/404/CSRF) require a running PB instance + admin session; static build/vet/test confirm clean compile.
