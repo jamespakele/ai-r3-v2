@@ -152,6 +152,7 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 			siteMap := s.siteNameMap()
 			userMap := s.userNameMap()
 			for _, rec := range recs {
+				s.decryptSensitive(rec)
 				row := IntakeRow{
 					ID:           rec.Id,
 					Name:         rec.GetString("name"),
@@ -498,6 +499,7 @@ func (s *Server) renderEventManage(w http.ResponseWriter, r *http.Request, u *se
 	}
 	_ = s.tpl.ExecuteTemplate(w, "event-manage", view)
 }
+
 // handleAdminEventManage renders the enrollment-management placeholder for an
 // event. The actual enrollment screen ships in a later story.
 func (s *Server) handleAdminEventManage(w http.ResponseWriter, r *http.Request) {
@@ -720,9 +722,9 @@ func (s *Server) respondRoster(w http.ResponseWriter, r *http.Request, eventID s
 	end := eventRec.GetString("end_date")
 	enrolled, _ := s.loadEnrolledRoster(eventID, start, end)
 	view := &AdminView{
-		EventID:        eventID,
-		EnrolledCount:  len(enrolled),
-		Enrolled:       enrolled,
+		EventID:       eventID,
+		EnrolledCount: len(enrolled),
+		Enrolled:      enrolled,
 	}
 	_ = s.tpl.ExecuteTemplate(w, "event-roster", view)
 }

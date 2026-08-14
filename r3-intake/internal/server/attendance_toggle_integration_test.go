@@ -84,6 +84,7 @@ func doToggle(srv *Server, cookie *http.Cookie, form url.Values) *httptest.Respo
 	req := httptest.NewRequest(http.MethodPost, "/attendance/toggle", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("HX-Request", "true")
+	addCSRFToRequest(req)
 	if cookie != nil {
 		req.AddCookie(cookie)
 	}
@@ -218,6 +219,7 @@ func TestWalkinRequiresEvent(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodPost, "/attendance/walkin", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	addCSRFToRequest(req)
 	req.AddCookie(admin)
 	rec := httptest.NewRecorder()
 	srv.Mux().ServeHTTP(rec, req)

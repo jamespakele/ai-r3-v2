@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/csv"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -109,19 +110,19 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := MatrixViewData{
-		UserName: u.Name,
-		Role:     u.Role,
-		IsAdmin:  u.Role == "admin",
-		SiteID:   siteID,
-		SiteName: siteName,
-		DateFrom: from,
-		DateTo:   to,
-		Dates:    dates,
-		Rows:     rows,
-		Sites:    sites,
-		Events:   events,
-		Summary:  computeSummary(rows, len(dates)),
-		EventID:  eventID,
+		UserName:      u.Name,
+		Role:          u.Role,
+		IsAdmin:       u.Role == "admin",
+		SiteID:        siteID,
+		SiteName:      siteName,
+		DateFrom:      from,
+		DateTo:        to,
+		Dates:         dates,
+		Rows:          rows,
+		Sites:         sites,
+		Events:        events,
+		Summary:       computeSummary(rows, len(dates)),
+		EventID:       eventID,
 		EventRequired: eventID == "",
 		HasNoLocation: hasNoLocation,
 	}
@@ -560,9 +561,13 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 	next := cycleStatus(existingStatus)
 	now := time.Now().In(hst).Format("2006-01-02 15:04:05")
 
+	renderStatus := next
 	switch {
 	case next == "" && existing != nil:
-		_ = s.pb.Delete(existing)
+		if err := s.pb.Delete(existing); err != nil {
+			log.Printf("attendance toggle delete failed: %v", err)
+			renderStatus = existingStatus
+		}
 	case next != "" && existing == nil:
 		rec := core.NewRecord(attCol)
 		rec.Set("intake", intakeID)
@@ -572,19 +577,38 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 		rec.Set("recorded_by", u.ID)
 		rec.Set("check_in_time", now)
 		rec.Set("event", eventID)
-		_ = s.pb.Save(rec)
+		if err := s.pb.Save(rec); err != nil {
+			log.Printf("attendance toggle insert failed: %v", err)
+			// Unique-index race: another request created the row. Re-fetch and update.
+			recs, ferr := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
+			if ferr == nil && len(recs) > 0 {
+				recs[0].Set("status", next)
+				recs[0].Set("recorded_by", u.ID)
+				recs[0].Set("check_in_time", now)
+				recs[0].Set("event", eventID)
+				if serr := s.pb.Save(recs[0]); serr != nil {
+					log.Printf("attendance toggle update-after-race failed: %v", serr)
+					renderStatus = ""
+				}
+			} else {
+				renderStatus = ""
+			}
+		}
 	case next != "" && existing != nil:
 		existing.Set("status", next)
 		existing.Set("recorded_by", u.ID)
 		existing.Set("check_in_time", now)
 		existing.Set("event", eventID)
-		_ = s.pb.Save(existing)
+		if err := s.pb.Save(existing); err != nil {
+			log.Printf("attendance toggle update failed: %v", err)
+			renderStatus = existingStatus
+		}
 	}
 
 	cell := MatrixCell{
 		IntakeID: intakeID,
 		Date:     date,
-		Status:   next,
+		Status:   renderStatus,
 		SiteID:   siteID,
 		EventID:  eventID,
 		From:     from,
@@ -751,7 +775,11 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 		existing.Set("event", eventID)
 		existing.Set("recorded_by", u.ID)
 		existing.Set("check_in_time", now)
-		_ = s.pb.Save(existing)
+		if err := s.pb.Save(existing); err != nil {
+			log.Printf("walk-in update failed: %v", err)
+			http.Error(w, "save failed", http.StatusInternalServerError)
+			return
+		}
 	} else {
 		rec := core.NewRecord(attCol)
 		rec.Set("intake", intakeID)
@@ -761,7 +789,26 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 		rec.Set("status", "walk_in")
 		rec.Set("recorded_by", u.ID)
 		rec.Set("check_in_time", now)
-		_ = s.pb.Save(rec)
+		if err := s.pb.Save(rec); err != nil {
+			// Unique-index race: re-fetch and update.
+			recs, ferr := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
+			if ferr == nil && len(recs) > 0 {
+				recs[0].Set("status", "walk_in")
+				recs[0].Set("site", siteID)
+				recs[0].Set("event", eventID)
+				recs[0].Set("recorded_by", u.ID)
+				recs[0].Set("check_in_time", now)
+				if serr := s.pb.Save(recs[0]); serr != nil {
+					log.Printf("walk-in update-after-race failed: %v", serr)
+					http.Error(w, "save failed", http.StatusInternalServerError)
+					return
+				}
+			} else {
+				log.Printf("walk-in insert failed: %v", err)
+				http.Error(w, "save failed", http.StatusInternalServerError)
+				return
+			}
+		}
 	}
 
 	// 303 redirect back to the matrix with the same filters.

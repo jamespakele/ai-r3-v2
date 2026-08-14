@@ -11,6 +11,14 @@
 <script src="/static/alpine.min.js" defer></script>
 <script>document.documentElement.classList.add('js')</script>
 <script>window.R3F={digits:function(v){return (v||'').replace(/\D/g,'').slice(0,4)},phone:function(v){var d=(v||'').replace(/\D/g,'').slice(0,10);if(!d)return '';if(d.length<3)return '('+d;if(d.length<6)return '('+d.slice(0,3)+') '+d.slice(3);if(d.length<10)return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6);return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6,10)},dob:function(v){var d=(v||'').replace(/\D/g,'').slice(0,8);if(d.length>4)return d.slice(0,2)+'/'+d.slice(2,4)+'/'+d.slice(4);if(d.length>2)return d.slice(0,2)+'/'+d.slice(2);return d}};</script>
+<script>
+(function(){
+  function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
+  document.addEventListener('htmx:configRequest', function(e){
+    var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -399,6 +407,14 @@
 <title>R3 Intake — Sign in</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=3">
+<script>
+(function(){
+  function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
+  document.addEventListener('htmx:configRequest', function(e){
+    var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -414,6 +430,7 @@
       {{if .Error}}<div class="alert alert-incomplete">{{.Error}}</div>{{end}}
       <form method="post" action="/login" class="login-form">
         <input type="hidden" name="next" value="{{.Next}}">
+        {{if .CsrfToken}}<input type="hidden" name="csrf_token" value="{{.CsrfToken}}">{{end}}
         <div class="field-group">
           <label class="field-label">Email</label>
           <input type="email" name="email" required class="field-input">
@@ -439,6 +456,14 @@
 <title>R3 Intake — Records</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=3">
+<script>
+(function(){
+  function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
+  document.addEventListener('htmx:configRequest', function(e){
+    var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -517,6 +542,14 @@
 <title>R3 Intake — Admin Settings</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=5">
+<script>
+(function(){
+  function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
+  document.addEventListener('htmx:configRequest', function(e){
+    var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -702,6 +735,14 @@
 <title>R3 Intake — Notes</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0;500;0,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=3">
+<script>
+(function(){
+  function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
+  document.addEventListener('htmx:configRequest', function(e){
+    var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -780,6 +821,14 @@
 <title>R3 Intake — Note History</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=3">
+<script>
+(function(){
+  function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
+  document.addEventListener('htmx:configRequest', function(e){
+    var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -838,6 +887,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=5">
 <script src="/static/htmx.min.js" defer></script>
+<script>
+(function(){
+  function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
+  document.addEventListener('htmx:configRequest', function(e){
+    var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -907,7 +964,7 @@
       <input type="text" name="name" class="field-input" placeholder="Search existing participant…"
              hx-get="/attendance/walkin-search" hx-trigger="keyup changed delay:500ms"
              hx-target="#walkin-results" hx-swap="innerHTML"
-             hx-include="closest .walkin-search-filters">
+             hx-include="closest .walkin-search">
       <div id="walkin-results" class="walkin-results"></div>
       <form method="post" action="/attendance/walkin" class="walkin-create">
         <input type="hidden" name="site_id" value="{{.SiteID}}">
@@ -1010,6 +1067,14 @@
 <title>R3 Intake — Manage Event</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=5">
+<script>
+(function(){
+  function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
+  document.addEventListener('htmx:configRequest', function(e){
+    var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -1146,6 +1211,14 @@
 <title>R3 Intake — Event Report</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=6">
+<script>
+(function(){
+  function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
+  document.addEventListener('htmx:configRequest', function(e){
+    var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -1182,6 +1255,14 @@
 <link rel="stylesheet" href="/static/app.css?v=7">
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/alpine.min.js" defer></script>
+<script>
+(function(){
+  function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
+  document.addEventListener('htmx:configRequest', function(e){
+    var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">

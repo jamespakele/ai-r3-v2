@@ -52,11 +52,11 @@ type PersonDayCell struct {
 
 // PersonStats holds the per-person attendance stats for the visible month.
 type PersonStats struct {
-	PresentCount int // status in {present, walk_in}
-	TotalDays    int // total attendance records in visible month
-	Rate         int // percent 0-100 (0 when TotalDays==0)
+	PresentCount int    // status in {present, walk_in}
+	TotalDays    int    // total attendance records in visible month
+	Rate         int    // percent 0-100 (0 when TotalDays==0)
 	RateColor    string // "green" | "red" (green >=50, red <50)
-	Streak       int // consecutive present days ending today or most recent present
+	Streak       int    // consecutive present days ending today or most recent present
 	HasRecords   bool
 }
 
@@ -363,7 +363,10 @@ func (s *Server) handlePersonAttendanceDayDelete(w http.ResponseWriter, r *http.
 			mcpmod.EscapeFilter(intake.Id), mcpmod.EscapeFilter(eventID), mcpmod.EscapeFilter(date))
 		recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
 		if err == nil && len(recs) > 0 {
-			_ = s.pb.Delete(recs[0])
+			if derr := s.pb.Delete(recs[0]); derr != nil {
+				http.Error(w, "delete failed: "+derr.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 	month := date[:7] // YYYY-MM

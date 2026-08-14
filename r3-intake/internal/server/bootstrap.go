@@ -32,7 +32,8 @@ func SeedAll(
 	})
 }
 
-// upsertSuperuser creates or finds the _superusers record for /_/ login.
+// upsertSuperuser creates or reconciles the _superusers record for /_/ login,
+// applying the configured password every startup so env rotations take effect.
 func upsertSuperuser(app core.App, email, password string) error {
 	col, err := app.FindCollectionByNameOrId("_superusers")
 	if err != nil {
@@ -40,33 +41,30 @@ func upsertSuperuser(app core.App, email, password string) error {
 		return err
 	}
 	rec, _ := app.FindFirstRecordByData(col.Id, "email", email)
-	if rec != nil {
-		return nil
+	if rec == nil {
+		rec = core.NewRecord(col)
+		rec.SetEmail(email)
 	}
-	rec = core.NewRecord(col)
-	rec.SetEmail(email)
 	rec.SetPassword(password)
 	if err := app.Save(rec); err != nil {
 		log.Printf("seed superuser: save failed: %v", err)
 		return err
 	}
-	log.Printf("seed superuser: created %s", email)
 	return nil
 }
 
-// upsertAppUser creates the app user if missing (does not reset an existing
-// user's password — env overrides only seed new records).
+// upsertAppUser creates or reconciles the app user, applying the configured
+// password, name, and role every startup so env changes take effect.
 func upsertAppUser(app core.App, email, password, role, name string) error {
 	col, err := app.FindCollectionByNameOrId("users")
 	if err != nil {
 		return err
 	}
 	rec, _ := app.FindFirstRecordByData(col.Id, "email", email)
-	if rec != nil {
-		return nil
+	if rec == nil {
+		rec = core.NewRecord(col)
+		rec.SetEmail(email)
 	}
-	rec = core.NewRecord(col)
-	rec.SetEmail(email)
 	rec.Set("name", name)
 	rec.Set("role", role)
 	rec.SetPassword(password)
@@ -74,7 +72,6 @@ func upsertAppUser(app core.App, email, password, role, name string) error {
 		log.Printf("seed app user %s: save failed: %v", email, err)
 		return err
 	}
-	log.Printf("seed app user: created %s (%s)", email, role)
 	return nil
 }
 

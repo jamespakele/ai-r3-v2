@@ -2,14 +2,15 @@
 // the /api/* and (under --admin) /_/ reverse proxies to the in-process
 // PocketBase, and the custom handlers for the form, sections, admin, and auth.
 //
-// All PocketBase data access goes through pb.Dao() in-process — the browser
-// never talks to PocketBase directly. The /api/* and /_/ proxies exist so the
-// PB admin UI (dev-only, under --admin) and any direct PB API use still work.
+// All PocketBase data access uses the embedded core.App in-process — the
+// browser never talks to PocketBase directly. The /api/* and /_/ proxies are
+// exposed only under --admin / R3_ADMIN=1 for the PB admin UI.
 package server
 
 import (
 	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"net/http"
 	"net/http/httputil"
@@ -61,11 +62,16 @@ func New(cfg config.Config, pb *pocketbase.PocketBase) (*Server, error) {
 	// Static assets served from the embedded FS.
 	assetsFS := assets.HTTPFileSystem()
 
+	cipher, err := crypto.NewCipher(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("init cipher: %w", err)
+	}
+
 	s := &Server{
 		cfg:     cfg,
 		pb:      pb,
 		tpl:     tpl,
-		cipher:  crypto.NewPlainCipher(), // config.Encryption.Enabled=false by default
+		cipher:  cipher,
 		pbProxy: proxy,
 		assets:  assetsFS,
 	}
@@ -93,65 +99,70 @@ func (s *Server) Mux() http.Handler {
 	mux := http.NewServeMux()
 
 	// Main screen: List (authed) or redirect to public form
-	mux.HandleFunc("/", s.handleList)
+	mux.HandleFunc("/", s.csrfMiddleware(s.handleList))
 	// Public intake form (no auth)
-	mux.HandleFunc("/public/intake", s.handlePublicIntake)
+	mux.HandleFunc("/public/intake", s.csrfMiddleware(s.handlePublicIntake))
 	// Intake form view/edit + finish
-	mux.HandleFunc("/intake/", s.handleIntakeCmd)
+	mux.HandleFunc("/intake/", s.csrfMiddleware(s.handleIntakeCmd))
 	// Per-participant attendance history (Epic 4)
-	mux.HandleFunc("/intake/{id}/attendance", s.requireAuth(s.handlePersonAttendance))
-	mux.HandleFunc("/intake/{id}/attendance/day", s.requireAuth(s.handlePersonAttendanceDay))
-	mux.HandleFunc("/intake/{id}/attendance/day/delete", s.requireAuth(s.handlePersonAttendanceDayDelete))
+	mux.HandleFunc("/intake/{id}/attendance", s.csrfMiddleware(s.requireAuth(s.handlePersonAttendance)))
+	mux.HandleFunc("/intake/{id}/attendance/day", s.csrfMiddleware(s.requireAuth(s.handlePersonAttendanceDay)))
+	mux.HandleFunc("/intake/{id}/attendance/day/delete", s.csrfMiddleware(s.requireAuth(s.handlePersonAttendanceDayDelete)))
 	// Section autosave
-	mux.HandleFunc("/section/", s.handleSection)
+	mux.HandleFunc("/section/", s.csrfMiddleware(s.handleSection))
 	// Site fragment (htmx)
-	mux.HandleFunc("/sites", s.handleSites)
+	mux.HandleFunc("/sites", s.csrfMiddleware(s.handleSites))
 
 	// Auth
-	mux.HandleFunc("/login", s.handleLogin)
-	mux.HandleFunc("/logout", s.handleLogout)
+	mux.HandleFunc("/login", s.csrfMiddleware(s.handleLogin))
+	mux.HandleFunc("/logout", s.csrfMiddleware(s.handleLogout))
 
 	// Admin settings (sites + users) — admin only
-	mux.HandleFunc("/admin", s.requireRole("admin", s.handleAdminSettings))
+	mux.HandleFunc("/admin", s.csrfMiddleware(s.requireRole("admin", s.handleAdminSettings)))
 	// Admin mutations (per-action role checks inside)
-	mux.HandleFunc("/admin/", s.requireAuth(s.handleAdminSub))
+	mux.HandleFunc("/admin/", s.csrfMiddleware(s.requireAuth(s.handleAdminSub)))
 	// Event enrollment-management placeholder — admin only
-	mux.HandleFunc("/admin/events/", s.requireRole("admin", s.handleAdminEventManage))
+	mux.HandleFunc("/admin/events/", s.csrfMiddleware(s.requireRole("admin", s.handleAdminEventManage)))
 	// Story 2.2 enrollment routes
-	mux.HandleFunc("/admin/events/{id}/enroll", s.requireRole("admin", s.handleEventEnroll))
-	mux.HandleFunc("/admin/events/{id}/unenroll", s.requireRole("admin", s.handleEventUnenroll))
-	mux.HandleFunc("/admin/events/{id}/enroll-search", s.requireRole("admin", s.handleEnrollSearch))
+	mux.HandleFunc("/admin/events/{id}/enroll", s.csrfMiddleware(s.requireRole("admin", s.handleEventEnroll)))
+	mux.HandleFunc("/admin/events/{id}/unenroll", s.csrfMiddleware(s.requireRole("admin", s.handleEventUnenroll)))
+	mux.HandleFunc("/admin/events/{id}/enroll-search", s.csrfMiddleware(s.requireRole("admin", s.handleEnrollSearch)))
 	// Story 2.3 lifecycle routes
-	mux.HandleFunc("POST /admin/events/{id}/status", s.requireRole("admin", s.handleEventStatus))
+	mux.HandleFunc("POST /admin/events/{id}/status", s.csrfMiddleware(s.requireRole("admin", s.handleEventStatus)))
 	// Create Event — explicit method-scoped route so the POST to /admin/events
 	// is handled directly instead of 301-redirecting to the /admin/events/
 	// subtree (which is GET-only and 404s on the follow-up GET).
-	mux.HandleFunc("POST /admin/events", s.requireRole("admin", s.handleAdminEventAdd))
+	mux.HandleFunc("POST /admin/events", s.csrfMiddleware(s.requireRole("admin", s.handleAdminEventAdd)))
 	// Report placeholder — admin only
-	mux.HandleFunc("GET /admin/events/{id}/report", s.requireRole("admin", s.handleEventReport))
+	mux.HandleFunc("GET /admin/events/{id}/report", s.csrfMiddleware(s.requireRole("admin", s.handleEventReport)))
 
 	// Duplicate search (auth-only)
-	mux.HandleFunc("/search/duplicates", s.requireAuth(s.handleDuplicateSearch))
+	mux.HandleFunc("/search/duplicates", s.csrfMiddleware(s.requireAuth(s.handleDuplicateSearch)))
 
 	// Per-participant notes screen + add (auth-only)
-	mux.HandleFunc("/notes/", s.requireAuth(s.handleNotes))
+	mux.HandleFunc("/notes/", s.csrfMiddleware(s.requireAuth(s.handleNotes)))
 
 	// Attendance matrix (auth-only)
-	mux.HandleFunc("/attendance", s.requireAuth(s.handleMatrix))
+	mux.HandleFunc("/attendance", s.csrfMiddleware(s.requireAuth(s.handleMatrix)))
 	// CSV export (FR14) — admin only. PRD §10 marks Export CSV as admin-only
 	// (✓ admin, ✗ case_manager), overriding the generic auth note in §09.
-	mux.HandleFunc("GET /attendance/export", s.requireRole("admin", s.handleExportCSV))
-	mux.HandleFunc("GET /attendance/stats", s.requireAuth(s.handleStats))
-	mux.HandleFunc("/attendance/toggle", s.requireAuth(s.handleToggle))
-	mux.HandleFunc("/attendance/walkin-search", s.requireAuth(s.handleWalkinSearch))
-	mux.HandleFunc("/attendance/walkin", s.requireAuth(s.handleWalkin))
+	mux.HandleFunc("GET /attendance/export", s.csrfMiddleware(s.requireRole("admin", s.handleExportCSV)))
+	mux.HandleFunc("GET /attendance/stats", s.csrfMiddleware(s.requireAuth(s.handleStats)))
+	mux.HandleFunc("/attendance/toggle", s.csrfMiddleware(s.requireAuth(s.handleToggle)))
+	mux.HandleFunc("/attendance/walkin-search", s.csrfMiddleware(s.requireAuth(s.handleWalkinSearch)))
+	mux.HandleFunc("/attendance/walkin", s.csrfMiddleware(s.requireAuth(s.handleWalkin)))
 
-	// PB admin UI — only when --admin / R3_ADMIN=1
-	mux.HandleFunc("/_/", s.handlePBAdmin)
+	// PB admin UI + API proxy — only when --admin / R3_ADMIN=1. In production
+	// these are disabled; the Go server is the sole public entry point.
+	if s.cfg.ExposePBAdmin {
+		mux.HandleFunc("/_/", s.handlePBAdmin)
+		mux.HandleFunc("/api/", s.proxyPB)
+	}
 
-	// PB API proxy (always on; collection rules lock it to admin/superuser)
-	mux.HandleFunc("/api/", s.proxyPB)
-	mux.Handle("/pb_files/", http.StripPrefix("/pb_files/", http.FileServer(http.Dir(s.cfg.PBRootDir+"/pb_data"))))
+	// /pb_files/ previously exposed the raw pb_data directory. Explicitly 404.
+	mux.HandleFunc("/pb_files/", func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
 
 	// MCP read-only endpoint (only when R3_MCP_TOKEN is set)
 	mux.HandleFunc("/mcp", s.handleMCP)

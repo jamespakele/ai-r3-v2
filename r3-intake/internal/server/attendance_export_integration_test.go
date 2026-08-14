@@ -6,13 +6,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/plugins/jsvm"
 
+	"path/filepath"
+
 	"r3-intake/internal/config"
-	"r3-intake/internal/migrations"
 	pbmigrations "r3-intake/pocketbase/migrations"
 )
 
@@ -22,7 +24,7 @@ import (
 // exercises the real schema and data path.
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
-	migrationsDir, err := migrations.Dir("")
+	migrationsDir, err := filepath.Abs(filepath.Join("..", "..", "pocketbase", "migrations"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,12 +201,12 @@ func seedExportData(t *testing.T, pb *pocketbase.PocketBase) exportFixtures {
 }
 
 func adminCookie(srv *Server, id string) *http.Cookie {
-	v := srv.makeSession(&sessionUser{ID: id, Email: "admin@example.com", Name: "Admin One", Role: "admin"})
+	v := srv.makeSession(&sessionUser{ID: id, Email: "admin@example.com", Name: "Admin One", Role: "admin", Issued: time.Now().Unix()})
 	return &http.Cookie{Name: sessionCookieName, Value: v}
 }
 
 func cmCookie(srv *Server, id string) *http.Cookie {
-	v := srv.makeSession(&sessionUser{ID: id, Email: "cm@example.com", Name: "CM One", Role: "case_manager"})
+	v := srv.makeSession(&sessionUser{ID: id, Email: "cm@example.com", Name: "CM One", Role: "case_manager", Issued: time.Now().Unix()})
 	return &http.Cookie{Name: sessionCookieName, Value: v}
 }
 

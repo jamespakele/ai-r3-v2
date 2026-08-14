@@ -310,6 +310,7 @@ func findEventByName(t *testing.T, srv *Server, name string) *core.Record {
 func doEventCreate(srv *Server, cookie *http.Cookie, form url.Values) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, "/admin/events", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	addCSRFToRequest(req)
 	if cookie != nil {
 		req.AddCookie(cookie)
 	}

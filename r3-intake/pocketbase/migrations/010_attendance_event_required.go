@@ -46,11 +46,12 @@ func upAttendanceEventRequired(app core.App) error {
 			return err
 		}
 		if legacySite == "" {
-			// Site could not be resolved for this group's event. Leave the
-			// records unassigned rather than silently dropping them; the
-			// required flip below will still run, surfacing the dangling
-			// records for manual cleanup.
-			continue
+			// Use the default site, or create a dedicated fallback site so no
+			// attendance record is left with a dangling required event.
+			legacySite, err = fallbackLegacySite(app)
+			if err != nil {
+				return err
+			}
 		}
 		minDate, maxDate := minMaxDates(group)
 		legacy, err := createLegacyEvent(app, legacySite, minDate, maxDate)
@@ -138,13 +139,37 @@ func createLegacyEvent(app core.App, siteID, minDate, maxDate string) (*core.Rec
 	legacy.Set("name", "Legacy / Unassigned")
 	legacy.Set("start_date", minDate)
 	legacy.Set("end_date", maxDate)
-	legacy.Set("status", "completed")
+	legacy.Set("status", "active")
 	legacy.Set("description", "Auto-created by migration 010 to preserve pre-event-scoped attendance records.")
 	// created_by intentionally left unset.
 	if err := app.Save(legacy); err != nil {
 		return nil, err
 	}
 	return legacy, nil
+}
+
+// fallbackLegacySite returns the id of the default site, creating a dedicated
+// "Unassigned" site if no default exists.
+func fallbackLegacySite(app core.App) (string, error) {
+	sitesCol, err := app.FindCollectionByNameOrId("sites")
+	if err != nil {
+		return "", err
+	}
+	recs, err := app.FindRecordsByFilter(sitesCol.Id, "is_default=true", "", 1, 0)
+	if err != nil {
+		return "", err
+	}
+	if len(recs) > 0 {
+		return recs[0].Id, nil
+	}
+	fallback := core.NewRecord(sitesCol)
+	fallback.Set("name", "Unassigned")
+	fallback.Set("active", true)
+	fallback.Set("sort_order", 9999)
+	if err := app.Save(fallback); err != nil {
+		return "", err
+	}
+	return fallback.Id, nil
 }
 
 // downAttendanceEventRequired flips attendance.event back to optional.

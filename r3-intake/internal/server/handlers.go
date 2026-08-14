@@ -105,10 +105,24 @@ type FormState struct {
 
 // sessionUser is the authenticated user (if any) attached to a request.
 type sessionUser struct {
-	ID    string
-	Email string
-	Name  string
-	Role  string
+	ID     string
+	Email  string
+	Name   string
+	Role   string
+	Issued int64 // unix seconds when the session was created
+}
+
+// canAccessIntake returns true when u is allowed to view or mutate rec.
+// Admins may access any intake; other users may only touch records they
+// created or are assigned to.
+func canAccessIntake(rec *core.Record, u *sessionUser) bool {
+	if u == nil {
+		return false
+	}
+	if u.Role == "admin" {
+		return true
+	}
+	return rec.GetString("created_by") == u.ID || rec.GetString("assigned_to") == u.ID
 }
 
 // templateFuncs exposes the canonical lists + helpers to the template.
@@ -338,10 +352,33 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
-// handlePublicIntake is an explicit alias of the new-form GET /.
+// handlePublicIntake renders the public form. When the URL carries an `id`
+// query param (e.g. after first section save), it loads the saved record so
+// the participant can resume an anonymous submission.
 func (s *Server) handlePublicIntake(w http.ResponseWriter, r *http.Request) {
-	r.URL.Path = "/"
-	s.handleIndex(w, r)
+	if r.Method != http.MethodGet {
+		http.NotFound(w, r)
+		return
+	}
+	user := s.currentSession(r)
+	id := strings.TrimSpace(r.URL.Query().Get("id"))
+	if id == "" {
+		_ = s.tpl.ExecuteTemplate(w, "page", s.blankState(user))
+		return
+	}
+	rec, err := s.findIntake(id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	// Public resume is only allowed for unassigned/unclaimed records created
+	// anonymously (created_by empty). Once a case manager claims the record,
+	// auth is required.
+	if rec.GetString("created_by") != "" || rec.GetString("status") == "claimed" {
+		http.Redirect(w, r, "/login?next="+r.URL.RequestURI(), http.StatusSeeOther)
+		return
+	}
+	_ = s.tpl.ExecuteTemplate(w, "page", s.stateFromRecord(rec, user, map[string]bool{}, false))
 }
 
 // handleSites returns just the site radio fragment (for optional htmx refresh).
@@ -366,6 +403,10 @@ func (s *Server) handleSection(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "intake load/create failed: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	if !wasNew && !canAccessIntake(rec, user) {
+		http.Redirect(w, r, "/login?next="+r.URL.RequestURI(), http.StatusSeeOther)
+		return
+	}
 	if err := s.applySection(rec, r, section); err != nil {
 		http.Error(w, "section apply failed: "+err.Error(), http.StatusBadRequest)
 		return
@@ -377,16 +418,21 @@ func (s *Server) handleSection(w http.ResponseWriter, r *http.Request) {
 
 	// First save on a brand-new form: every section form + the finish form
 	// carry the (previously empty) id, so a fragment swap would leave them
-	// stale and the next section save would create a duplicate record. Do a
-	// full navigate to /intake/{id} instead — htmx honors HX-Redirect, and the
-	// no-JS path already gets a 303 below.
+	// stale and the next section save would create a duplicate record. Public
+	// users must be redirected to the public resume path (/public/intake?id=...)
+	// so they are not blocked by the auth gate on /intake/{id}. Authenticated
+	// users continue to use /intake/{id}.
+	resumeURL := "/public/intake?id=" + rec.Id
+	if user != nil {
+		resumeURL = "/intake/" + rec.Id
+	}
 	if wasNew {
 		if r.Header.Get("HX-Request") == "true" {
-			w.Header().Set("HX-Redirect", "/intake/"+rec.Id)
+			w.Header().Set("HX-Redirect", resumeURL)
 			w.WriteHeader(http.StatusAccepted)
 			return
 		}
-		http.Redirect(w, r, "/intake/"+rec.Id, http.StatusSeeOther)
+		http.Redirect(w, r, resumeURL, http.StatusSeeOther)
 		return
 	}
 
@@ -396,7 +442,7 @@ func (s *Server) handleSection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// No-JS fallback: full page reload showing saved state.
-	http.Redirect(w, r, "/intake/"+rec.Id, http.StatusSeeOther)
+	http.Redirect(w, r, resumeURL, http.StatusSeeOther)
 }
 
 // handleIntakeCmd handles POST /intake/{id}/finish — full validation.
@@ -414,7 +460,12 @@ func (s *Server) handleIntakeCmd(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		_ = s.tpl.ExecuteTemplate(w, "page", s.stateFromRecord(rec, s.currentSession(r), map[string]bool{}, false))
+		user := s.currentSession(r)
+		if !canAccessIntake(rec, user) {
+			http.Redirect(w, r, "/login?next="+r.URL.RequestURI(), http.StatusSeeOther)
+			return
+		}
+		_ = s.tpl.ExecuteTemplate(w, "page", s.stateFromRecord(rec, user, map[string]bool{}, false))
 		return
 	}
 	if r.Method != http.MethodPost {
@@ -436,10 +487,14 @@ func (s *Server) handleIntakeCmd(w http.ResponseWriter, r *http.Request) {
 
 	switch parts[1] {
 	case "finish":
+		if !canAccessIntake(rec, user) {
+			http.Redirect(w, r, "/login?next="+r.URL.RequestURI(), http.StatusSeeOther)
+			return
+		}
 		st := s.stateFromRecord(rec, user, s.validateRecord(rec), true)
 		_ = s.tpl.ExecuteTemplate(w, "page", st)
 	case "cancel":
-		if user != nil && (user.Role == "admin" || rec.GetString("created_by") == user.ID || rec.GetString("assigned_to") == user.ID) || rec.GetString("created_by") == "" {
+		if canAccessIntake(rec, user) {
 			_ = s.pb.Delete(rec)
 		}
 		http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -609,6 +664,9 @@ func (s *Server) validateRecord(rec *core.Record) map[string]bool {
 			errs[k] = true
 		}
 	}
+	if len(digitsOnly(rec.GetString("contact"))) < 10 {
+		errs["contact"] = true
+	}
 	return errs
 }
 
@@ -634,6 +692,9 @@ func (s *Server) validateState(st *FormState) map[string]bool {
 	check("mentalHealth", st.MentalHealth)
 	check("substanceUse", st.SubstanceUse)
 	check("fleeingViolence", st.FleeingViolence)
+	if len(digitsOnly(st.Contact)) < 10 {
+		errs["contact"] = true
+	}
 	return errs
 }
 
@@ -666,20 +727,26 @@ func fmtDob(s string) string {
 	return s
 }
 
-// normalizeDob stores DOB as ISO YYYY-MM-DD. Accepts MM/DD/YYYY input (the mask
-// output) and passes ISO through; anything else is returned trimmed as-is.
+// normalizeDob stores DOB as ISO YYYY-MM-DD. Accepts MM/DD/YYYY input (the
+// mask output) and passes ISO through; anything else or an invalid calendar
+// date is returned as an empty string.
 func normalizeDob(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return ""
 	}
+	var iso string
 	if len(s) == 10 && s[4] == '-' && s[7] == '-' { // already ISO
-		return s
+		iso = s
+	} else if len(s) == 10 && s[2] == '/' && s[5] == '/' { // MM/DD/YYYY
+		iso = s[6:10] + "-" + s[0:2] + "-" + s[3:5]
+	} else {
+		return ""
 	}
-	if len(s) == 10 && s[2] == '/' && s[5] == '/' { // MM/DD/YYYY
-		return s[6:10] + "-" + s[0:2] + "-" + s[3:5]
+	if _, err := time.Parse("2006-01-02", iso); err != nil {
+		return ""
 	}
-	return s
+	return iso
 }
 
 // ssnLast4 returns the last 4 digits of s (empty if none). Used to store and

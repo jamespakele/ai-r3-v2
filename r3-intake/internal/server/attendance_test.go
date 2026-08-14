@@ -13,10 +13,10 @@ import (
 
 func TestComputeSummary(t *testing.T) {
 	tests := []struct {
-		name  string
-		rows  []MatrixRow
-		days  int
-		want  MatrixSummary
+		name string
+		rows []MatrixRow
+		days int
+		want MatrixSummary
 	}{
 		{
 			name: "empty rows",
@@ -149,14 +149,14 @@ func TestMatrixContentRenderEventRequired(t *testing.T) {
 	}
 
 	view := MatrixViewData{
-		UserName:      "Admin",
-		Role:          "admin",
-		IsAdmin:       true,
-		SiteID:        "site1",
-		SiteName:      "Kona",
-		DateFrom:      "2026-08-01",
-		DateTo:        "2026-08-14",
-		Dates:         []string{"2026-08-01", "2026-08-02"},
+		UserName: "Admin",
+		Role:     "admin",
+		IsAdmin:  true,
+		SiteID:   "site1",
+		SiteName: "Kona",
+		DateFrom: "2026-08-01",
+		DateTo:   "2026-08-14",
+		Dates:    []string{"2026-08-01", "2026-08-02"},
 		Rows: []MatrixRow{
 			{IntakeID: "i1", Name: "Alice", TotalDays: 2,
 				Cells: []MatrixCell{

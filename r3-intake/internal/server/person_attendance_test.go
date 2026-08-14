@@ -277,12 +277,12 @@ func TestPersonAttendanceTemplateRenders(t *testing.T) {
 
 	// Day detail fragment with a record.
 	day := PersonDayDetailView{
-		IntakeID:   "i1",
-		Date:       "2026-08-01",
-		HasRecord:  true,
-		Status:     "present",
-		EventID:    "ev1",
-		Events:     []Event{{ID: "ev1", Name: "Morning Program"}, {ID: "ev2", Name: "Evening Program"}},
+		IntakeID:  "i1",
+		Date:      "2026-08-01",
+		HasRecord: true,
+		Status:    "present",
+		EventID:   "ev1",
+		Events:    []Event{{ID: "ev1", Name: "Morning Program"}, {ID: "ev2", Name: "Evening Program"}},
 		StatusOptions: []PersonStatusOption{
 			{Value: "present", Label: "Present", Selected: true},
 			{Value: "absent", Label: "Absent"},

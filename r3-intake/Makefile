@@ -1,10 +1,19 @@
 APP := r3-intake
 VENDOR := internal/assets/public/htmx.min.js internal/assets/public/alpine.min.js
 
-.PHONY: build vendor run run-admin run-mcp clean
+.PHONY: build vendor run run-admin run-mcp test vet fmt clean verify
 
 build: vendor
 	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o $(APP) ./cmd/r3-intake
+
+test:
+	go test ./...
+
+vet:
+	go vet ./...
+
+fmt:
+	go fmt ./...
 
 vendor:
 	@for f in $(VENDOR); do \
@@ -27,5 +36,5 @@ run-mcp: build
 clean:
 	rm -f $(APP)
 
-verify:
+verify: build vet test
 	@file ./$(APP) | grep -qE "statically linked|static-pie" && echo "static link OK" || (echo "FATAL: not statically linked"; exit 1)

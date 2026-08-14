@@ -163,6 +163,7 @@ func doPersonAttendance(srv *Server, cookie *http.Cookie, method, path string, f
 	if form != nil {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
+	addCSRFToRequest(req)
 	if cookie != nil {
 		req.AddCookie(cookie)
 	}

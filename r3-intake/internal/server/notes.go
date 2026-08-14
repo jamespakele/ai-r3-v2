@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -74,6 +75,7 @@ func (s *Server) noteChangesCollection() (*core.Collection, error) {
 func (s *Server) logNoteChange(noteRec *core.Record, userID, action, fromBody, toBody string) {
 	col, err := s.noteChangesCollection()
 	if err != nil {
+		log.Printf("note audit: collection lookup failed: %v", err)
 		return
 	}
 	entry := core.NewRecord(col)
@@ -82,7 +84,9 @@ func (s *Server) logNoteChange(noteRec *core.Record, userID, action, fromBody, t
 	entry.Set("action", action)
 	entry.Set("change_from", fromBody)
 	entry.Set("change_to", toBody)
-	_ = s.pb.Save(entry)
+	if err := s.pb.Save(entry); err != nil {
+		log.Printf("note audit: save failed: %v", err)
+	}
 }
 
 // handleNotes renders the notes screen (GET) or adds/edits/deletes a note (POST) for one intake.
@@ -179,6 +183,10 @@ func (s *Server) handleNotesEdit(w http.ResponseWriter, r *http.Request, u *sess
 		http.NotFound(w, r)
 		return
 	}
+	if !canEditNote(rec, u) {
+		http.Error(w, "not allowed", http.StatusForbidden)
+		return
+	}
 	s.renderNotesEdit(w, r, u, intake, rec, "")
 }
 
@@ -186,6 +194,10 @@ func (s *Server) handleNotesUpdate(w http.ResponseWriter, r *http.Request, u *se
 	rec, err := s.findNote(intake, noteID)
 	if err != nil {
 		http.NotFound(w, r)
+		return
+	}
+	if !canEditNote(rec, u) {
+		http.Error(w, "not allowed", http.StatusForbidden)
 		return
 	}
 
@@ -223,6 +235,10 @@ func (s *Server) handleNotesDelete(w http.ResponseWriter, r *http.Request, u *se
 		http.NotFound(w, r)
 		return
 	}
+	if !canEditNote(rec, u) {
+		http.Error(w, "not allowed", http.StatusForbidden)
+		return
+	}
 	oldBody := rec.GetString("body")
 	rec.Set("deleted", true)
 	if err := s.pb.Save(rec); err != nil {
@@ -231,6 +247,18 @@ func (s *Server) handleNotesDelete(w http.ResponseWriter, r *http.Request, u *se
 	}
 	s.logNoteChange(rec, u.ID, "delete", oldBody, "")
 	http.Redirect(w, r, "/notes/"+intake.Id, http.StatusSeeOther)
+}
+
+// canEditNote returns true when u may mutate the given note. Admins and the
+// note's original author are allowed; other users are not.
+func canEditNote(rec *core.Record, u *sessionUser) bool {
+	if u == nil {
+		return false
+	}
+	if u.Role == "admin" {
+		return true
+	}
+	return rec.GetString("author") == u.ID
 }
 
 // findNote returns a note record belonging to the given intake, or an error if not found/mismatched.
@@ -246,8 +274,22 @@ func (s *Server) findNote(intake *core.Record, noteID string) (*core.Record, err
 	return rec, nil
 }
 
+// findNoteIncludingDeleted is used by the history handler so audit history
+// remains reachable after a note is soft-deleted.
+func (s *Server) findNoteIncludingDeleted(intake *core.Record, noteID string) (*core.Record, error) {
+	col, err := s.notesCollection()
+	if err != nil {
+		return nil, err
+	}
+	rec, err := s.pb.FindRecordById(col.Id, noteID)
+	if err != nil || rec.GetString("intake") != intake.Id {
+		return nil, fmt.Errorf("note not found")
+	}
+	return rec, nil
+}
+
 func (s *Server) handleNotesHistory(w http.ResponseWriter, r *http.Request, u *sessionUser, intake *core.Record, noteID string) {
-	noteRec, err := s.findNote(intake, noteID)
+	noteRec, err := s.findNoteIncludingDeleted(intake, noteID)
 	if err != nil {
 		http.NotFound(w, r)
 		return

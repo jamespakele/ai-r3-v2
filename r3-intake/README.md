@@ -11,9 +11,9 @@ and visual design are ported from the reference single-page HTML at
 
 - **PocketBase** (embedded as a Go library) — data, auth, file storage. Runs
   internally on `127.0.0.1:8091`, NOT exposed on the public port.
-- **Go** — single binary, HTTP server on `:8090`, serves `public/`, proxies
-  `/api/*` to PocketBase, proxies `/_/` (PocketBase admin UI) ONLY when the
-  `--admin` flag (or `R3_ADMIN=1`) is set.
+- **Go** — single binary, HTTP server on `:8090`, serves embedded
+  `internal/assets/public/`, proxies `/api/*` and `/_/` (PocketBase admin UI)
+  ONLY when the `--admin` flag (or `R3_ADMIN=1`) is set.
 - **htmx 2.x** — section submits, partial swaps, "saved as you go" indicator.
   htmx owns the persisted state.
 - **Alpine.js 3.x** — display-only ephemeral view state (conditional sub-field
@@ -32,12 +32,12 @@ r3-intake/
   internal/server/handlers.go        # form render + section save fragments
   internal/server/admin.go           # /admin dashboard, sites, claim flow
   internal/server/auth.go            # session cookie login/logout for Go UI
-  public/index.html                  # Go template: the five-section form
-  public/app.css                     # vanilla CSS ported from the reference
-  public/htmx.min.js                 # vendored (see Makefile / Run)
-  public/alpine.min.js               # vendored (see Makefile / Run)
+  internal/assets/public/index.html  # Go template: the five-section form
+  internal/assets/public/app.css     # vanilla CSS ported from the reference
+  internal/assets/public/htmx.min.js  # vendored (see Makefile / Run)
+  internal/assets/public/alpine.min.js # vendored (see Makefile / Run)
   pocketbase/migrations/001_init.js  # PB schema: intake + sites + users.role
-  pocketbase/migrations/002_encryption.go  # no-op Go migration stub
+  pocketbase/migrations/002_encryption.go  # re-encrypts sensitive rows when enabled
   pocketbase/pb_data/                # created on first run
   Makefile
   README.md
@@ -97,8 +97,8 @@ Vendor htmx + Alpine once:
 ```sh
 cd r3-intake
 make vendor          # or, manually:
-curl -fsSL -o public/htmx.min.js https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js
-curl -fsSL -o public/alpine.min.js https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js
+curl -fsSL -o internal/assets/public/htmx.min.js https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js
+curl -fsSL -o internal/assets/public/alpine.min.js https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js
 ```
 
 Build and run (default — PB admin UI NOT exposed):
@@ -146,8 +146,11 @@ any real deployment.
 
 ## Deploy to VPS (`vps-deploy-go` skill)
 
-The app ships as a single statically linked Go binary with all templates and
-static assets embedded. The `vps-deploy-go` skill handles the full deploy:
+The app ships as a single statically linked Go binary with all templates,
+CSS, and JS embedded. PocketBase JS migrations are loaded from the
+`pocketbase/migrations/` directory at runtime, so that directory must be
+copied alongside the binary in production. The `vps-deploy-go` skill handles the
+full deploy:
 cross-compile, upload over Tailscale SSH, install the systemd unit, render the
 Traefik dynamic config, and restart the service.
 
@@ -246,10 +249,12 @@ Use the skill helpers:
   (`unassigned` → `claimed` → `completed`). Case managers see only their
   created + claimed records; admins see all.
 - **PocketBase is embedded as a Go library** (`github.com/pocketbase/pocketbase`)
-  so the whole app is a single binary and Go migrations (`002_encryption.go`)
-  work alongside JS migrations. PB listens on `127.0.0.1:8091`; Go proxies
-  `/api/*` and (under `--admin`) `/_/*` to it. The `pocketbase/` folder holds
-  `pb_data/` and `migrations/` — set via PB `RootDir`.
+  so the app is a single binary plus the `pocketbase/migrations/` directory.
+  Go migrations (`002_encryption.go`, `011_encrypt_existing_data.go`, etc.) are
+  compiled in; JS migrations are loaded from `pocketbase/migrations/` at runtime.
+  PB listens on `127.0.0.1:8091`; Go proxies `/api/*` and `/_/*` to it only
+  when `--admin` / `R3_ADMIN=1` is set. The `pocketbase/` folder holds
+  `pb_data/` and `migrations/` — set via `R3_PB_ROOT_DIR`.
 - **x-cloak omitted** to satisfy the JS-off robustness rule (elements must stay
   visible without Alpine); a brief pre-init flash is accepted over a hidden
   no-JS form.

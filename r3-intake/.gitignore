@@ -10,3 +10,8 @@ pocketbase/pb_data/
 # Vendored JS libraries (fetched by make vendor)
 internal/assets/public/htmx.min.js
 internal/assets/public/alpine.min.js
+
+# PocketBase CLI auth/session artifacts
+cookies.txt
+admin.jar
+cm.jar

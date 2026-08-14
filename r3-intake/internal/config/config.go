@@ -3,6 +3,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strings"
 )
@@ -45,6 +46,18 @@ type Config struct {
 	// run. Useful in production when accounts are created manually.
 	DisableSeed bool
 
+	// DevMode disables production-readiness validation so local development
+	// can use the seeded defaults. Never set in production.
+	DevMode bool
+
+	// CookieSecure sets the Secure flag on the session cookie. Default true in
+	// production. Disable only for local plain-HTTP development (R3_DEV=1).
+	CookieSecure bool
+
+	// PublicOrigin is the public-facing origin used to restrict PocketBase's
+	// --origins CORS setting. Defaults to http://localhost:8090.
+	PublicOrigin string
+
 	// SessionKey is the HMAC key for the Go session cookie.
 	SessionKey string
 
@@ -66,13 +79,14 @@ type MCPConfig struct {
 	BaseURL string
 }
 
-// EncryptionConfig describes the (future) at-rest encryption of sensitive
-// fields. All repository save/load paths call Cipher.Encrypt/Decrypt on the
+// EncryptionConfig describes the at-rest encryption of sensitive fields.
+// All repository save/load paths call Cipher.Encrypt/Decrypt on the
 // SensitiveFields regardless of Enabled — they do not know whether encryption
 // is on.
 type EncryptionConfig struct {
 	Enabled         bool
 	Algorithm       string   // default "aes-gcm"
+	Key             []byte   // raw AES key read from $R3_ENCRYPTION_KEY
 	KeyEnv          string   // default "R3_ENCRYPTION_KEY"
 	SensitiveFields []string // default ["ssn","dob","participantSigDataUrl","casemanagerSigDataUrl"]
 }
@@ -80,21 +94,23 @@ type EncryptionConfig struct {
 // Default returns the production-default config. Flags / env vars override.
 func Default() Config {
 	return Config{
-		HTTPAddr:        ":8090",
-		PBInternalAddr:  "127.0.0.1:8091",
-		ExposePBAdmin:   false,
-		PBRootDir:       "pocketbase",
-		DataDir:         "pocketbase",
-		PBAdminEmail:    "admin@r3.local",
-		PBAdminPassword: "r3admin123",
-		SeedAdminEmail:  "admin@r3.local",
+		HTTPAddr:          ":8090",
+		PBInternalAddr:    "127.0.0.1:8091",
+		ExposePBAdmin:     false,
+		PBRootDir:         "pocketbase",
+		DataDir:           "pocketbase",
+		PBAdminEmail:      "admin@r3.local",
+		PBAdminPassword:   "r3admin123",
+		SeedAdminEmail:    "admin@r3.local",
 		SeedAdminPassword: "admin123",
-		SeedAdminName:   "R3 Admin",
-		SeedCMEmail:     "cm@r3.local",
-		SeedCMPassword:  "cm123456",
-		SeedCMName:      "Demo Case Manager",
-		DisableSeed:     false,
-		SessionKey:      "r3-session-change-me",
+		SeedAdminName:     "R3 Admin",
+		SeedCMEmail:       "cm@r3.local",
+		SeedCMPassword:    "cm123456",
+		SeedCMName:        "Demo Case Manager",
+		DisableSeed:       false,
+		CookieSecure:      true,
+		PublicOrigin:      "http://localhost:8090",
+		SessionKey:        "r3-session-change-me",
 		Encryption: EncryptionConfig{
 			Enabled:         false,
 			Algorithm:       "aes-gcm",
@@ -114,6 +130,18 @@ func Default() Config {
 func FromEnv(in *Config) {
 	if v := os.Getenv("R3_ADMIN"); v == "1" || v == "true" {
 		in.ExposePBAdmin = true
+	}
+	if v := os.Getenv("R3_COOKIE_SECURE"); v == "0" || v == "false" {
+		in.CookieSecure = false
+	} else if v == "1" || v == "true" {
+		in.CookieSecure = true
+	}
+	if v := os.Getenv("R3_PUBLIC_ORIGIN"); v != "" {
+		in.PublicOrigin = v
+	}
+	if v := os.Getenv("R3_DEV"); v == "1" || v == "true" {
+		in.DevMode = true
+		in.CookieSecure = false
 	}
 	if v := os.Getenv("R3_HTTP_ADDR"); v != "" {
 		in.HTTPAddr = v
@@ -158,8 +186,7 @@ func FromEnv(in *Config) {
 		in.SessionKey = v
 	}
 	if v := os.Getenv("R3_ENCRYPTION_KEY"); v != "" {
-		// Encryption key presence alone does not enable encryption; R3_ENCRYPTION_ENABLED
-		// is the explicit switch. The key env name is stored for later use.
+		in.Encryption.Key = []byte(v)
 		in.Encryption.KeyEnv = "R3_ENCRYPTION_KEY"
 	}
 	if v := os.Getenv("R3_ENCRYPTION_ENABLED"); v == "1" || v == "true" {
@@ -171,4 +198,44 @@ func FromEnv(in *Config) {
 	if v := os.Getenv("R3_MCP_BASE_URL"); v != "" {
 		in.MCP.BaseURL = strings.TrimSuffix(v, "/")
 	}
+}
+
+const (
+	defaultSessionKey      = "r3-session-change-me"
+	defaultPBAdminPassword = "r3admin123"
+	defaultSeedAdminPass   = "admin123"
+	defaultSeedCMPass      = "cm123456"
+)
+
+// Validate rejects the hardcoded default secrets in any non-development run.
+// In production the operator must override the session key (>=32 bytes) and
+// seed/superuser passwords, or explicitly set R3_DEV=1 for local work.
+func (c Config) Validate() error {
+	if c.DevMode {
+		return nil
+	}
+	if c.SessionKey == defaultSessionKey {
+		return fmt.Errorf("R3_SESSION_KEY is required and must not be the default %q", defaultSessionKey)
+	}
+	if len(c.SessionKey) < 32 {
+		return fmt.Errorf("R3_SESSION_KEY must be at least 32 bytes (generate with: openssl rand -hex 32)")
+	}
+	if c.PBAdminPassword == defaultPBAdminPassword {
+		return fmt.Errorf("R3_PB_ADMIN_PASSWORD is required and must not be the default %q", defaultPBAdminPassword)
+	}
+	if c.SeedAdminPassword == defaultSeedAdminPass {
+		return fmt.Errorf("R3_SEED_ADMIN_PASSWORD is required and must not be the default %q", defaultSeedAdminPass)
+	}
+	if c.SeedCMPassword == defaultSeedCMPass {
+		return fmt.Errorf("R3_SEED_CM_PASSWORD is required and must not be the default %q", defaultSeedCMPass)
+	}
+	if c.Encryption.Enabled {
+		switch len(c.Encryption.Key) {
+		case 16, 24, 32:
+			// ok
+		default:
+			return fmt.Errorf("R3_ENCRYPTION_ENABLED=1 requires R3_ENCRYPTION_KEY to be 16, 24, or 32 bytes; got %d", len(c.Encryption.Key))
+		}
+	}
+	return nil
 }
