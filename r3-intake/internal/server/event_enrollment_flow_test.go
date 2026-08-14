@@ -20,9 +20,8 @@ import (
 var enrollDateRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
 // saveActiveEnrollment records one event_enrollment row with deleted=false.
-// The shared saveEnrollment helper does NOT set deleted, and the roster filter
-// (deleted=false) would exclude a NULL deleted value, so tests must set it
-// explicitly. This stays valid after the sibling filter fix is merged.
+// Sets deleted=false explicitly so the enrollment is treated as active by both
+// the roster filter and the idempotency checks.
 func saveActiveEnrollment(t *testing.T, pb *pocketbase.PocketBase, event, intake string) {
 	t.Helper()
 	col, err := pb.FindCollectionByNameOrId("event_enrollment")
@@ -188,10 +187,9 @@ func TestUnenrollSoftDeletes(t *testing.T) {
 	}
 }
 
-// TestEnrollSearch exercises the same-site participant search: matching
+// TestEnrollSearch exercises cross-site participant search: matching
 // results render with + Enroll, single-char queries return empty, and a no
-// match renders the empty-state message. Cross-site intakes are excluded in
-// this worktree's site-restriction clause, so only their absence is asserted.
+// match renders the empty-state message.
 func TestEnrollSearch(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedRosterData(t, srv.pb)
@@ -204,11 +202,11 @@ func TestEnrollSearch(t *testing.T) {
 	if b := search("Al"); !strings.Contains(b, "Alice") || !strings.Contains(b, "+ Enroll") {
 		t.Errorf("search Al: want Alice + '+ Enroll', got %q", b)
 	}
-	if b := search("Bo"); !strings.Contains(b, "Bob") {
-		t.Errorf("search Bo: want Bob, got %q", b)
+	if b := search("Bo"); !strings.Contains(b, "Bob") || !strings.Contains(b, "+ Enroll") {
+		t.Errorf("search Bo: want Bob + '+ Enroll', got %q", b)
 	}
-	if b := search("Ca"); strings.Contains(b, "Carol") {
-		t.Errorf("search Ca: Carol is in site2, should be excluded, got %q", b)
+	if b := search("Ca"); !strings.Contains(b, "Carol") || !strings.Contains(b, "Hilo") {
+		t.Errorf("search Ca: want Carol from site2 with Hilo site name, got %q", b)
 	}
 
 	rec := doEnrollSearch(srv, cookie, "/admin/events/"+fx.ev1+"/enroll-search?name=A")

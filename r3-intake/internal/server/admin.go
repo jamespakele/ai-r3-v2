@@ -729,8 +729,8 @@ func (s *Server) respondRoster(w http.ResponseWriter, r *http.Request, eventID s
 	_ = s.tpl.ExecuteTemplate(w, "event-roster", view)
 }
 
-// handleEnrollSearch returns an HTML fragment listing intake records at the
-// event's site whose name matches the ?name= query. Min 2 chars, max 10
+// handleEnrollSearch returns an HTML fragment listing intake records whose
+// name matches the ?name= query, across all sites. Min 2 chars, max 10
 // results. Already-enrolled results are marked.
 func (s *Server) handleEnrollSearch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
