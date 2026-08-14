@@ -154,7 +154,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rec, err := s.pb.FindAuthRecordByEmail("users", email)
-	if err != nil || rec == nil || !rec.ValidatePassword(password) {
+	if err != nil || rec == nil || !rec.ValidatePassword(password) || rec.GetBool("deleted") {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = s.tpl.ExecuteTemplate(w, "login", map[string]any{
 			"Error":     "Invalid email or password.",

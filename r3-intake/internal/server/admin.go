@@ -233,6 +233,8 @@ func (s *Server) handleAdminSub(w http.ResponseWriter, r *http.Request) {
 		s.adminUserAdd(w, r)
 	case strings.HasPrefix(path, "users/") && strings.HasSuffix(path, "/update") && u.Role == "admin":
 		s.adminUserUpdate(w, r, path)
+	case strings.HasPrefix(path, "users/") && strings.HasSuffix(path, "/delete") && u.Role == "admin":
+		s.adminUserDelete(w, r, path)
 	case path == "events" && u.Role == "admin":
 		s.adminEventAdd(w, r, u)
 	default:
@@ -390,6 +392,43 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request, path st
 	if pw := r.FormValue("password"); pw != "" {
 		rec.SetPassword(pw)
 	}
+	_ = s.pb.Save(rec)
+	http.Redirect(w, r, "/admin?tab=users", http.StatusSeeOther)
+}
+
+// adminUserDelete soft-deletes a user (admin only): sets deleted=true, keeping
+// the record for audit history. Refuses self-deletion and deleting the last
+// remaining non-deleted admin.
+func (s *Server) adminUserDelete(w http.ResponseWriter, r *http.Request, path string) {
+	id := strings.TrimSuffix(strings.TrimPrefix(path, "users/"), "/delete")
+	rec, err := s.pb.FindRecordById("users", id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	// Self-delete guardrail: the session user must not remove their own account.
+	if u := s.currentSession(r); u != nil && u.ID == id {
+		http.Redirect(w, r, "/admin?tab=users", http.StatusSeeOther)
+		return
+	}
+	// Last-admin guardrail: never leave the system with zero non-deleted admins.
+	if rec.GetString("role") == "admin" {
+		col, err := s.pb.FindCollectionByNameOrId("users")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		admins, err := s.pb.FindRecordsByFilter(col.Id, "role='admin' && deleted=false", "", 1000, 0)
+		if err != nil {
+			http.Redirect(w, r, "/admin?tab=users", http.StatusSeeOther)
+			return
+		}
+		if len(admins) <= 1 {
+			http.Redirect(w, r, "/admin?tab=users", http.StatusSeeOther)
+			return
+		}
+	}
+	rec.Set("deleted", true)
 	_ = s.pb.Save(rec)
 	http.Redirect(w, r, "/admin?tab=users", http.StatusSeeOther)
 }
@@ -844,7 +883,7 @@ func (s *Server) loadUsers() []UserRow {
 	if err != nil {
 		return nil
 	}
-	recs, err := s.pb.FindRecordsByFilter(col.Id, "1=1", "name", 500, 0)
+	recs, err := s.pb.FindRecordsByFilter(col.Id, "deleted=false", "name", 500, 0)
 	if err != nil {
 		return nil
 	}
@@ -924,7 +963,7 @@ func (s *Server) userNameMap() map[string]string {
 	if err != nil {
 		return m
 	}
-	recs, err := s.pb.FindRecordsByFilter(col.Id, "1=1", "name", 1000, 0)
+	recs, err := s.pb.FindRecordsByFilter(col.Id, "deleted=false", "name", 1000, 0)
 	if err != nil {
 		return m
 	}

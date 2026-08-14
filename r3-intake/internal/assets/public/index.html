@@ -728,6 +728,9 @@
             <td>{{.Role}}</td>
             <td>
               <button type="button" class="btn btn-tiny" onclick="document.getElementById('edit-user-{{.ID}}').style.display=document.getElementById('edit-user-{{.ID}}').style.display==='none'?'table-row':'none'">Edit</button>
+              <form method="post" action="/admin/users/{{.ID}}/delete" onsubmit="return confirm('Delete this user?')">
+                <button class="btn btn-tiny btn-danger" type="submit">Delete</button>
+              </form>
             </td>
           </tr>
           <tr id="edit-user-{{.ID}}" style="display:none">

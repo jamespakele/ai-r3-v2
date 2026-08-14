@@ -192,7 +192,7 @@ func (s *Server) loadCaseManagers() []UserOption {
 	if err != nil {
 		return nil
 	}
-	recs, err := s.pb.FindRecordsByFilter(col.Id, "role='case_manager'", "name", 1000, 0)
+	recs, err := s.pb.FindRecordsByFilter(col.Id, "role='case_manager' && deleted=false", "name", 1000, 0)
 	if err != nil {
 		return nil
 	}
@@ -585,7 +585,7 @@ func (s *Server) ensureCaseManager(name string) {
 	if err != nil {
 		return
 	}
-	recs, err := s.pb.FindRecordsByFilter(col.Id, "role='case_manager'", "name", 1000, 0)
+	recs, err := s.pb.FindRecordsByFilter(col.Id, "role='case_manager' && deleted=false", "name", 1000, 0)
 	if err != nil {
 		return
 	}
