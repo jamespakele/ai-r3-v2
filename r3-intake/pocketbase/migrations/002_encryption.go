@@ -20,6 +20,7 @@ func Register(app *pocketbase.PocketBase) {
 	migrations.Register(upNoteAuditSoftDelete, downNoteAuditSoftDelete, "006_note_audit_softdelete.go")
 	migrations.Register(upEventEnrollmentDeleted, downEventEnrollmentDeleted, "008_event_enrollment_deleted.go")
 	migrations.Register(upAttendanceSiteOptional, downAttendanceSiteOptional, "009_attendance_site_optional.go")
+	migrations.Register(upAttendanceEventRequired, downAttendanceEventRequired, "010_attendance_event_required.go")
 }
 
 // upEncryption is a no-op today. The encryption seam (internal/crypto) is wired

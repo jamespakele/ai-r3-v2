@@ -179,6 +179,7 @@ func seedExportData(t *testing.T, pb *pocketbase.PocketBase) exportFixtures {
 		r := rec("attendance")
 		r.Set("intake", i2)
 		r.Set("site", site2)
+		r.Set("event", ev2)
 		r.Set("date", "2026-08-05")
 		r.Set("status", "excused")
 		r.Set("note", "doctor")
@@ -256,7 +257,7 @@ func TestExportCSVPermissions(t *testing.T) {
 	}
 
 	t.Run("admin", func(t *testing.T) {
-		rec := doExport(srv, adminCookie(srv, fx.admin1), "")
+		rec := doExport(srv, adminCookie(srv, fx.admin1), "?event="+fx.ev1)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", rec.Code)
 		}
@@ -310,8 +311,8 @@ func TestExportCSVDateRangeFilter(t *testing.T) {
 	}
 
 	t.Run("ordered range", func(t *testing.T) {
-		// 2026-08-06..2026-08-12 isolates the 2026-08-10 record.
-		rec := doExport(srv, admin, "?from=2026-08-06&to=2026-08-12")
+		// 2026-08-06..2026-08-12 isolates the 2026-08-10 ev2 record.
+		rec := doExport(srv, admin, "?from=2026-08-06&to=2026-08-12&event="+fx.ev2)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", rec.Code)
 		}
@@ -328,7 +329,7 @@ func TestExportCSVDateRangeFilter(t *testing.T) {
 	})
 
 	t.Run("swapped range", func(t *testing.T) {
-		rec := doExport(srv, admin, "?from=2026-08-12&to=2026-08-06")
+		rec := doExport(srv, admin, "?from=2026-08-12&to=2026-08-06&event="+fx.ev2)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", rec.Code)
 		}
@@ -342,8 +343,9 @@ func TestExportCSVDateRangeFilter(t *testing.T) {
 	})
 
 	t.Run("30 day cap", func(t *testing.T) {
-		// 2026-07-10..2026-08-31 (52 days) caps to 07-10..08-08, excluding 08-10.
-		rec := doExport(srv, admin, "?from=2026-07-10&to=2026-08-31")
+		// 2026-07-10..2026-08-31 (52 days) caps to 07-10..08-08, excluding
+		// 08-10 but keeping ev2's 08-02 and 08-05 records.
+		rec := doExport(srv, admin, "?from=2026-07-10&to=2026-08-31&event="+fx.ev2)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", rec.Code)
 		}
@@ -357,7 +359,7 @@ func TestExportCSVDateRangeFilter(t *testing.T) {
 	})
 
 	t.Run("defaults", func(t *testing.T) {
-		rec := doExport(srv, admin, "")
+		rec := doExport(srv, admin, "?event="+fx.ev2)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", rec.Code)
 		}
@@ -396,18 +398,20 @@ func TestExportCSVSiteFilter(t *testing.T) {
 	}
 
 	t.Run("site1 only", func(t *testing.T) {
-		rows := rowsFor("?site=" + fx.site1)
+		// ev1 has only Kona records: att-1, att-2.
+		rows := rowsFor("?site=" + fx.site1 + "&event=" + fx.ev1)
 		m := allSites(rows)
 		if len(m) != 1 || !m["Kona"] {
 			t.Errorf("site1 filter sites = %v, want only Kona", m)
 		}
-		if len(rows) != 5 { // header + 3 records + summary
-			t.Errorf("row count = %d, want 5", len(rows))
+		if len(rows) != 4 { // header + 2 records + summary
+			t.Errorf("row count = %d, want 4", len(rows))
 		}
 	})
 
 	t.Run("site2 only", func(t *testing.T) {
-		rows := rowsFor("?site=" + fx.site2)
+		// ev2 has Waianae records att-3, att-4 (and one Kona record att-5).
+		rows := rowsFor("?site=" + fx.site2 + "&event=" + fx.ev2)
 		m := allSites(rows)
 		if len(m) != 1 || !m["Waianae"] {
 			t.Errorf("site2 filter sites = %v, want only Waianae", m)
@@ -418,21 +422,27 @@ func TestExportCSVSiteFilter(t *testing.T) {
 	})
 
 	t.Run("invalid site all locations", func(t *testing.T) {
-		rows := rowsFor("?site=does-not-exist")
+		// ev2 spans both sites (att-3/att-4 Waianae, att-5 Kona); an invalid
+		// site resolves to all locations.
+		rows := rowsFor("?site=does-not-exist&event=" + fx.ev2)
 		m := allSites(rows)
 		if !m["Kona"] || !m["Waianae"] {
 			t.Errorf("invalid site should return all locations, got %v", m)
 		}
-		if len(rows) != 7 { // header + 5 records + summary
-			t.Errorf("row count = %d, want 7", len(rows))
+		if len(rows) != 5 { // header + 3 records + summary
+			t.Errorf("row count = %d, want 5", len(rows))
 		}
 	})
 
 	t.Run("no site param", func(t *testing.T) {
-		rows := rowsFor("")
+		// ev2 spans both sites; omitting site returns all locations.
+		rows := rowsFor("?event=" + fx.ev2)
 		m := allSites(rows)
 		if !m["Kona"] || !m["Waianae"] {
 			t.Errorf("no site param should return all locations, got %v", m)
+		}
+		if len(rows) != 5 { // header + 3 records + summary
+			t.Errorf("row count = %d, want 5", len(rows))
 		}
 	})
 }
@@ -471,26 +481,6 @@ func TestExportCSVEventFilter(t *testing.T) {
 			t.Errorf("ev2 filter events = %v, want only Job Fair", m)
 		}
 	})
-
-	t.Run("no event param", func(t *testing.T) {
-		rec := doExport(srv, admin, "?from=2026-08-01&to=2026-08-10")
-		if rec.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200", rec.Code)
-		}
-		rows := parseCSVBody(t, rec)
-		foundEmptyEvent := false
-		for _, r := range rows[1 : len(rows)-1] {
-			if r[2] == "" {
-				foundEmptyEvent = true
-			}
-		}
-		if !foundEmptyEvent {
-			t.Errorf("no event param should include empty-event rows")
-		}
-		if len(rows) != 7 { // header + 5 records + summary
-			t.Errorf("row count = %d, want 7", len(rows))
-		}
-	})
 }
 
 // TestExportCSVHeaderAndFormatting asserts the full wire output: exact header,
@@ -501,7 +491,7 @@ func TestExportCSVHeaderAndFormatting(t *testing.T) {
 	fx := seedExportData(t, srv.pb)
 	admin := adminCookie(srv, fx.admin1)
 
-	rec := doExport(srv, admin, "?from=2026-08-01&to=2026-08-10")
+	rec := doExport(srv, admin, "?from=2026-08-01&to=2026-08-10&event="+fx.ev1)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
@@ -578,7 +568,7 @@ func TestExportCSVEmptyResultSet(t *testing.T) {
 	fx := seedExportData(t, srv.pb)
 	admin := adminCookie(srv, fx.admin1)
 
-	rec := doExport(srv, admin, "?from=1990-01-01&to=1990-01-31")
+	rec := doExport(srv, admin, "?from=1990-01-01&to=1990-01-31&event="+fx.ev1)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
@@ -588,6 +578,25 @@ func TestExportCSVEmptyResultSet(t *testing.T) {
 	}
 	if rows[1][0] != "Summary: 0 check-ins, 0 unique participants, 0% avg rate" {
 		t.Errorf("summary = %q, want empty summary", rows[1][0])
+	}
+}
+
+// TestExportCSVRequiresEvent proves that exporting without a selected event is
+// rejected with a 400 and the standard event-required message.
+func TestExportCSVRequiresEvent(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedExportData(t, srv.pb)
+	admin := adminCookie(srv, fx.admin1)
+
+	rec := doExport(srv, admin, "?from=2026-08-01&to=2026-08-10")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (event required)", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "an event must be selected before recording attendance") {
+		t.Errorf("body missing event-required message")
+	}
+	if ct := rec.Header().Get("Content-Type"); ct == "text/csv" {
+		t.Errorf("must not emit CSV when event is missing")
 	}
 }
 

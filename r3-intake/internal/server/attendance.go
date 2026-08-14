@@ -28,6 +28,9 @@ type MatrixViewData struct {
 	Events   []Event
 	Summary  MatrixSummary
 	EventID  string // optional event filter ("" = none)
+	// EventRequired reports that no event is selected, so the matrix must
+	// disable toggling and hide the walk-in panel.
+	EventRequired bool
 	// HasNoLocation reports whether at least one row is a no-location
 	// participant, so the template can render the "No Location" group header.
 	HasNoLocation bool
@@ -147,6 +150,7 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		Events:   events,
 		Summary:  computeSummary(rows, len(dates)),
 		EventID:  eventID,
+		EventRequired: eventID == "",
 		HasNoLocation: hasNoLocation,
 	}
 
@@ -351,7 +355,7 @@ func (s *Server) loadMatrixRows(u *sessionUser, siteID string, dates []string, e
 				EventID:  eventID,
 				From:     from,
 				To:       toDate,
-				Disabled: cellSiteID == "",
+				Disabled: cellSiteID == "" || eventID == "",
 			})
 			if status == "present" {
 				row.PresentCount++
@@ -445,6 +449,16 @@ func (s *Server) loadEvents(siteID string) ([]Event, error) {
 	return out, nil
 }
 
+// requireEventID returns a 400 if eventID is empty. Attendance is now
+// event-scoped; every write path must select an event first.
+func requireEventID(w http.ResponseWriter, eventID string) bool {
+	if strings.TrimSpace(eventID) == "" {
+		http.Error(w, "an event must be selected before recording attendance", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
 // cycleStatus returns the next status in the cycle.
 // "" -> present -> "" (a simple here / not-here toggle).
 func cycleStatus(current string) string {
@@ -473,6 +487,9 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 
 	if intakeID == "" || date == "" {
 		http.Error(w, "missing required fields", http.StatusBadRequest)
+		return
+	}
+	if !requireEventID(w, eventID) {
 		return
 	}
 	if _, err := time.Parse("2006-01-02", date); err != nil {
@@ -531,11 +548,10 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find existing record.
-	filter := fmt.Sprintf("intake='%s' && date='%s'", mcpmod.EscapeFilter(intakeID), mcpmod.EscapeFilter(date))
-	if eventID != "" {
-		filter += fmt.Sprintf(" && event='%s'", mcpmod.EscapeFilter(eventID))
-	}
+	// Find existing record. Event is required, so uniqueness is keyed on the
+	// full (event, intake, date) tuple.
+	filter := fmt.Sprintf("intake='%s' && event='%s' && date='%s'",
+		mcpmod.EscapeFilter(intakeID), mcpmod.EscapeFilter(eventID), mcpmod.EscapeFilter(date))
 	recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -562,14 +578,13 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 		rec.Set("status", next)
 		rec.Set("recorded_by", u.ID)
 		rec.Set("check_in_time", now)
-		if eventID != "" {
-			rec.Set("event", eventID)
-		}
+		rec.Set("event", eventID)
 		_ = s.pb.Save(rec)
 	case next != "" && existing != nil:
 		existing.Set("status", next)
 		existing.Set("recorded_by", u.ID)
 		existing.Set("check_in_time", now)
+		existing.Set("event", eventID)
 		_ = s.pb.Save(existing)
 	}
 
@@ -684,6 +699,10 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no site resolved", http.StatusBadRequest)
 		return
 	}
+	eventID := strings.TrimSpace(r.FormValue("event_id"))
+	if !requireEventID(w, eventID) {
+		return
+	}
 	today := time.Now().In(hst).Format("2006-01-02")
 
 	intakeCol, err := s.intakeCollection()
@@ -723,8 +742,9 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Idempotent upsert for (intake, date).
-	filter := fmt.Sprintf("intake='%s' && date='%s'", mcpmod.EscapeFilter(intakeID), mcpmod.EscapeFilter(today))
+	// Idempotent upsert for (event, intake, date).
+	filter := fmt.Sprintf("intake='%s' && event='%s' && date='%s'",
+		mcpmod.EscapeFilter(intakeID), mcpmod.EscapeFilter(eventID), mcpmod.EscapeFilter(today))
 	recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -735,6 +755,7 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 		existing := recs[0]
 		existing.Set("status", "walk_in")
 		existing.Set("site", siteID)
+		existing.Set("event", eventID)
 		existing.Set("recorded_by", u.ID)
 		existing.Set("check_in_time", now)
 		_ = s.pb.Save(existing)
@@ -742,6 +763,7 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 		rec := core.NewRecord(attCol)
 		rec.Set("intake", intakeID)
 		rec.Set("site", siteID)
+		rec.Set("event", eventID)
 		rec.Set("date", today)
 		rec.Set("status", "walk_in")
 		rec.Set("recorded_by", u.ID)
@@ -810,6 +832,9 @@ func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
 	}
 
 	eventID := strings.TrimSpace(r.URL.Query().Get("event"))
+	if !requireEventID(w, eventID) {
+		return
+	}
 	siteID, _ := s.resolveSite(u, strings.TrimSpace(r.URL.Query().Get("site")))
 
 	rows, err := s.loadExportRows(siteID, eventID, from, to)

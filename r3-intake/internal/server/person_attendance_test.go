@@ -246,6 +246,9 @@ func TestPersonAttendanceTemplateRenders(t *testing.T) {
 			{Status: "excused", Label: "Excused"},
 			{Status: "walk_in", Label: "Walk-in"},
 		},
+		EventID:       "ev1",
+		Events:        []Event{{ID: "ev1", Name: "Morning Program"}, {ID: "ev2", Name: "Evening Session"}},
+		EventRequired: false,
 	}
 
 	// Full page.
@@ -266,7 +269,7 @@ func TestPersonAttendanceTemplateRenders(t *testing.T) {
 		t.Fatalf("render person-attendance-calendar: %v", err)
 	}
 	calOut := cal.String()
-	for _, want := range []string{"2 of 4 days (50%)", "Current streak: 2", "2026-07", "2026-09", "Present", "Absent"} {
+	for _, want := range []string{"2 of 4 days (50%)", "Current streak: 2", "2026-07", "2026-09", "Present", "Absent", "Select an event…", "Morning Program"} {
 		if !strings.Contains(calOut, want) {
 			t.Errorf("person-attendance-calendar output missing %q", want)
 		}
@@ -278,6 +281,8 @@ func TestPersonAttendanceTemplateRenders(t *testing.T) {
 		Date:       "2026-08-01",
 		HasRecord:  true,
 		Status:     "present",
+		EventID:    "ev1",
+		Events:     []Event{{ID: "ev1", Name: "Morning Program"}, {ID: "ev2", Name: "Evening Session"}},
 		StatusOptions: []PersonStatusOption{
 			{Value: "present", Label: "Present", Selected: true},
 			{Value: "absent", Label: "Absent"},
@@ -294,7 +299,7 @@ func TestPersonAttendanceTemplateRenders(t *testing.T) {
 		t.Fatalf("render person-attendance-day: %v", err)
 	}
 	dayOut := dayBuf.String()
-	for _, want := range []string{"Morning Program", "Admin One", "2026-08-01 20:30:00", "on time", "Delete this attendance record?"} {
+	for _, want := range []string{"Morning Program", "Admin One", "2026-08-01 20:30:00", "on time", "Delete this attendance record?", "Select an event…"} {
 		if !strings.Contains(dayOut, want) {
 			t.Errorf("person-attendance-day output missing %q", want)
 		}
