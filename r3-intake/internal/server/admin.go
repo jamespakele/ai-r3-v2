@@ -931,7 +931,7 @@ func (s *Server) loadEnrolledCount(eventID string) int {
 	if err != nil {
 		return 0
 	}
-	filter := fmt.Sprintf("event='%s' && deleted=false", mcpmod.EscapeFilter(eventID))
+	filter := fmt.Sprintf("event='%s' && (deleted = false || deleted = null)", mcpmod.EscapeFilter(eventID))
 	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "", 1000, 0)
 	if err != nil {
 		return 0
