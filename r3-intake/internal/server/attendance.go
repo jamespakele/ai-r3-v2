@@ -411,14 +411,14 @@ func (s *Server) eventsCollection() (*core.Collection, error) {
 	return s.pb.FindCollectionByNameOrId("events")
 }
 
-// loadEvents returns active events, optionally scoped to a single site. When
-// siteID is "", all active events are returned (admin view).
+// loadEvents returns active, non-deleted events, optionally scoped to a single
+// site. When siteID is "", all active events are returned (admin view).
 func (s *Server) loadEvents(siteID string) ([]Event, error) {
 	col, err := s.eventsCollection()
 	if err != nil {
 		return nil, err
 	}
-	filter := "status='active'"
+	filter := "status='active' && deleted=false"
 	if siteID != "" {
 		filter += fmt.Sprintf(" && site='%s'", mcpmod.EscapeFilter(siteID))
 	}
