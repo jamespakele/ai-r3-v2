@@ -1,30 +1,34 @@
-# Epic 10: Attendance screen state persistence and realtime stats refresh
+# RESULT — Add regression test for plain-form CSRF token injection
 
-**Status:** COMPLETE — child story branches merged into `epic/10-attendance-screen-persist-event-selectio`.
+Task: t_6607a21e (child story of epic t_614f6db0)
 
-## Stories implemented
+## What was built
+Added `r3-intake/internal/server/csrf_plainform_test.go` (package `server`) with
+two regression tests guarding the CSRF middleware's **plain-form fallback** path:
 
-- 10.1 Persist event selection on refresh — `wt/t_f7a72ce9` — the matrix filter form uses `hx-push-url="true"` so the browser URL reflects the selected event, site, from/to dates. Refresh restores the same matrix state.
-- 10.2 Realtime stats refresh for attendance dots — `wt/t_95a3e1c7` — new `GET /attendance/stats` renders the `stat-cards` fragment; each matrix cell `<td>` triggers a stat refresh on `hx-on::after-request` after a toggle.
+- `TestPlainFormCSRFViaFormField` — POSTs `/logout` carrying the `r3_csrf` cookie
+  and the token ONLY as a `csrf_token` form field (no `X-CSRF-Token` header).
+  Asserts `303 See Other` — proving a plain HTML form (Add Event, sites/users,
+  notes, walk-in, intake finish/cancel) passes CSRF without HTMX.
+- `TestPlainFormCSRFMissingRejected` — POSTs `/logout` with the cookie but neither
+  header nor form field. Asserts `403` + middleware error body.
 
-## Files changed
+This is the regression guard for the JS snippet added in sibling story t_33247512
+(which copies the `r3_csrf` cookie into a hidden `csrf_token` input on plain
+method=post forms). If the middleware ever regresses to require the header, or the
+form-field fallback breaks, these tests fail loudly.
 
-- `r3-intake/internal/assets/public/index.html` — matrix filter form `hx-push-url="true"`; matrix cell `<td>` `hx-on::after-request` stat refresh; `id="stat-cards"` on the stat-cards div.
-- `r3-intake/internal/server/attendance.go` — `parseMatrixFilters` shared helper; new `handleStats` endpoint handler.
-- `r3-intake/internal/server/server.go` — registered `GET /attendance/stats` behind `requireAuth`.
-- `r3-intake/internal/server/attendance_stats_integration_test.go` — `TestStatsEndpoint` (auth gate, event-scoped counts, no-event render).
-- `docs/plans/omp-plan-persist-event-selection-hx-push-url.md` — working plan for 10.1.
-- `docs/plans/omp-plan-realtime-stats-refresh.md` — working plan for 10.2.
-- `WORKING_PLAN_realtime_stats_refresh.md` — working plan for 10.2.
-
-## Merge resolution notes
-
-- `wt/t_f7a72ce9` and `wt/t_95a3e1c7` both touched `r3-intake/internal/assets/public/index.html` in non-overlapping regions, so the template merges cleanly as the superset of both changes.
-- Both branches replaced `RESULT.md` with their own story-level summary; the file was synthesized into this Epic 10 document.
+## Artifacts
+- `r3-intake/internal/server/csrf_plainform_test.go` (new)
+- `docs/plans/omp-plan-plainform-csrf-regression.md` (MOA working plan)
+- This `RESULT.md`
 
 ## Verification
+From `r3-intake/`:
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+- `go test ./...` — PASS (full suite green, incl. both new tests)
+- `go test -run 'TestPlainFormCSRF' -v ./internal/server/` — 2/2 PASS
+  (303 via form field, 403 when missing)
 
-- `go build ./...` — pass
-- `go vet ./...` — pass
-- `go test ./...` — pass
-- Conflict-marker sweep — none
+No production source changed (auth.go, server.go untouched) — test-only addition.
