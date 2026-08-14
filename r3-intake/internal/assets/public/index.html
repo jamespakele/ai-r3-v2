@@ -871,7 +871,7 @@
 <div id="matrix-and-stats">
   <form method="get" action="/attendance" class="inline-form"
         hx-get="/attendance" hx-target="#matrix-and-stats" hx-swap="outerHTML"
-        hx-trigger="change, submit">
+        hx-trigger="change, submit" hx-push-url="true">
     <select class="field-input" name="event">
       <option value="">Select an event…</option>
       {{range .Events}}<option value="{{.ID}}" {{if eq $.EventID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
