@@ -139,8 +139,8 @@ func doEventCreate(srv *Server, cookie *http.Cookie, form url.Values) *httptest.
 
 // TestAdminEventCreateRouting proves a POST to /admin/events (the form action,
 // no trailing slash) is handled directly by the explicit route and creates the
-// event, instead of 301-redirecting to the /admin/events/ subtree (which is
-// GET-only and 404s on the follow-up GET).
+// event, instead of falling through to the /admin/ subtree (which rejects
+// non-POST and has no events page after Epic 17 removed the Manage screen).
 func TestAdminEventCreateRouting(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedToggleData(t, srv.pb)
@@ -254,8 +254,9 @@ func TestAdminEventCreateNonAdminRejected(t *testing.T) {
 }
 
 // TestAdminEventCreateGetNoCreate proves a plain GET to /admin/events (no
-// trailing slash) does not create an event. Go ServeMux auto-redirects
-// /admin/events to the /admin/events/ subtree (301).
+// trailing slash) does not create an event. Epic 17 removed the GET
+// /admin/events/ manage subtree, so the request falls through to the /admin/
+// subtree and 404s (handleAdminSub rejects non-POST).
 func TestAdminEventCreateGetNoCreate(t *testing.T) {
 	srv := newTestServer(t)
 	_ = seedToggleData(t, srv.pb)
@@ -266,11 +267,8 @@ func TestAdminEventCreateGetNoCreate(t *testing.T) {
 	rec := httptest.NewRecorder()
 	srv.Mux().ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusMovedPermanently {
-		t.Fatalf("status = %d, want 301 redirect to /admin/events/", rec.Code)
-	}
-	if loc := rec.Header().Get("Location"); loc != "/admin/events/" {
-		t.Errorf("Location = %q, want /admin/events/", loc)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 (no GET /admin/events route)", rec.Code)
 	}
 	if ev := findEventByName(t, srv, "GET Event"); ev != nil {
 		t.Fatalf("GET /admin/events must not create an event, got %q", ev.GetString("name"))
