@@ -1,51 +1,44 @@
-# RESULT.md — Scope attendance matrix by selected event
+# RESULT — Require event selection before recording attendance
 
 ## What was built
-
-Fixed the attendance matrix so the **participant roster is identical regardless
-of which event is selected** (epic AC #1). The selected event now scopes only the
-attendance records shown/edited, never the participant list.
-
-## Root cause
-
-`loadMatrixRows` (attendance.go) had a divergence: when an event was selected it
-loaded only enrolled participants + walk-ins for that event; with no event it
-loaded the full site/role-scoped roster. This violated AC #1 ("Participant list
-renders identically regardless of selected event").
+Server-side enforcement that an event must be selected before any attendance
+record can be written, plus event-scoped write association. Implemented via the
+omp-plan-execute pipeline (MOA plan → omp).
 
 ## Changes
-
-- **r3-intake/internal/server/attendance.go** — `loadMatrixRows` now always
-  loads the full site/role-scoped roster (case_manager -> `assigned_to`, site ->
-  `site`, else `1=1`). Removed the event_enrollment + walk-in union branch. The
-  attendance map still scopes by event via `attFilter`'s `&& event='%s'`.
-- **r3-intake/internal/assets/public/index.html** — disabled-dot aria-label
-  generalized from "Attendance requires a location" to "Attendance unavailable"
-  (cells are now disabled for missing location OR missing event).
-- **r3-intake/internal/server/attendance_roster_integration_test.go** (new) —
-  `TestMatrixRosterEventIndependent` seeds 2 sites, 2 events, admin + case
-  manager, 4 intakes, an enrollment, and attendance records (in-site ev1/ev2,
-  out-of-site walk-in ev1). Asserts identical ordered roster with/without event,
-  out-of-site walk-in never rendered as a row, and event-scoped map population.
-- **docs/plans/omp-plan-scope-attendance-matrix-by-event.md** — working plan
-  artifact.
-
-## Walk-in behavior
-
-Walk-in-created intakes set `site=siteID`, so they appear in the full roster
-naturally. Out-of-scope walk-ins are still recorded in the attendance map but
-not rendered as rows — correct for a site/role-scoped roster and keeps the
-roster deterministic (no event-dependent divergence).
+- `r3-intake/internal/server/attendance.go`
+  - New shared `requireEventID(w, eventID)` gate → 400 "an event must be
+    selected before recording attendance" when event_id is empty.
+  - `handleToggle`: gate added; idempotency filter now always includes `event`;
+    `event` set on both create and update branches.
+  - `handleWalkin`: now reads `event_id`; gate added; filter includes `event`;
+    `event` set on both branches.
+- `r3-intake/internal/server/person_attendance.go`
+  - `handlePersonAttendanceDaySave`: gate added; filter includes `event`;
+    `event` set on both branches.
+  - `PersonDayDetailView`: added `Events []Event` + `SelectedEventID string`.
+  - `buildPersonDayDetailView`: loads events, sets SelectedEventID from record.
+- `r3-intake/internal/assets/public/index.html`
+  - `person-attendance-day`: required `event_id` selector added to both create
+    and edit forms (before Status); removed read-only EventName display.
+- Tests: `TestRequireEventID`, `TestToggleRequiresEvent`, `TestToggleStoresEvent`,
+  `TestWalkinRequiresEvent`, `TestToggleScopesPerEvent` (cross-event
+  non-collision), `TestPersonAttendanceDayRequiresEvent`,
+  `TestPersonAttendanceDayStoresEvent`, day-detail selector assertions.
 
 ## Verification
+- `go build ./...` — pass
+- `go vet ./...` — pass
+- `go test ./...` — pass (internal/server ok, 5.5s)
 
-- `go build ./...` — PASS
-- `go vet ./...` — PASS
-- `go test ./...` — PASS (internal/server ok, 5.4s)
-- `TestMatrixRosterEventIndependent` — PASS (0.17s)
-- Existing `TestMatrixContentRender*`, `TestToggle*`, person-attendance, and
-  export tests all pass.
+## AC coverage
+- AC #3 (attendance cannot be recorded until an event is selected): enforced
+  server-side on all three write paths (toggle/walkin/person-day-save) — cannot
+  be bypassed by a crafted POST.
+- AC #4 (records associated with the event): every write sets `event`; uniqueness
+  keyed on `(event, intake, date)`.
+- AC #1/#2/#5 owned by parent card t_f9a235ad (matrix scoping + migration 010).
 
-## Commit
-
-`45bb720` on `wt/t_a1402c12` (child story branch; parent epic merges).
+## Artifacts
+- Plan: `docs/plans/omp-plan-require-event-selection.md`
+- Commit: f47b25c on wt/t_30ac2f54

@@ -282,7 +282,7 @@ func TestPersonAttendanceTemplateRenders(t *testing.T) {
 		HasRecord:  true,
 		Status:     "present",
 		EventID:    "ev1",
-		Events:     []Event{{ID: "ev1", Name: "Morning Program"}, {ID: "ev2", Name: "Evening Session"}},
+		Events:     []Event{{ID: "ev1", Name: "Morning Program"}, {ID: "ev2", Name: "Evening Program"}},
 		StatusOptions: []PersonStatusOption{
 			{Value: "present", Label: "Present", Selected: true},
 			{Value: "absent", Label: "Absent"},
@@ -299,10 +299,16 @@ func TestPersonAttendanceTemplateRenders(t *testing.T) {
 		t.Fatalf("render person-attendance-day: %v", err)
 	}
 	dayOut := dayBuf.String()
-	for _, want := range []string{"Morning Program", "Admin One", "2026-08-01 20:30:00", "on time", "Delete this attendance record?", "Select an event…"} {
+	for _, want := range []string{"Morning Program", "Evening Program", "Admin One", "2026-08-01 20:30:00", "on time", "Delete this attendance record?", "Select an event…"} {
 		if !strings.Contains(dayOut, want) {
 			t.Errorf("person-attendance-day output missing %q", want)
 		}
+	}
+	if !strings.Contains(dayOut, `<select name="event_id"`) {
+		t.Errorf("person-attendance-day output missing event selector")
+	}
+	if !strings.Contains(dayOut, `value="ev1" selected`) {
+		t.Errorf("person-attendance-day output missing selected event option")
 	}
 
 	// Day detail fragment empty state.
@@ -315,6 +321,9 @@ func TestPersonAttendanceTemplateRenders(t *testing.T) {
 			{Value: "excused", Label: "Excused"},
 			{Value: "walk_in", Label: "Walk-in"},
 		},
+		Events: []Event{
+			{ID: "ev1", Name: "Morning Program"},
+		},
 	}
 	var emptyBuf bytes.Buffer
 	if err := tpl.ExecuteTemplate(&emptyBuf, "person-attendance-day", empty); err != nil {
@@ -322,5 +331,8 @@ func TestPersonAttendanceTemplateRenders(t *testing.T) {
 	}
 	if !strings.Contains(emptyBuf.String(), "No attendance recorded") {
 		t.Errorf("empty day output missing empty-state text")
+	}
+	if !strings.Contains(emptyBuf.String(), `<select name="event_id"`) {
+		t.Errorf("empty day output missing event selector")
 	}
 }

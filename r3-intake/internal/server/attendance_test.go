@@ -3,6 +3,8 @@ package server
 import (
 	"bytes"
 	"html/template"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -251,5 +253,39 @@ func TestExportCSVRecords(t *testing.T) {
 		if sum[i] != "" {
 			t.Errorf("summary col %d = %q, want empty", i, sum[i])
 		}
+	}
+}
+
+// TestRequireEventID verifies the shared write gate: empty/whitespace event
+// ids are rejected with a 400 and the canonical message; a non-empty id passes.
+func TestRequireEventID(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		eventID string
+		wantOK  bool
+	}{
+		{name: "empty", eventID: "", wantOK: false},
+		{name: "whitespace", eventID: "   ", wantOK: false},
+		{name: "non-empty", eventID: "ev1", wantOK: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			ok := requireEventID(rec, tt.eventID)
+			if ok != tt.wantOK {
+				t.Errorf("requireEventID(%q) = %v, want %v", tt.eventID, ok, tt.wantOK)
+			}
+			if tt.wantOK {
+				if rec.Code != http.StatusOK {
+					t.Errorf("status = %d, want 200", rec.Code)
+				}
+				return
+			}
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400", rec.Code)
+			}
+			if body := strings.TrimSpace(rec.Body.String()); body != "an event must be selected before recording attendance" {
+				t.Errorf("body = %q, want canonical message", body)
+			}
+		})
 	}
 }

@@ -258,6 +258,7 @@ func (s *Server) buildPersonDayDetailView(intake *core.Record, date, eventID, er
 			rec := recs[0]
 			view.HasRecord = true
 			view.Status = rec.GetString("status")
+			view.EventID = rec.GetString("event")
 			view.EventName = s.nameFor("events", rec.GetString("event"))
 			view.RecordedBy = s.nameFor("users", rec.GetString("recorded_by"))
 			view.CheckInTime = rec.GetString("check_in_time")

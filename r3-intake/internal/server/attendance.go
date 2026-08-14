@@ -498,6 +498,9 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "attendance requires a location", http.StatusBadRequest)
 		return
 	}
+	if !requireEventID(w, eventID) {
+		return
+	}
 
 	attCol, err := s.attendanceCollection()
 	if err != nil {
