@@ -1,30 +1,24 @@
-# Epic 10: Attendance screen state persistence and realtime stats refresh
+# RESULT — Inject csrf_token hidden field into plain POST forms via JS
 
-**Status:** COMPLETE — child story branches merged into `epic/10-attendance-screen-persist-event-selectio`.
+Task: t_33247512 (child story of epic t_614f6db0)
 
-## Stories implemented
+## What was built
+Added a tiny self-contained non-HTMX JS snippet to all 10 full-page template defines in r3-intake/internal/assets/public/index.html (page, login, list, admin, notes, note-history, matrix, event-manage, event-report, person-attendance).
 
-- 10.1 Persist event selection on refresh — `wt/t_f7a72ce9` — the matrix filter form uses `hx-push-url="true"` so the browser URL reflects the selected event, site, from/to dates. Refresh restores the same matrix state.
-- 10.2 Realtime stats refresh for attendance dots — `wt/t_95a3e1c7` — new `GET /attendance/stats` renders the `stat-cards` fragment; each matrix cell `<td>` triggers a stat refresh on `hx-on::after-request` after a toggle.
+The snippet reads the double-submit r3_csrf cookie and injects a hidden input name="csrf_token" into every plain form method="post" that: has method="post" (skips GET forms); has NO hx-post attribute (HTMX forms are already covered by the X-CSRF-Token header); and does NOT already contain a csrf_token input (idempotent; protects the login form server-rendered hidden field from duplication).
+
+It runs on DOMContentLoaded (with a readyState guard) and also listens to htmx:afterProcessNode so forms injected by HTMX swaps (walk-in results, person-attendance-day) get the field too.
 
 ## Files changed
-
-- `r3-intake/internal/assets/public/index.html` — matrix filter form `hx-push-url="true"`; matrix cell `<td>` `hx-on::after-request` stat refresh; `id="stat-cards"` on the stat-cards div.
-- `r3-intake/internal/server/attendance.go` — `parseMatrixFilters` shared helper; new `handleStats` endpoint handler.
-- `r3-intake/internal/server/server.go` — registered `GET /attendance/stats` behind `requireAuth`.
-- `r3-intake/internal/server/attendance_stats_integration_test.go` — `TestStatsEndpoint` (auth gate, event-scoped counts, no-event render).
-- `docs/plans/omp-plan-persist-event-selection-hx-push-url.md` — working plan for 10.1.
-- `docs/plans/omp-plan-realtime-stats-refresh.md` — working plan for 10.2.
-- `WORKING_PLAN_realtime_stats_refresh.md` — working plan for 10.2.
-
-## Merge resolution notes
-
-- `wt/t_f7a72ce9` and `wt/t_95a3e1c7` both touched `r3-intake/internal/assets/public/index.html` in non-overlapping regions, so the template merges cleanly as the superset of both changes.
-- Both branches replaced `RESULT.md` with their own story-level summary; the file was synthesized into this Epic 10 document.
+- r3-intake/internal/assets/public/index.html (only file; 321 insertions across the 10 defines)
 
 ## Verification
+- go build ./... : PASS
+- go vet ./... : PASS
+- go test ./... : PASS (r3-intake/internal/server ok)
+- No Go template tokens introduced inside any snippet; embedded template still parses.
+- 10 </head> and 10 htmx:afterProcessNode occurrences: one snippet per full-page define.
 
-- `go build ./...` — pass
-- `go vet ./...` — pass
-- `go test ./...` — pass
-- Conflict-marker sweep — none
+## Notes / deferred verification
+- This worktree is forked from committed master and does NOT contain the parent uncommitted CSRF middleware (cookie r3_csrf, csrf_token field, X-CSRF-Token header), so end-to-end 403 to success checks must run on the merged epic branch where the middleware exists. The JS here is the exact field-injection half the middleware form-field fallback consumes (cookie r3_csrf to input name=csrf_token).
+- Regression test for this JS path is the SIBLING card t_6607a21e (out of scope here).

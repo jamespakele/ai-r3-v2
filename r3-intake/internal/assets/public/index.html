@@ -11,6 +11,38 @@
 <script src="/static/alpine.min.js" defer></script>
 <script>document.documentElement.classList.add('js')</script>
 <script>window.R3F={digits:function(v){return (v||'').replace(/\D/g,'').slice(0,4)},phone:function(v){var d=(v||'').replace(/\D/g,'').slice(0,10);if(!d)return '';if(d.length<3)return '('+d;if(d.length<6)return '('+d.slice(0,3)+') '+d.slice(3);if(d.length<10)return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6);return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6,10)},dob:function(v){var d=(v||'').replace(/\D/g,'').slice(0,8);if(d.length>4)return d.slice(0,2)+'/'+d.slice(2,4)+'/'+d.slice(4);if(d.length>2)return d.slice(0,2)+'/'+d.slice(2);return d}};</script>
+<script>
+(function () {
+  function getCookie(n) { var v = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return v ? v[1] : ''; }
+  function inject(form) {
+    if (!form || form.tagName !== 'FORM') return;
+    if ((form.method || 'get').toLowerCase() !== 'post') return;
+    if (form.hasAttribute('hx-post')) return;
+    if (form.querySelector('input[name="csrf_token"]')) return;
+    var t = getCookie('r3_csrf');
+    if (!t) return;
+    var h = document.createElement('input');
+    h.type = 'hidden'; h.name = 'csrf_token'; h.value = t;
+    form.appendChild(h);
+  }
+  function scan(container) {
+    var roots = container ? [container] : document.querySelectorAll('form');
+    for (var i = 0; i < roots.length; i++) inject(roots[i]);
+    if (container && container.querySelectorAll) {
+      var fs = container.querySelectorAll('form');
+      for (var j = 0; j < fs.length; j++) inject(fs[j]);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { scan(document); });
+  } else {
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function (e) {
+    if (e.detail && e.detail.el) scan(e.detail.el);
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -399,6 +431,38 @@
 <title>R3 Intake — Sign in</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=3">
+<script>
+(function () {
+  function getCookie(n) { var v = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return v ? v[1] : ''; }
+  function inject(form) {
+    if (!form || form.tagName !== 'FORM') return;
+    if ((form.method || 'get').toLowerCase() !== 'post') return;
+    if (form.hasAttribute('hx-post')) return;
+    if (form.querySelector('input[name="csrf_token"]')) return;
+    var t = getCookie('r3_csrf');
+    if (!t) return;
+    var h = document.createElement('input');
+    h.type = 'hidden'; h.name = 'csrf_token'; h.value = t;
+    form.appendChild(h);
+  }
+  function scan(container) {
+    var roots = container ? [container] : document.querySelectorAll('form');
+    for (var i = 0; i < roots.length; i++) inject(roots[i]);
+    if (container && container.querySelectorAll) {
+      var fs = container.querySelectorAll('form');
+      for (var j = 0; j < fs.length; j++) inject(fs[j]);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { scan(document); });
+  } else {
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function (e) {
+    if (e.detail && e.detail.el) scan(e.detail.el);
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -439,6 +503,38 @@
 <title>R3 Intake — Records</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=3">
+<script>
+(function () {
+  function getCookie(n) { var v = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return v ? v[1] : ''; }
+  function inject(form) {
+    if (!form || form.tagName !== 'FORM') return;
+    if ((form.method || 'get').toLowerCase() !== 'post') return;
+    if (form.hasAttribute('hx-post')) return;
+    if (form.querySelector('input[name="csrf_token"]')) return;
+    var t = getCookie('r3_csrf');
+    if (!t) return;
+    var h = document.createElement('input');
+    h.type = 'hidden'; h.name = 'csrf_token'; h.value = t;
+    form.appendChild(h);
+  }
+  function scan(container) {
+    var roots = container ? [container] : document.querySelectorAll('form');
+    for (var i = 0; i < roots.length; i++) inject(roots[i]);
+    if (container && container.querySelectorAll) {
+      var fs = container.querySelectorAll('form');
+      for (var j = 0; j < fs.length; j++) inject(fs[j]);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { scan(document); });
+  } else {
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function (e) {
+    if (e.detail && e.detail.el) scan(e.detail.el);
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -517,6 +613,38 @@
 <title>R3 Intake — Admin Settings</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=5">
+<script>
+(function () {
+  function getCookie(n) { var v = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return v ? v[1] : ''; }
+  function inject(form) {
+    if (!form || form.tagName !== 'FORM') return;
+    if ((form.method || 'get').toLowerCase() !== 'post') return;
+    if (form.hasAttribute('hx-post')) return;
+    if (form.querySelector('input[name="csrf_token"]')) return;
+    var t = getCookie('r3_csrf');
+    if (!t) return;
+    var h = document.createElement('input');
+    h.type = 'hidden'; h.name = 'csrf_token'; h.value = t;
+    form.appendChild(h);
+  }
+  function scan(container) {
+    var roots = container ? [container] : document.querySelectorAll('form');
+    for (var i = 0; i < roots.length; i++) inject(roots[i]);
+    if (container && container.querySelectorAll) {
+      var fs = container.querySelectorAll('form');
+      for (var j = 0; j < fs.length; j++) inject(fs[j]);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { scan(document); });
+  } else {
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function (e) {
+    if (e.detail && e.detail.el) scan(e.detail.el);
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -702,6 +830,38 @@
 <title>R3 Intake — Notes</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0;500;0,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=3">
+<script>
+(function () {
+  function getCookie(n) { var v = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return v ? v[1] : ''; }
+  function inject(form) {
+    if (!form || form.tagName !== 'FORM') return;
+    if ((form.method || 'get').toLowerCase() !== 'post') return;
+    if (form.hasAttribute('hx-post')) return;
+    if (form.querySelector('input[name="csrf_token"]')) return;
+    var t = getCookie('r3_csrf');
+    if (!t) return;
+    var h = document.createElement('input');
+    h.type = 'hidden'; h.name = 'csrf_token'; h.value = t;
+    form.appendChild(h);
+  }
+  function scan(container) {
+    var roots = container ? [container] : document.querySelectorAll('form');
+    for (var i = 0; i < roots.length; i++) inject(roots[i]);
+    if (container && container.querySelectorAll) {
+      var fs = container.querySelectorAll('form');
+      for (var j = 0; j < fs.length; j++) inject(fs[j]);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { scan(document); });
+  } else {
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function (e) {
+    if (e.detail && e.detail.el) scan(e.detail.el);
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -778,8 +938,40 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Note History</title>
-<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0;500;0,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=3">
+<script>
+(function () {
+  function getCookie(n) { var v = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return v ? v[1] : ''; }
+  function inject(form) {
+    if (!form || form.tagName !== 'FORM') return;
+    if ((form.method || 'get').toLowerCase() !== 'post') return;
+    if (form.hasAttribute('hx-post')) return;
+    if (form.querySelector('input[name="csrf_token"]')) return;
+    var t = getCookie('r3_csrf');
+    if (!t) return;
+    var h = document.createElement('input');
+    h.type = 'hidden'; h.name = 'csrf_token'; h.value = t;
+    form.appendChild(h);
+  }
+  function scan(container) {
+    var roots = container ? [container] : document.querySelectorAll('form');
+    for (var i = 0; i < roots.length; i++) inject(roots[i]);
+    if (container && container.querySelectorAll) {
+      var fs = container.querySelectorAll('form');
+      for (var j = 0; j < fs.length; j++) inject(fs[j]);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { scan(document); });
+  } else {
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function (e) {
+    if (e.detail && e.detail.el) scan(e.detail.el);
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -838,6 +1030,38 @@
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=5">
 <script src="/static/htmx.min.js" defer></script>
+<script>
+(function () {
+  function getCookie(n) { var v = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return v ? v[1] : ''; }
+  function inject(form) {
+    if (!form || form.tagName !== 'FORM') return;
+    if ((form.method || 'get').toLowerCase() !== 'post') return;
+    if (form.hasAttribute('hx-post')) return;
+    if (form.querySelector('input[name="csrf_token"]')) return;
+    var t = getCookie('r3_csrf');
+    if (!t) return;
+    var h = document.createElement('input');
+    h.type = 'hidden'; h.name = 'csrf_token'; h.value = t;
+    form.appendChild(h);
+  }
+  function scan(container) {
+    var roots = container ? [container] : document.querySelectorAll('form');
+    for (var i = 0; i < roots.length; i++) inject(roots[i]);
+    if (container && container.querySelectorAll) {
+      var fs = container.querySelectorAll('form');
+      for (var j = 0; j < fs.length; j++) inject(fs[j]);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { scan(document); });
+  } else {
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function (e) {
+    if (e.detail && e.detail.el) scan(e.detail.el);
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -1010,6 +1234,38 @@
 <title>R3 Intake — Manage Event</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=5">
+<script>
+(function () {
+  function getCookie(n) { var v = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return v ? v[1] : ''; }
+  function inject(form) {
+    if (!form || form.tagName !== 'FORM') return;
+    if ((form.method || 'get').toLowerCase() !== 'post') return;
+    if (form.hasAttribute('hx-post')) return;
+    if (form.querySelector('input[name="csrf_token"]')) return;
+    var t = getCookie('r3_csrf');
+    if (!t) return;
+    var h = document.createElement('input');
+    h.type = 'hidden'; h.name = 'csrf_token'; h.value = t;
+    form.appendChild(h);
+  }
+  function scan(container) {
+    var roots = container ? [container] : document.querySelectorAll('form');
+    for (var i = 0; i < roots.length; i++) inject(roots[i]);
+    if (container && container.querySelectorAll) {
+      var fs = container.querySelectorAll('form');
+      for (var j = 0; j < fs.length; j++) inject(fs[j]);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { scan(document); });
+  } else {
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function (e) {
+    if (e.detail && e.detail.el) scan(e.detail.el);
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -1146,6 +1402,38 @@
 <title>R3 Intake — Event Report</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=6">
+<script>
+(function () {
+  function getCookie(n) { var v = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return v ? v[1] : ''; }
+  function inject(form) {
+    if (!form || form.tagName !== 'FORM') return;
+    if ((form.method || 'get').toLowerCase() !== 'post') return;
+    if (form.hasAttribute('hx-post')) return;
+    if (form.querySelector('input[name="csrf_token"]')) return;
+    var t = getCookie('r3_csrf');
+    if (!t) return;
+    var h = document.createElement('input');
+    h.type = 'hidden'; h.name = 'csrf_token'; h.value = t;
+    form.appendChild(h);
+  }
+  function scan(container) {
+    var roots = container ? [container] : document.querySelectorAll('form');
+    for (var i = 0; i < roots.length; i++) inject(roots[i]);
+    if (container && container.querySelectorAll) {
+      var fs = container.querySelectorAll('form');
+      for (var j = 0; j < fs.length; j++) inject(fs[j]);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { scan(document); });
+  } else {
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function (e) {
+    if (e.detail && e.detail.el) scan(e.detail.el);
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
@@ -1182,6 +1470,38 @@
 <link rel="stylesheet" href="/static/app.css?v=7">
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/alpine.min.js" defer></script>
+<script>
+(function () {
+  function getCookie(n) { var v = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return v ? v[1] : ''; }
+  function inject(form) {
+    if (!form || form.tagName !== 'FORM') return;
+    if ((form.method || 'get').toLowerCase() !== 'post') return;
+    if (form.hasAttribute('hx-post')) return;
+    if (form.querySelector('input[name="csrf_token"]')) return;
+    var t = getCookie('r3_csrf');
+    if (!t) return;
+    var h = document.createElement('input');
+    h.type = 'hidden'; h.name = 'csrf_token'; h.value = t;
+    form.appendChild(h);
+  }
+  function scan(container) {
+    var roots = container ? [container] : document.querySelectorAll('form');
+    for (var i = 0; i < roots.length; i++) inject(roots[i]);
+    if (container && container.querySelectorAll) {
+      var fs = container.querySelectorAll('form');
+      for (var j = 0; j < fs.length; j++) inject(fs[j]);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { scan(document); });
+  } else {
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function (e) {
+    if (e.detail && e.detail.el) scan(e.detail.el);
+  });
+})();
+</script>
 </head>
 <body>
 <div class="page-bg">
