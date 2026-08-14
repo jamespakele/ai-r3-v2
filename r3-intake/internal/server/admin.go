@@ -743,19 +743,15 @@ func (s *Server) handleEnrollSearch(w http.ResponseWriter, r *http.Request) {
 	if len(q) < 2 {
 		return
 	}
-	eventRec, err := s.pb.FindRecordById("events", id)
+	_, err := s.pb.FindRecordById("events", id)
 	if err != nil {
 		return
 	}
-	eventSite := eventRec.GetString("site")
 	col, err := s.intakeCollection()
 	if err != nil {
 		return
 	}
 	filter := fmt.Sprintf(`name ~ "%s"`, mcpmod.EscapeFilter(q))
-	if eventSite != "" {
-		filter += fmt.Sprintf(" && site='%s'", mcpmod.EscapeFilter(eventSite))
-	}
 	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "-created", 10, 0)
 	if err != nil {
 		return
