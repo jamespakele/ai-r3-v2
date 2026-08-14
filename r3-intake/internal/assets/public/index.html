@@ -701,7 +701,7 @@
                 <form method="post" action="/admin/sites/{{$site.ID}}/toggle" style="display:inline">
                   <button class="btn btn-tiny" type="submit">{{if $site.Active}}Deactivate{{else}}Activate{{end}}</button>
                 </form>
-                <button type="button" class="btn btn-tiny" onclick="document.getElementById('edit-site-{{$site.ID}}').style.display=document.getElementById('edit-site-{{$site.ID}}').style.display==='none'?'table-row':'none'">Edit</button>
+                <button type="button" class="btn btn-tiny" onclick="toggleEditRow('edit-site-{{$site.ID}}', this)">Edit</button>
                 <form method="post" action="/admin/sites/{{$site.ID}}/delete" style="display:inline" onsubmit="return confirm('Delete this location?')">
                   <button class="btn btn-tiny btn-danger" type="submit">Delete</button>
                 </form>
@@ -740,7 +740,7 @@
             <td>{{.Email}}</td>
             <td>{{.Role}}</td>
             <td>
-              <button type="button" class="btn btn-tiny" onclick="document.getElementById('edit-user-{{.ID}}').style.display=document.getElementById('edit-user-{{.ID}}').style.display==='none'?'table-row':'none'">Edit</button>
+              <button type="button" class="btn btn-tiny" onclick="toggleEditRow('edit-user-{{.ID}}', this)">Edit</button>
               <form method="post" action="/admin/users/{{.ID}}/delete" onsubmit="return confirm('Delete this user?')">
                 <button class="btn btn-tiny btn-danger" type="submit">Delete</button>
               </form>
@@ -792,7 +792,7 @@
                 <a href="/admin/events/{{$ev.ID}}/manage" class="btn btn-tiny">Manage</a>
                 <a href="/attendance?event={{$ev.ID}}" class="btn btn-tiny">Matrix</a>
                 {{if eq $ev.Status "completed"}}<a href="/admin/events/{{$ev.ID}}/report" class="btn btn-tiny">Report</a>{{end}}
-                <button type="button" class="btn btn-tiny" onclick="document.getElementById('edit-event-{{$ev.ID}}').style.display=document.getElementById('edit-event-{{$ev.ID}}').style.display==='none'?'table-row':'none'">Edit</button>
+                <button type="button" class="btn btn-tiny" onclick="toggleEditRow('edit-event-{{$ev.ID}}', this)">Edit</button>
                 <button type="button" class="btn btn-tiny btn-danger" onclick="if(confirm('Delete this event?')){document.getElementById('delete-event-{{$ev.ID}}').submit()}">Delete</button>
               </td>
             </tr>
@@ -827,7 +827,7 @@
           <input type="date" name="start_date" placeholder="Start date" required class="field-input" value="{{.EventStart}}">
           <input type="date" name="end_date" placeholder="End date" required class="field-input" value="{{.EventEnd}}">
           <textarea name="description" placeholder="Description (optional)" class="grid-full textarea textarea-sm" rows="5" maxlength="500">{{.EventDescription}}</textarea>
-          <button type="submit" class="btn btn-primary grid-full">Create Event</button>
+          <button type="submit" class="btn btn-primary">Create Event</button>
         </form>
       </div>
       {{end}}
@@ -868,6 +868,14 @@
     var target = 'panel-' + m[1].toLowerCase();
     if (document.getElementById(target)) activate(target);
   }
+  // Toggle an inline edit row and swap the button label between Edit/Cancel.
+  window.toggleEditRow = function (rowId, btn) {
+    var row = document.getElementById(rowId);
+    if (!row) return;
+    var showing = row.style.display === 'table-row';
+    row.style.display = showing ? 'none' : 'table-row';
+    btn.textContent = showing ? 'Edit' : 'Cancel';
+  };
 })();
 </script>
 </body>
