@@ -257,3 +257,23 @@ Set `view.EventID = eventID` and `view.Events = events`.
 7. **Export:** `/attendance/export` without an event returns 400; with an event it filters correctly.
 
 8. **No regressions:** existing matrix, toggle, walk-in, person-attendance, and export tests still pass (updated fixtures compile and assert correctly).
+
+## Design history
+
+Design-only predecessor plan (`wt/t_b8758540`) documented the pre-change
+state and the backfill decision, which this implementation plan builds on:
+
+- **Pre-change schema:** `attendance.event` was a nullable relation
+  (required: false, cascadeDelete: true). `handleToggle`, `handleWalkin`, and
+  `handlePersonAttendanceDaySave` could all create records with `event = null`;
+  the matrix's "All dates — no event filter" mode was the only surface that
+  exposed those null-event records.
+- **Backfill strategy (decision):** create one synthetic "Legacy / Unassigned"
+  event **per site** and assign every null-event attendance record to it. This
+  preserves all existing records, gives each a real event association, and
+  avoids fabricating a real-event assignment for records that were created
+  without event context.
+- **Target schema:** `attendance.event` becomes required (non-null), maxSelect 1,
+  relation -> events, cascadeDelete: true; all other fields unchanged. The
+  uniqueness key is `(event, intake, date)` (FR2), enforced in Go because
+  PocketBase has no native unique constraint.
