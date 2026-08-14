@@ -1,35 +1,30 @@
-# RESULT: Persist event selection on refresh with hx-push-url
+# Epic 10: Attendance screen state persistence and realtime stats refresh
 
-## What was built
-Added `hx-push-url="true"` to the attendance matrix filter form in
-`r3-intake/internal/assets/public/index.html` (matrix-content block, line 874).
-HTMX now pushes the serialized form values (`event`, `site`, `from`, `to`) into
-the URL on every `hx-get`. On refresh the server's `handleMatrix` reads the
-`event` query param and restores both the dropdown and the grid — no Go handler
-changes were required (the server already restored from query params).
+**Status:** COMPLETE — child story branches merged into `epic/10-attendance-screen-persist-event-selectio`.
 
-## Scope
-Issue 1 only (persist event selection on refresh). The sibling card t_95a3e1c7
-owns Issue 2 (realtime stats refresh) — no stats endpoint, no stat-cards or
-matrix-cell changes were made.
+## Stories implemented
+
+- 10.1 Persist event selection on refresh — `wt/t_f7a72ce9` — the matrix filter form uses `hx-push-url="true"` so the browser URL reflects the selected event, site, from/to dates. Refresh restores the same matrix state.
+- 10.2 Realtime stats refresh for attendance dots — `wt/t_95a3e1c7` — new `GET /attendance/stats` renders the `stat-cards` fragment; each matrix cell `<td>` triggers a stat refresh on `hx-on::after-request` after a toggle.
 
 ## Files changed
-- `r3-intake/internal/assets/public/index.html` — 1 insertion / 1 deletion
-  (added `hx-push-url="true"` to the matrix filter form)
-- `docs/plans/omp-plan-persist-event-selection-hx-push-url.md` — MOA working plan
+
+- `r3-intake/internal/assets/public/index.html` — matrix filter form `hx-push-url="true"`; matrix cell `<td>` `hx-on::after-request` stat refresh; `id="stat-cards"` on the stat-cards div.
+- `r3-intake/internal/server/attendance.go` — `parseMatrixFilters` shared helper; new `handleStats` endpoint handler.
+- `r3-intake/internal/server/server.go` — registered `GET /attendance/stats` behind `requireAuth`.
+- `r3-intake/internal/server/attendance_stats_integration_test.go` — `TestStatsEndpoint` (auth gate, event-scoped counts, no-event render).
+- `docs/plans/omp-plan-persist-event-selection-hx-push-url.md` — working plan for 10.1.
+- `docs/plans/omp-plan-realtime-stats-refresh.md` — working plan for 10.2.
+- `WORKING_PLAN_realtime_stats_refresh.md` — working plan for 10.2.
+
+## Merge resolution notes
+
+- `wt/t_f7a72ce9` and `wt/t_95a3e1c7` both touched `r3-intake/internal/assets/public/index.html` in non-overlapping regions, so the template merges cleanly as the superset of both changes.
+- Both branches replaced `RESULT.md` with their own story-level summary; the file was synthesized into this Epic 10 document.
 
 ## Verification
-- `grep -n 'hx-push-url'` → exactly one occurrence, on the matrix filter form
-- `git diff --stat` → only index.html modified (1 insertion / 1 deletion)
-- `go build ./...` → exit 0
-- `go vet ./...` → clean
-- `go test ./...` → ok r3-intake/internal/server (6.360s), all packages pass
 
-## Acceptance criteria
-- [x] Selecting an event and refreshing the page restores the same event + grid
-- [x] The URL reflects the selected event (hx-push-url)
-- [ ] Toggling an attendance dot updates the stat cards immediately (Issue 2, sibling card)
-- [ ] Stats reflect the selected event's data (Issue 2, sibling card)
-
-## Commit
-4e0b618 on wt/t_f7a72ce9
+- `go build ./...` — pass
+- `go vet ./...` — pass
+- `go test ./...` — pass
+- Conflict-marker sweep — none

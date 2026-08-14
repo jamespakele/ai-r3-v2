@@ -946,7 +946,11 @@
             {{if .IntakeID}}<a href="/intake/{{.IntakeID}}" class="matrix-name-link"><span class="matrix-name">{{.Name}}</span></a>{{else}}<span class="matrix-name">{{.Name}}</span>{{end}}
             {{if .IsDropout}}<span class="status-badge">STOPPED</span>{{end}}
           </td>
-          {{range .Cells}}<td>{{template "matrix-cell" .}}</td>{{end}}
+          {{range .Cells}}
+          <td hx-on::after-request="htmx.ajax('GET', '/attendance/stats', {source: this.querySelector('form'), target: '#stat-cards', swap: 'outerHTML'})">
+            {{template "matrix-cell" .}}
+          </td>
+          {{end}}
           <td class="matrix-total-col"><span class="matrix-total-badge">{{.PresentCount}}/{{.TotalDays}}</span></td>
         </tr>
         {{end}}
@@ -962,7 +966,7 @@
 {{end}}
 
 {{define "stat-cards"}}
-<div class="stat-cards">
+<div id="stat-cards" class="stat-cards">
   <div class="stat-card"><div class="stat-number stat-green">{{.Summary.TotalCheckIns}}</div><div class="stat-label">Total check-ins</div></div>
   <div class="stat-card"><div class="stat-number stat-accent">{{.Summary.ActiveParticipants}}</div><div class="stat-label">Active participants</div></div>
   <div class="stat-card"><div class="stat-number stat-red">{{.Summary.Stopped}}</div><div class="stat-label">Stopped</div></div>
