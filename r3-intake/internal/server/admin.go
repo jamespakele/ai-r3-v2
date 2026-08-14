@@ -528,7 +528,7 @@ func (s *Server) loadEnrolledRoster(eventID, start, end string) ([]EnrolledRow, 
 	if err != nil {
 		return nil, err
 	}
-	filter := fmt.Sprintf("event='%s' && deleted=false", mcpmod.EscapeFilter(eventID))
+	filter := fmt.Sprintf("event='%s' && (deleted = false || deleted = null)", mcpmod.EscapeFilter(eventID))
 	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "enrolled_date", 1000, 0)
 	if err != nil {
 		return nil, err

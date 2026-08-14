@@ -1,31 +1,38 @@
-# RESULT — Fix handleEnrollSearch to allow cross-site participant search and enrollment
+# Epic 15: Event Manage page — participant roster section
 
-## What was built
-Removed the site restriction from the "Add participant" search on the Event Manage page.
-`handleEnrollSearch` (r3-intake/internal/server/admin.go) previously appended
-`&& site='<eventSite>'` to its PocketBase filter, so participants at a different site
-(or an event with no site) could not be found or enrolled. The filter is now name-only
-(`name ~ "<q>"`), returning matching intake records from ALL sites.
+**Status:** IN PROGRESS — child story branches being merged.
 
-## Why this is sufficient
-- The `enroll-search-results` fragment already renders each hit's `SiteName`
-  (`<span class="enroll-result-meta">{{.SiteName}}</span>`), so cross-site results
-  display their own site name with no template change.
-- `handleEventEnroll` does not restrict by site — it only verifies the event and intake
-  exist and creates the enrollment. So removing the search filter enables cross-site
-  enrollment with no other code change.
-- The per-result `Already` idempotency check (`event && intake && deleted=false`) is
-  unchanged, so already-enrolled participants are still marked and cannot be re-added.
+## Stories implemented
+
+- **t_b478182c** — Cross-site participant search for Event Manage enrollment.
+  Removes the site restriction from `handleEnrollSearch` in
+  `r3-intake/internal/server/admin.go`. Search now returns matching intake
+  records from all sites, and the existing `enroll-search-results` template
+  already shows each hit's `SiteName`.
+
+- **t_d61f8ff7** — Fix `loadEnrolledRoster` NULL `deleted` filter.
+  Changes the roster query from `event='<id>' && deleted=false` to
+  `event='<id>' && (deleted = false || deleted = null)` so legacy enrollments
+  with a NULL `deleted` value are rendered instead of hidden.
 
 ## Files changed
-- `r3-intake/internal/server/admin.go` — removed `eventSite` var and the site-filter block;
-  switched `eventRec` to blank identifier since it became unused.
+
+- `r3-intake/internal/server/admin.go` — `handleEnrollSearch` and
+  `loadEnrolledRoster` filters.
+- `docs/plans/omp-plan-cross-site-enroll-search.md` — working plan.
+- `docs/plans/omp-plan-fix-loadenrolledroster.md` — working plan.
+- `WORKING_PLAN_fix-loadEnrolledRoster.md` — working plan.
+- `.hermes/plans/2026-08-13_handleEnrollSearch-cross-site.md` — working plan.
+
+## Merge resolution notes
+
+- `RESULT.md` conflicts across child stories are resolved by synthesizing this
+  Epic 15 summary.
+- The `admin.go` changes are independent (different functions), so they merge
+  cleanly.
 
 ## Verification
-- `go build ./...` — exit 0
-- `go vet ./...` — exit 0
-- `go test ./...` — all pass (internal/server 6.897s)
-- `TestEnrollSearchResultsRender` — PASS
 
-## Artifacts
-- Working plan: `docs/plans/omp-plan-cross-site-enroll-search.md`
+- `go build ./...` — pass
+- `go vet ./...` — pass
+- `go test ./...` — pass
