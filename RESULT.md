@@ -1,47 +1,35 @@
-# Epic 11: CSRF 403 on plain HTML POST forms
+# RESULT — Fix loadEnrolledRoster to return enrolled participants and stats
 
-**Status:** COMPLETE — child story branches merged into `epic/11-csrf-403-on-plainhtml-post-forms-adding`.
+## What was built
+Fixed `loadEnrolledRoster` in `r3-intake/internal/server/admin.go` so the Event
+Manage page roster and the HTMX `respondRoster` fragment return enrolled
+participants with correct attendance stats.
 
-## Stories implemented
+## Root cause
+The roster query filtered `event='<id>' && deleted=false`. In PocketBase v0.39 a
+`BoolField` with `Required:false` (migration 008) defaults to **NULL**, not
+`false`, for records where the field was never explicitly written. `deleted=false`
+excluded NULL rows, so legacy/pre-existing enrollments never appeared — the roster
+rendered empty even when enrollments existed.
 
-- **t_33247512** — Inject `csrf_token` hidden field into plain POST forms via JS.
-  Adds a self-contained vanilla-JS snippet to all 10 full-page template defines in
-  `r3-intake/internal/assets/public/index.html`. The snippet copies the
-  `r3_csrf` cookie into a hidden `input[name="csrf_token"]` on every plain
-  `method="post"` form that does not already carry one, while skipping
-  `hx-post` forms (those continue to use the `X-CSRF-Token` header). It also
-  listens for `htmx:afterProcessNode` so dynamically swapped fragments such as
-  walk-in results and `person-attendance-day` get the field too.
+## Change
+Single-line filter fix in `loadEnrolledRoster` (admin.go ~531):
+`event='<id>' && (deleted = false || deleted = null)`
+— matches the codebase's own established pattern in `notes.go` `loadNoteRows`
+(line 363). Returns active + legacy-NULL enrollments, still excludes soft-deleted
+ones (unenroll keeps attendance history).
 
-- **t_6607a21e** — Add regression test for plain-form CSRF token injection.
-  Adds `r3-intake/internal/server/csrf_plainform_test.go` with
-  `TestPlainFormCSRFViaFormField` (cookie + form field only → 303) and
-  `TestPlainFormCSRFMissingRejected` (cookie only → 403). Guards the middleware
-  fallback used by the JS injection above.
-
-## Files changed
-
-- `r3-intake/internal/assets/public/index.html` — combined HTMX header helper
-  and plain-form `csrf_token` injection in all 10 full-page defines.
-- `r3-intake/internal/server/csrf_plainform_test.go` — new regression tests.
-- `docs/plans/omp-plan-csrf-form-field-injection.md` — working plan for the JS
-  injection story.
-- `docs/plans/omp-plan-plainform-csrf-regression.md` — working plan for the
-  regression-test story.
-
-## Merge resolution notes
-
-- `index.html` had a conflict in each full-page define because the child branch
-  branched before the epic's HTMX `X-CSRF-Token` helper existed. Resolution kept
-  the helper and added the plain-form injection logic to the same IIFE so both
-  `hx-post` and plain `method="post"` forms are covered.
-- Both children replaced `RESULT.md` with their own story-level summary; the file
-  was synthesized into this Epic 11 document.
+## Scope honored
+- Only `loadEnrolledRoster` touched. Enroll-search handler (sibling t_b478182c)
+  and tests (sibling t_d6f46781) untouched.
+- `loadEnrolledCount` (admin.go ~899) has the same NULL-exclusion bug and
+  under-counts legacy enrollments — flagged as follow-up for the parent, not
+  changed here.
 
 ## Verification
+- `go build ./...` — clean
+- `go vet ./...` — no warnings
+- `go test ./...` — all packages pass (internal/server ok)
 
-- `go build ./...` — pass
-- `go vet ./...` — pass
-- `go test ./...` — pass
-- `go test -run 'TestPlainFormCSRF' -v ./internal/server/` — 2/2 PASS
-- Conflict-marker sweep — none
+## Artifacts
+- Plan: docs/plans/omp-plan-fix-loadenrolledroster.md
