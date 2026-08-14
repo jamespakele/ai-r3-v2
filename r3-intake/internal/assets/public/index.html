@@ -768,19 +768,37 @@
         <table class="admin-table">
           <thead><tr><th>Event Name</th><th>Location</th><th>Dates</th><th>Enrolled</th><th>Status</th><th></th></tr></thead>
           <tbody>
-          {{range .Events}}
+          {{range $ev := .Events}}
             <tr>
-              <td>{{.Name}}</td>
-              <td>{{.SiteName}}</td>
-              <td>{{.StartDate}} – {{.EndDate}}</td>
-              <td>{{.Enrolled}}</td>
-              <td><span class="status-badge event-status-{{.Status}}">{{.Status}}</span></td>
+              <td>{{$ev.Name}}</td>
+              <td>{{$ev.SiteName}}</td>
+              <td>{{$ev.StartDate}} – {{$ev.EndDate}}</td>
+              <td>{{$ev.Enrolled}}</td>
+              <td><span class="status-badge event-status-{{$ev.Status}}">{{$ev.Status}}</span></td>
               <td class="admin-actions">
-                <a href="/admin/events/{{.ID}}/manage" class="btn btn-tiny">Manage</a>
-                <a href="/attendance?event={{.ID}}" class="btn btn-tiny">Matrix</a>
-                {{if eq .Status "completed"}}<a href="/admin/events/{{.ID}}/report" class="btn btn-tiny">Report</a>{{end}}
+                <a href="/admin/events/{{$ev.ID}}/manage" class="btn btn-tiny">Manage</a>
+                <a href="/attendance?event={{$ev.ID}}" class="btn btn-tiny">Matrix</a>
+                {{if eq $ev.Status "completed"}}<a href="/admin/events/{{$ev.ID}}/report" class="btn btn-tiny">Report</a>{{end}}
+                <button type="button" class="btn btn-tiny" onclick="document.getElementById('edit-event-{{$ev.ID}}').style.display=document.getElementById('edit-event-{{$ev.ID}}').style.display==='none'?'table-row':'none'">Edit</button>
+                <button type="button" class="btn btn-tiny btn-danger" onclick="if(confirm('Delete this event?')){document.getElementById('delete-event-{{$ev.ID}}').submit()}">Delete</button>
               </td>
             </tr>
+            <tr id="edit-event-{{$ev.ID}}" style="display:none">
+              <td colspan="6">
+                <form method="post" action="/admin/events/{{$ev.ID}}/update" class="form-grid-2">
+                  <input type="text" name="name" value="{{$ev.Name}}" placeholder="Event name" required class="field-input grid-full">
+                  <select name="site" class="field-input grid-full" required>
+                    <option value="">Select a location</option>
+                    {{range $.Sites}}{{if .Active}}<option value="{{.ID}}" {{if eq .ID $ev.SiteID}}selected{{end}}>{{.Name}}</option>{{end}}{{end}}
+                  </select>
+                  <input type="date" name="start_date" value="{{$ev.StartDate}}" required class="field-input">
+                  <input type="date" name="end_date" value="{{$ev.EndDate}}" required class="field-input">
+                  <textarea name="description" placeholder="Description (optional)" class="grid-full textarea textarea-sm" rows="5" maxlength="500">{{$ev.Description}}</textarea>
+                  <button type="submit" class="btn btn-primary grid-full">Save Event</button>
+                </form>
+              </td>
+            </tr>
+            <form id="delete-event-{{$ev.ID}}" method="post" action="/admin/events/{{$ev.ID}}/delete" style="display:none"></form>
           {{end}}
           {{if not .Events}}<tr><td colspan="6" class="empty-state">No events yet.</td></tr>{{end}}
           </tbody>

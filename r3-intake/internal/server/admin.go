@@ -59,13 +59,15 @@ type AdminView struct {
 
 // EventRow is the flat admin list view of an events record.
 type EventRow struct {
-	ID        string
-	Name      string
-	SiteName  string
-	StartDate string
-	EndDate   string
-	Enrolled  int
-	Status    string
+	ID          string
+	Name        string
+	SiteID      string
+	SiteName    string
+	StartDate   string
+	EndDate     string
+	Description string
+	Enrolled    int
+	Status      string
 }
 
 // EnrolledRow is one row of the event roster with attendance stats.
@@ -506,6 +508,100 @@ func (s *Server) handleAdminEventAdd(w http.ResponseWriter, r *http.Request) {
 	s.adminEventAdd(w, r, u)
 }
 
+// adminEventUpdate updates an event's name, site, start/end dates, and
+// description. Validation failures re-render the admin page with an error and
+// the submitted values preserved.
+func (s *Server) adminEventUpdate(w http.ResponseWriter, r *http.Request, u *sessionUser) {
+	id := r.PathValue("id")
+	rec, err := s.pb.FindRecordById("events", id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if rec.GetBool("deleted") {
+		http.NotFound(w, r)
+		return
+	}
+
+	name := strings.TrimSpace(r.FormValue("name"))
+	site := strings.TrimSpace(r.FormValue("site"))
+	start := strings.TrimSpace(r.FormValue("start_date"))
+	end := strings.TrimSpace(r.FormValue("end_date"))
+	desc := strings.TrimSpace(r.FormValue("description"))
+
+	view := &AdminView{
+		UserName:         u.Name,
+		Role:             u.Role,
+		IsAdmin:          true,
+		EventName:        name,
+		EventSite:        site,
+		EventStart:       start,
+		EventEnd:         end,
+		EventDescription: desc,
+	}
+
+	errMsg := ""
+	startT, startErr := time.Parse("2006-01-02", start)
+	endT, endErr := time.Parse("2006-01-02", end)
+	switch {
+	case name == "" || site == "":
+		errMsg = "Event name and location are required."
+	case startErr != nil || endErr != nil:
+		errMsg = "Start and end dates must be valid dates."
+	case endT.Before(startT):
+		errMsg = "End date must be on or after start date."
+	case len(desc) > 500:
+		errMsg = "Description must be 500 characters or fewer."
+	}
+
+	if errMsg != "" {
+		view.EventError = errMsg
+		view.Sites = must(s.loadSites(true))
+		view.Users = s.loadUsers()
+		view.Events = must(s.loadAllEvents())
+		_ = s.tpl.ExecuteTemplate(w, "admin", view)
+		return
+	}
+
+	rec.Set("name", name)
+	rec.Set("site", site)
+	rec.Set("start_date", start)
+	rec.Set("end_date", end)
+	rec.Set("description", desc)
+	_ = s.pb.Save(rec)
+	http.Redirect(w, r, "/admin?tab=events", http.StatusSeeOther)
+}
+
+// handleAdminEventUpdate is the route adapter for POST /admin/events/{id}/update.
+// It fetches the session user and delegates to adminEventUpdate. requireRole("admin", ...)
+// guarantees a non-nil admin session before this runs; the nil check is
+// defensive only.
+func (s *Server) handleAdminEventUpdate(w http.ResponseWriter, r *http.Request) {
+	u := s.currentSession(r)
+	if u == nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	s.adminEventUpdate(w, r, u)
+}
+
+// handleAdminEventDelete soft-deletes an event by setting deleted=true. The
+// record row is kept; only the flag flips. Idempotent: an already-deleted event
+// is a no-op. Admin-only (route-gated).
+func (s *Server) handleAdminEventDelete(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	rec, err := s.pb.FindRecordById("events", id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if !rec.GetBool("deleted") {
+		rec.Set("deleted", true)
+		_ = s.pb.Save(rec)
+	}
+	http.Redirect(w, r, "/admin?tab=events", http.StatusSeeOther)
+}
+
 // validEventTransition reports whether moving from -> to is a legal lifecycle step.
 func validEventTransition(from, to string) bool {
 	switch from {
@@ -549,6 +645,10 @@ func (s *Server) handleAdminEventManage(w http.ResponseWriter, r *http.Request) 
 	id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/admin/events/"), "/manage")
 	rec, err := s.pb.FindRecordById("events", id)
 	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if rec.GetBool("deleted") {
 		http.NotFound(w, r)
 		return
 	}
@@ -895,13 +995,13 @@ func (s *Server) loadUsers() []UserRow {
 	return out
 }
 
-// loadAllEvents returns every event regardless of status (admin list view).
+// loadAllEvents returns every non-deleted event regardless of status (admin list view).
 func (s *Server) loadAllEvents() ([]EventRow, error) {
 	col, err := s.eventsCollection()
 	if err != nil {
 		return nil, err
 	}
-	recs, err := s.pb.FindRecordsByFilter(col.Id, "1=1", "-start_date,name", 1000, 0)
+	recs, err := s.pb.FindRecordsByFilter(col.Id, "deleted=false", "-start_date,name", 1000, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -913,13 +1013,15 @@ func (s *Server) loadAllEvents() ([]EventRow, error) {
 			site = "—"
 		}
 		out = append(out, EventRow{
-			ID:        r.Id,
-			Name:      r.GetString("name"),
-			SiteName:  site,
-			StartDate: r.GetString("start_date"),
-			EndDate:   r.GetString("end_date"),
-			Enrolled:  s.loadEnrolledCount(r.Id),
-			Status:    r.GetString("status"),
+			ID:          r.Id,
+			Name:        r.GetString("name"),
+			SiteID:      r.GetString("site"),
+			SiteName:    site,
+			StartDate:   r.GetString("start_date"),
+			EndDate:     r.GetString("end_date"),
+			Description: r.GetString("description"),
+			Enrolled:    s.loadEnrolledCount(r.Id),
+			Status:      r.GetString("status"),
 		})
 	}
 	return out, nil

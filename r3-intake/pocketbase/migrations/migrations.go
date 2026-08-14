@@ -19,4 +19,5 @@ func Register(app *pocketbase.PocketBase) {
 	migrations.Register(upExpandSensitiveFieldMax, downExpandSensitiveFieldMax, "012_expand_sensitive_field_max.go")
 	migrations.Register(upAttendanceUniqueIndexes, downAttendanceUniqueIndexes, "013_attendance_unique_indexes.go")
 	migrations.Register(upUsersDeleted, downUsersDeleted, "014_users_deleted.go")
+	migrations.Register(upEventsDeleted, downEventsDeleted, "014_events_deleted.go")
 }
