@@ -32,6 +32,11 @@ type PersonAttendanceView struct {
 	Weeks      [][]PersonDayCell
 	Stats      PersonStats
 	Legend     []PersonLegendItem
+	EventID    string // selected event ("" = none)
+	Events     []Event
+	// EventRequired reports that no event is selected, so day-cell writes must
+	// be gated behind an event selection.
+	EventRequired bool
 }
 
 // PersonDayCell is a single date cell in the monthly calendar grid.
@@ -74,6 +79,8 @@ type PersonDayDetailView struct {
 	CheckInTime   string
 	Note          string
 	Error         string
+	EventID       string
+	Events        []Event
 }
 
 // PersonStatusOption is one option in the status dropdown.
@@ -121,14 +128,15 @@ func (s *Server) handlePersonAttendance(w http.ResponseWriter, r *http.Request) 
 	} else if _, err := time.Parse("2006-01", month); err != nil {
 		month = time.Now().In(hst).Format("2006-01")
 	}
-	view := s.buildPersonAttendanceView(u, intake, month)
+	eventID := strings.TrimSpace(r.URL.Query().Get("event"))
+	view := s.buildPersonAttendanceView(u, intake, month, eventID)
 	_ = s.tpl.ExecuteTemplate(w, "person-attendance", view)
 }
 
 // buildPersonAttendanceView assembles the full view model for a participant
 // and month: loads the month's attendance records, builds the calendar grid,
 // and computes the stats. Shared by the full page and the calendar fragment.
-func (s *Server) buildPersonAttendanceView(u *sessionUser, intake *core.Record, month string) PersonAttendanceView {
+func (s *Server) buildPersonAttendanceView(u *sessionUser, intake *core.Record, month, eventID string) PersonAttendanceView {
 	t, err := time.Parse("2006-01", month)
 	if err != nil {
 		t = time.Now().In(hst)
@@ -139,11 +147,18 @@ func (s *Server) buildPersonAttendanceView(u *sessionUser, intake *core.Record, 
 	firstStr := first.Format("2006-01-02")
 	lastStr := last.Format("2006-01-02")
 
+	events, _ := s.loadEvents("")
+
 	records := map[string]string{}
 	var recList []personAttendanceRecord
 	if attCol, err := s.attendanceCollection(); err == nil {
 		filter := fmt.Sprintf("intake='%s' && date>='%s' && date<='%s'",
 			mcpmod.EscapeFilter(intake.Id), mcpmod.EscapeFilter(firstStr), mcpmod.EscapeFilter(lastStr))
+		if eventID != "" {
+			filter = fmt.Sprintf("intake='%s' && event='%s' && date>='%s' && date<='%s'",
+				mcpmod.EscapeFilter(intake.Id), mcpmod.EscapeFilter(eventID),
+				mcpmod.EscapeFilter(firstStr), mcpmod.EscapeFilter(lastStr))
+		}
 		recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "date", 1000, 0)
 		if err == nil {
 			for _, rec := range recs {
@@ -179,13 +194,16 @@ func (s *Server) buildPersonAttendanceView(u *sessionUser, intake *core.Record, 
 			{Status: "excused", Label: "Excused"},
 			{Status: "walk_in", Label: "Walk-in"},
 		},
+		EventID:       eventID,
+		Events:        events,
+		EventRequired: eventID == "",
 	}
 }
 
 // renderPersonAttendanceCalendar renders the calendar + stats fragment (the
 // HTMX swap target for POST save/delete responses).
-func (s *Server) renderPersonAttendanceCalendar(w http.ResponseWriter, r *http.Request, u *sessionUser, intake *core.Record, month string) {
-	view := s.buildPersonAttendanceView(u, intake, month)
+func (s *Server) renderPersonAttendanceCalendar(w http.ResponseWriter, r *http.Request, u *sessionUser, intake *core.Record, month, eventID string) {
+	view := s.buildPersonAttendanceView(u, intake, month, eventID)
 	_ = s.tpl.ExecuteTemplate(w, "person-attendance-calendar", view)
 }
 
@@ -207,28 +225,34 @@ func (s *Server) handlePersonAttendanceDay(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// handlePersonAttendanceDayGet renders the day-detail fragment for a date.
+// handlePersonAttendanceDayGet renders the day-detail fragment for a date,
+// scoped to the selected event.
 func (s *Server) handlePersonAttendanceDayGet(w http.ResponseWriter, r *http.Request, intake *core.Record) {
 	date := r.URL.Query().Get("date")
 	if _, err := time.Parse("2006-01-02", date); err != nil {
 		http.Error(w, "invalid date", http.StatusBadRequest)
 		return
 	}
-	view := s.buildPersonDayDetailView(intake, date, "")
+	eventID := strings.TrimSpace(r.URL.Query().Get("event"))
+	view := s.buildPersonDayDetailView(intake, date, eventID, "")
 	_ = s.tpl.ExecuteTemplate(w, "person-attendance-day", view)
 }
 
-// buildPersonDayDetailView loads the existing (intake, date) record, if any,
-// and builds the day-detail view model. errMsg is surfaced in the fragment.
-func (s *Server) buildPersonDayDetailView(intake *core.Record, date, errMsg string) PersonDayDetailView {
+// buildPersonDayDetailView loads the existing (event, intake, date) record, if
+// any, and builds the day-detail view model. errMsg is surfaced in the
+// fragment.
+func (s *Server) buildPersonDayDetailView(intake *core.Record, date, eventID, errMsg string) PersonDayDetailView {
 	view := PersonDayDetailView{
 		IntakeID: intake.Id,
 		Date:     date,
 		Error:    errMsg,
+		EventID:  eventID,
 	}
+	events, _ := s.loadEvents("")
+	view.Events = events
 	if attCol, err := s.attendanceCollection(); err == nil {
-		filter := fmt.Sprintf("intake='%s' && date='%s'",
-			mcpmod.EscapeFilter(intake.Id), mcpmod.EscapeFilter(date))
+		filter := fmt.Sprintf("intake='%s' && event='%s' && date='%s'",
+			mcpmod.EscapeFilter(intake.Id), mcpmod.EscapeFilter(eventID), mcpmod.EscapeFilter(date))
 		recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
 		if err == nil && len(recs) > 0 {
 			rec := recs[0]
@@ -251,17 +275,21 @@ func (s *Server) handlePersonAttendanceDaySave(w http.ResponseWriter, r *http.Re
 	date := r.FormValue("date")
 	status := r.FormValue("status")
 	note := strings.TrimSpace(r.FormValue("note"))
+	eventID := strings.TrimSpace(r.FormValue("event_id"))
 
 	if _, err := time.Parse("2006-01-02", date); err != nil {
-		s.renderDayError(w, intake, date, "Invalid date")
+		s.renderDayError(w, intake, date, eventID, "Invalid date")
+		return
+	}
+	if !requireEventID(w, eventID) {
 		return
 	}
 	if !validAttendanceStatus(status) {
-		s.renderDayError(w, intake, date, "Invalid status")
+		s.renderDayError(w, intake, date, eventID, "Invalid status")
 		return
 	}
 	if len(note) > 500 {
-		s.renderDayError(w, intake, date, "Note must be 500 characters or fewer")
+		s.renderDayError(w, intake, date, eventID, "Note must be 500 characters or fewer")
 		return
 	}
 
@@ -270,8 +298,8 @@ func (s *Server) handlePersonAttendanceDaySave(w http.ResponseWriter, r *http.Re
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	filter := fmt.Sprintf("intake='%s' && date='%s'",
-		mcpmod.EscapeFilter(intake.Id), mcpmod.EscapeFilter(date))
+	filter := fmt.Sprintf("intake='%s' && event='%s' && date='%s'",
+		mcpmod.EscapeFilter(intake.Id), mcpmod.EscapeFilter(eventID), mcpmod.EscapeFilter(date))
 	recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -281,6 +309,7 @@ func (s *Server) handlePersonAttendanceDaySave(w http.ResponseWriter, r *http.Re
 		rec := recs[0]
 		rec.Set("status", status)
 		rec.Set("note", note)
+		rec.Set("event", eventID)
 		rec.Set("recorded_by", u.ID)
 		if err := s.pb.Save(rec); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -289,6 +318,7 @@ func (s *Server) handlePersonAttendanceDaySave(w http.ResponseWriter, r *http.Re
 	} else {
 		rec := core.NewRecord(attCol)
 		rec.Set("intake", intake.Id)
+		rec.Set("event", eventID)
 		rec.Set("date", date)
 		rec.Set("status", status)
 		rec.Set("note", note)
@@ -301,13 +331,13 @@ func (s *Server) handlePersonAttendanceDaySave(w http.ResponseWriter, r *http.Re
 	}
 
 	month := date[:7] // YYYY-MM
-	s.renderPersonAttendanceCalendar(w, r, u, intake, month)
+	s.renderPersonAttendanceCalendar(w, r, u, intake, month, eventID)
 }
 
 // renderDayError writes the day-detail fragment with an error message and a
 // 400 status.
-func (s *Server) renderDayError(w http.ResponseWriter, intake *core.Record, date, msg string) {
-	view := s.buildPersonDayDetailView(intake, date, msg)
+func (s *Server) renderDayError(w http.ResponseWriter, intake *core.Record, date, eventID, msg string) {
+	view := s.buildPersonDayDetailView(intake, date, eventID, msg)
 	w.WriteHeader(http.StatusBadRequest)
 	_ = s.tpl.ExecuteTemplate(w, "person-attendance-day", view)
 }
@@ -326,16 +356,17 @@ func (s *Server) handlePersonAttendanceDayDelete(w http.ResponseWriter, r *http.
 		http.Error(w, "invalid date", http.StatusBadRequest)
 		return
 	}
+	eventID := strings.TrimSpace(r.FormValue("event_id"))
 	if attCol, err := s.attendanceCollection(); err == nil {
-		filter := fmt.Sprintf("intake='%s' && date='%s'",
-			mcpmod.EscapeFilter(intake.Id), mcpmod.EscapeFilter(date))
+		filter := fmt.Sprintf("intake='%s' && event='%s' && date='%s'",
+			mcpmod.EscapeFilter(intake.Id), mcpmod.EscapeFilter(eventID), mcpmod.EscapeFilter(date))
 		recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
 		if err == nil && len(recs) > 0 {
 			_ = s.pb.Delete(recs[0])
 		}
 	}
 	month := date[:7] // YYYY-MM
-	s.renderPersonAttendanceCalendar(w, r, u, intake, month)
+	s.renderPersonAttendanceCalendar(w, r, u, intake, month, eventID)
 }
 
 // validAttendanceStatus reports whether s is a valid attendance status value.

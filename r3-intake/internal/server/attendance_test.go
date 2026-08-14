@@ -111,6 +111,7 @@ func TestMatrixContentRender(t *testing.T) {
 		"Morning Program", "Alice",
 		`>2</div><div class="stat-label">Total check-ins`, "25%",
 		"No Location", "matrix-group-header", "row-no-location", "dot-disabled",
+		"Select an event…",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("matrix-content output missing %q", want)
@@ -129,6 +130,67 @@ func TestMatrixContentRender(t *testing.T) {
 	}
 	if !strings.Contains(full.String(), "Attendance") {
 		t.Errorf("matrix output missing page title")
+	}
+}
+
+// TestMatrixContentRenderEventRequired verifies that when no event is
+// selected, the matrix renders the event-required banner, hides the walk-in
+// panel, and disables every cell.
+func TestMatrixContentRenderEventRequired(t *testing.T) {
+	html, err := assets.TemplateString()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tpl, err := template.New("index.html").Funcs(templateFuncs()).Parse(html)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	view := MatrixViewData{
+		UserName:      "Admin",
+		Role:          "admin",
+		IsAdmin:       true,
+		SiteID:        "site1",
+		SiteName:      "Kona",
+		DateFrom:      "2026-08-01",
+		DateTo:        "2026-08-14",
+		Dates:         []string{"2026-08-01", "2026-08-02"},
+		Rows: []MatrixRow{
+			{IntakeID: "i1", Name: "Alice", TotalDays: 2,
+				Cells: []MatrixCell{
+					{IntakeID: "i1", Date: "2026-08-01", Status: "present", SiteID: "site1", From: "2026-08-01", To: "2026-08-14", Disabled: true},
+					{IntakeID: "i1", Date: "2026-08-02", Status: "", SiteID: "site1", From: "2026-08-01", To: "2026-08-14", Disabled: true},
+				},
+				PresentCount: 1},
+		},
+		Sites:         []Site{{ID: "site1", Name: "Kona"}},
+		Events:        []Event{{ID: "ev1", Name: "Morning Program"}},
+		EventID:       "",
+		EventRequired: true,
+	}
+
+	var buf bytes.Buffer
+	if err := tpl.ExecuteTemplate(&buf, "matrix-content", view); err != nil {
+		t.Fatalf("render matrix-content: %v", err)
+	}
+	out := buf.String()
+	for _, want := range []string{
+		"Select an event to record attendance.",
+		"Select an event…",
+		"Alice",
+		"dot-disabled",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("matrix-content (event required) output missing %q", want)
+		}
+	}
+	for _, forbid := range []string{
+		"Add walk-in",
+		"walkin-search",
+	} {
+		if strings.Contains(out, forbid) {
+			t.Errorf("matrix-content (event required) output should not contain %q", forbid)
+		}
 	}
 }
 
