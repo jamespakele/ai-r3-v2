@@ -339,8 +339,8 @@ func TestAdminEventCreateRouting(t *testing.T) {
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303 (event created)", rec.Code)
 	}
-	if loc := rec.Header().Get("Location"); loc != "/admin" {
-		t.Errorf("Location = %q, want /admin", loc)
+	if loc := rec.Header().Get("Location"); loc != "/admin?tab=events" {
+		t.Errorf("Location = %q, want /admin?tab=events", loc)
 	}
 	ev := findEventByName(t, srv, "New Event")
 	if ev == nil {

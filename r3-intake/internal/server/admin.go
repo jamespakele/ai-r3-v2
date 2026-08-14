@@ -253,7 +253,7 @@ func (s *Server) adminSiteAdd(w http.ResponseWriter, r *http.Request) {
 	rec.Set("active", true)
 	rec.Set("sort_order", 99)
 	_ = s.pb.Save(rec)
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin?tab=sites", http.StatusSeeOther)
 }
 
 // adminSiteSetDefault sets one site as the default and unsets all others.
@@ -273,7 +273,7 @@ func (s *Server) adminSiteSetDefault(w http.ResponseWriter, r *http.Request, pat
 		rec.Set("is_default", rec.Id == id)
 		_ = s.pb.Save(rec)
 	}
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin?tab=sites", http.StatusSeeOther)
 }
 
 // adminSiteToggle flips the active flag.
@@ -286,7 +286,7 @@ func (s *Server) adminSiteToggle(w http.ResponseWriter, r *http.Request, path st
 	}
 	rec.Set("active", !rec.GetBool("active"))
 	_ = s.pb.Save(rec)
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin?tab=sites", http.StatusSeeOther)
 }
 
 // adminClaim assigns the intake to the current user and sets status=claimed.
@@ -367,7 +367,7 @@ func (s *Server) adminUserAdd(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin?tab=users", http.StatusSeeOther)
 }
 
 // adminUserUpdate edits an existing user (admin only).
@@ -391,7 +391,7 @@ func (s *Server) adminUserUpdate(w http.ResponseWriter, r *http.Request, path st
 		rec.SetPassword(pw)
 	}
 	_ = s.pb.Save(rec)
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin?tab=users", http.StatusSeeOther)
 }
 
 // adminEventAdd creates a new event. Validation failures re-render the admin
@@ -451,7 +451,7 @@ func (s *Server) adminEventAdd(w http.ResponseWriter, r *http.Request, u *sessio
 	rec.Set("status", "active")
 	rec.Set("created_by", u.ID)
 	_ = s.pb.Save(rec)
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin?tab=events", http.StatusSeeOther)
 }
 
 // handleAdminEventAdd is the route adapter for POST /admin/events. It fetches

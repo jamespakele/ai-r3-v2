@@ -826,6 +826,14 @@
       ({{if .EventError}}true{{else}}false{{end}} || {{if .EventName}}true{{else}}false{{end}})) {
     activate('panel-events');
   }
+  // Restore the active tab from the ?tab= query param (set by admin redirects
+  // after a save, e.g. /admin?tab=events) so focus returns to the tab the
+  // user was working in instead of defaulting to Sites.
+  var m = window.location.search.match(/[?&]tab=([a-z]+)/i);
+  if (m) {
+    var target = 'panel-' + m[1].toLowerCase();
+    if (document.getElementById(target)) activate(target);
+  }
 })();
 </script>
 </body>
