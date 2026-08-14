@@ -121,14 +121,7 @@ func (s *Server) Mux() http.Handler {
 	mux.HandleFunc("/admin", s.csrfMiddleware(s.requireRole("admin", s.handleAdminSettings)))
 	// Admin mutations (per-action role checks inside)
 	mux.HandleFunc("/admin/", s.csrfMiddleware(s.requireAuth(s.handleAdminSub)))
-	// Event enrollment-management placeholder — admin only
-	mux.HandleFunc("/admin/events/", s.csrfMiddleware(s.requireRole("admin", s.handleAdminEventManage)))
-	// Story 2.2 enrollment routes
-	mux.HandleFunc("/admin/events/{id}/enroll", s.csrfMiddleware(s.requireRole("admin", s.handleEventEnroll)))
-	mux.HandleFunc("/admin/events/{id}/unenroll", s.csrfMiddleware(s.requireRole("admin", s.handleEventUnenroll)))
-	mux.HandleFunc("/admin/events/{id}/enroll-search", s.csrfMiddleware(s.requireRole("admin", s.handleEnrollSearch)))
 	// Story 2.3 lifecycle routes
-	mux.HandleFunc("POST /admin/events/{id}/status", s.csrfMiddleware(s.requireRole("admin", s.handleEventStatus)))
 	mux.HandleFunc("POST /admin/events/{id}/update", s.csrfMiddleware(s.requireRole("admin", s.handleAdminEventUpdate)))
 	mux.HandleFunc("POST /admin/events/{id}/delete", s.csrfMiddleware(s.requireRole("admin", s.handleAdminEventDelete)))
 	// Create Event — explicit method-scoped route so the POST to /admin/events
