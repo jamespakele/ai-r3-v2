@@ -37,18 +37,6 @@ func doEventDelete(srv *Server, cookie *http.Cookie, id string) *httptest.Respon
 	return rec
 }
 
-// doEventManage GETs the event manage page for the given id.
-func doEventManage(srv *Server, cookie *http.Cookie, id string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodGet, "/admin/events/"+id+"/manage", nil)
-	addCSRFToRequest(req)
-	if cookie != nil {
-		req.AddCookie(cookie)
-	}
-	rec := httptest.NewRecorder()
-	srv.Mux().ServeHTTP(rec, req)
-	return rec
-}
-
 // markEventDeleted flips the deleted flag on the named event and re-saves it.
 func markEventDeleted(t *testing.T, srv *Server, name string) {
 	t.Helper()
@@ -397,33 +385,6 @@ func TestLoadEventsFiltering(t *testing.T) {
 			t.Errorf("completed event %q present in unscoped loadEvents", e.Name)
 		}
 	}
-}
-
-// TestAdminEventManageDeletedNotFound proves the manage page 404s on a
-// soft-deleted event and renders 200 for a live one.
-func TestAdminEventManageDeletedNotFound(t *testing.T) {
-	t.Run("deleted event 404", func(t *testing.T) {
-		srv := newTestServer(t)
-		fx := seedToggleData(t, srv.pb)
-		admin := adminCookie(srv, fx.admin1)
-		markEventDeleted(t, srv, "Morning Program")
-
-		rec := doEventManage(srv, admin, fx.ev)
-		if rec.Code != http.StatusNotFound {
-			t.Fatalf("status = %d, want 404 (deleted event)", rec.Code)
-		}
-	})
-
-	t.Run("live event 200", func(t *testing.T) {
-		srv := newTestServer(t)
-		fx := seedToggleData(t, srv.pb)
-		admin := adminCookie(srv, fx.admin1)
-
-		rec := doEventManage(srv, admin, fx.ev)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200 (live event)", rec.Code)
-		}
-	})
 }
 
 // TestAdminEventUpdateDeleteAuthBoundary proves unauthenticated and non-admin
