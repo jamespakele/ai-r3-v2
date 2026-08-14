@@ -64,16 +64,18 @@ type PersonLegendItem struct {
 // PersonDayDetailView is the view model for the day-detail modal fragment
 // (FR17). Consumed by the "person-attendance-day" template.
 type PersonDayDetailView struct {
-	IntakeID      string
-	Date          string
-	HasRecord     bool
-	Status        string
-	StatusOptions []PersonStatusOption
-	EventName     string
-	RecordedBy    string
-	CheckInTime   string
-	Note          string
-	Error         string
+	IntakeID        string
+	Date            string
+	HasRecord       bool
+	Status          string
+	StatusOptions   []PersonStatusOption
+	Events          []Event
+	SelectedEventID string
+	EventName       string
+	RecordedBy      string
+	CheckInTime     string
+	Note            string
+	Error           string
 }
 
 // PersonStatusOption is one option in the status dropdown.
@@ -226,6 +228,7 @@ func (s *Server) buildPersonDayDetailView(intake *core.Record, date, errMsg stri
 		Date:     date,
 		Error:    errMsg,
 	}
+	view.Events, _ = s.loadEvents(intake.GetString("site"))
 	if attCol, err := s.attendanceCollection(); err == nil {
 		filter := fmt.Sprintf("intake='%s' && date='%s'",
 			mcpmod.EscapeFilter(intake.Id), mcpmod.EscapeFilter(date))
@@ -234,6 +237,7 @@ func (s *Server) buildPersonDayDetailView(intake *core.Record, date, errMsg stri
 			rec := recs[0]
 			view.HasRecord = true
 			view.Status = rec.GetString("status")
+			view.SelectedEventID = rec.GetString("event")
 			view.EventName = s.nameFor("events", rec.GetString("event"))
 			view.RecordedBy = s.nameFor("users", rec.GetString("recorded_by"))
 			view.CheckInTime = rec.GetString("check_in_time")
@@ -264,14 +268,18 @@ func (s *Server) handlePersonAttendanceDaySave(w http.ResponseWriter, r *http.Re
 		s.renderDayError(w, intake, date, "Note must be 500 characters or fewer")
 		return
 	}
+	eventID := strings.TrimSpace(r.FormValue("event_id"))
+	if !requireEventID(w, eventID) {
+		return
+	}
 
 	attCol, err := s.attendanceCollection()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	filter := fmt.Sprintf("intake='%s' && date='%s'",
-		mcpmod.EscapeFilter(intake.Id), mcpmod.EscapeFilter(date))
+	filter := fmt.Sprintf("intake='%s' && date='%s' && event='%s'",
+		mcpmod.EscapeFilter(intake.Id), mcpmod.EscapeFilter(date), mcpmod.EscapeFilter(eventID))
 	recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -282,6 +290,7 @@ func (s *Server) handlePersonAttendanceDaySave(w http.ResponseWriter, r *http.Re
 		rec.Set("status", status)
 		rec.Set("note", note)
 		rec.Set("recorded_by", u.ID)
+		rec.Set("event", eventID)
 		if err := s.pb.Save(rec); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -294,6 +303,7 @@ func (s *Server) handlePersonAttendanceDaySave(w http.ResponseWriter, r *http.Re
 		rec.Set("note", note)
 		rec.Set("site", intake.GetString("site"))
 		rec.Set("recorded_by", u.ID)
+		rec.Set("event", eventID)
 		if err := s.pb.Save(rec); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

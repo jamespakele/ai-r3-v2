@@ -284,20 +284,31 @@ func TestPersonAttendanceTemplateRenders(t *testing.T) {
 			{Value: "excused", Label: "Excused"},
 			{Value: "walk_in", Label: "Walk-in"},
 		},
-		EventName:   "Morning Program",
-		RecordedBy:  "Admin One",
-		CheckInTime: "2026-08-01 20:30:00",
-		Note:        "on time",
+		Events: []Event{
+			{ID: "ev1", Name: "Morning Program"},
+			{ID: "ev2", Name: "Evening Program"},
+		},
+		SelectedEventID: "ev1",
+		EventName:       "Morning Program",
+		RecordedBy:      "Admin One",
+		CheckInTime:     "2026-08-01 20:30:00",
+		Note:            "on time",
 	}
 	var dayBuf bytes.Buffer
 	if err := tpl.ExecuteTemplate(&dayBuf, "person-attendance-day", day); err != nil {
 		t.Fatalf("render person-attendance-day: %v", err)
 	}
 	dayOut := dayBuf.String()
-	for _, want := range []string{"Morning Program", "Admin One", "2026-08-01 20:30:00", "on time", "Delete this attendance record?"} {
+	for _, want := range []string{"Morning Program", "Evening Program", "Admin One", "2026-08-01 20:30:00", "on time", "Delete this attendance record?"} {
 		if !strings.Contains(dayOut, want) {
 			t.Errorf("person-attendance-day output missing %q", want)
 		}
+	}
+	if !strings.Contains(dayOut, `<select name="event_id"`) {
+		t.Errorf("person-attendance-day output missing event selector")
+	}
+	if !strings.Contains(dayOut, `value="ev1" selected`) {
+		t.Errorf("person-attendance-day output missing selected event option")
 	}
 
 	// Day detail fragment empty state.
@@ -310,6 +321,9 @@ func TestPersonAttendanceTemplateRenders(t *testing.T) {
 			{Value: "excused", Label: "Excused"},
 			{Value: "walk_in", Label: "Walk-in"},
 		},
+		Events: []Event{
+			{ID: "ev1", Name: "Morning Program"},
+		},
 	}
 	var emptyBuf bytes.Buffer
 	if err := tpl.ExecuteTemplate(&emptyBuf, "person-attendance-day", empty); err != nil {
@@ -317,5 +331,8 @@ func TestPersonAttendanceTemplateRenders(t *testing.T) {
 	}
 	if !strings.Contains(emptyBuf.String(), "No attendance recorded") {
 		t.Errorf("empty day output missing empty-state text")
+	}
+	if !strings.Contains(emptyBuf.String(), `<select name="event_id"`) {
+		t.Errorf("empty day output missing event selector")
 	}
 }

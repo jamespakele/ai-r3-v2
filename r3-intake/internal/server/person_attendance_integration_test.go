@@ -279,6 +279,12 @@ func TestPersonAttendanceDayGet(t *testing.T) {
 				t.Errorf("day detail missing %q", want)
 			}
 		}
+		if !strings.Contains(body, `<select name="event_id"`) {
+			t.Errorf("day detail missing event selector")
+		}
+		if !strings.Contains(body, `value="`+fx.ev+`" selected`) {
+			t.Errorf("day detail missing selected event option")
+		}
 	})
 
 	t.Run("date without record", func(t *testing.T) {
@@ -297,7 +303,7 @@ func TestPersonAttendanceDaySaveCreate(t *testing.T) {
 	fx := seedPersonAttendanceData(t, srv.pb)
 	admin := adminCookie(srv, fx.admin1)
 
-	form := url.Values{"date": {"2026-08-20"}, "status": {"present"}, "note": {"hello"}}
+	form := url.Values{"date": {"2026-08-20"}, "status": {"present"}, "note": {"hello"}, "event_id": {fx.ev}}
 	rec := doPersonAttendance(srv, admin, "POST", "/intake/"+fx.i1+"/attendance/day", form)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -320,6 +326,9 @@ func TestPersonAttendanceDaySaveCreate(t *testing.T) {
 	if att.GetString("status") != "present" || att.GetString("note") != "hello" {
 		t.Errorf("status/note = %q/%q, want present/hello", att.GetString("status"), att.GetString("note"))
 	}
+	if att.GetString("event") != fx.ev {
+		t.Errorf("event = %q, want %q", att.GetString("event"), fx.ev)
+	}
 
 	// The day fragment now shows the new record.
 	day := doPersonAttendance(srv, admin, "GET", "/intake/"+fx.i1+"/attendance/day?date=2026-08-20", nil)
@@ -334,12 +343,12 @@ func TestPersonAttendanceDaySaveUpdate(t *testing.T) {
 	admin := adminCookie(srv, fx.admin1)
 
 	// First POST updates the existing 2026-08-01 record.
-	form1 := url.Values{"date": {"2026-08-01"}, "status": {"absent"}, "note": {"updated"}}
+	form1 := url.Values{"date": {"2026-08-01"}, "status": {"absent"}, "note": {"updated"}, "event_id": {fx.ev}}
 	if rec := doPersonAttendance(srv, admin, "POST", "/intake/"+fx.i1+"/attendance/day", form1); rec.Code != http.StatusOK {
 		t.Fatalf("first POST = %d, want 200", rec.Code)
 	}
 	// Second POST on the same date.
-	form2 := url.Values{"date": {"2026-08-01"}, "status": {"present"}, "note": {"final"}}
+	form2 := url.Values{"date": {"2026-08-01"}, "status": {"present"}, "note": {"final"}, "event_id": {fx.ev}}
 	if rec := doPersonAttendance(srv, admin, "POST", "/intake/"+fx.i1+"/attendance/day", form2); rec.Code != http.StatusOK {
 		t.Fatalf("second POST = %d, want 200", rec.Code)
 	}
@@ -381,7 +390,7 @@ func TestPersonAttendanceDayValidation(t *testing.T) {
 	admin := adminCookie(srv, fx.admin1)
 
 	t.Run("invalid date", func(t *testing.T) {
-		form := url.Values{"date": {"not-a-date"}, "status": {"present"}}
+		form := url.Values{"date": {"not-a-date"}, "status": {"present"}, "event_id": {fx.ev}}
 		rec := doPersonAttendance(srv, admin, "POST", "/intake/"+fx.i1+"/attendance/day", form)
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("invalid date = %d, want 400", rec.Code)
@@ -389,7 +398,7 @@ func TestPersonAttendanceDayValidation(t *testing.T) {
 	})
 
 	t.Run("invalid status", func(t *testing.T) {
-		form := url.Values{"date": {"2026-08-20"}, "status": {"bogus"}}
+		form := url.Values{"date": {"2026-08-20"}, "status": {"bogus"}, "event_id": {fx.ev}}
 		rec := doPersonAttendance(srv, admin, "POST", "/intake/"+fx.i1+"/attendance/day", form)
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("invalid status = %d, want 400", rec.Code)
@@ -397,10 +406,51 @@ func TestPersonAttendanceDayValidation(t *testing.T) {
 	})
 
 	t.Run("note too long", func(t *testing.T) {
-		form := url.Values{"date": {"2026-08-20"}, "status": {"present"}, "note": {strings.Repeat("x", 501)}}
+		form := url.Values{"date": {"2026-08-20"}, "status": {"present"}, "note": {strings.Repeat("x", 501)}, "event_id": {fx.ev}}
 		rec := doPersonAttendance(srv, admin, "POST", "/intake/"+fx.i1+"/attendance/day", form)
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("long note = %d, want 400", rec.Code)
 		}
 	})
+}
+
+// TestPersonAttendanceDayRequiresEvent proves a day save without an event_id
+// is rejected with a 400 and writes no attendance record.
+func TestPersonAttendanceDayRequiresEvent(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedPersonAttendanceData(t, srv.pb)
+	admin := adminCookie(srv, fx.admin1)
+
+	form := url.Values{"date": {"2026-08-20"}, "status": {"present"}, "note": {"hello"}}
+	rec := doPersonAttendance(srv, admin, "POST", "/intake/"+fx.i1+"/attendance/day", form)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (event required)", rec.Code)
+	}
+	if body := strings.TrimSpace(rec.Body.String()); body != "an event must be selected before recording attendance" {
+		t.Errorf("body = %q, want canonical message", body)
+	}
+	if att := findAttendance(t, srv, fx.i1, "2026-08-20"); att != nil {
+		t.Fatalf("expected NO attendance record without an event, got one")
+	}
+}
+
+// TestPersonAttendanceDayStoresEvent proves a day save with an event_id stores
+// that event on the created record.
+func TestPersonAttendanceDayStoresEvent(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedPersonAttendanceData(t, srv.pb)
+	admin := adminCookie(srv, fx.admin1)
+
+	form := url.Values{"date": {"2026-08-20"}, "status": {"present"}, "note": {"hello"}, "event_id": {fx.ev}}
+	rec := doPersonAttendance(srv, admin, "POST", "/intake/"+fx.i1+"/attendance/day", form)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	att := findAttendance(t, srv, fx.i1, "2026-08-20")
+	if att == nil {
+		t.Fatalf("expected attendance record")
+	}
+	if att.GetString("event") != fx.ev {
+		t.Errorf("event = %q, want %q", att.GetString("event"), fx.ev)
+	}
 }

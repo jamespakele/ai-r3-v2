@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
@@ -14,7 +15,7 @@ import (
 // toggleFixtures holds the record ids created by seedToggleData so tests can
 // reference them.
 type toggleFixtures struct {
-	site, admin1, iNoSite, iLocated string
+	site, event, admin1, iNoSite, iLocated string
 }
 
 // seedToggleData creates one active site, one admin user, one intake with no
@@ -43,6 +44,16 @@ func seedToggleData(t *testing.T, pb *pocketbase.PocketBase) toggleFixtures {
 		return r
 	}())
 
+	event := save("event", func() *core.Record {
+		r := rec("events")
+		r.Set("site", site)
+		r.Set("name", "Morning Program")
+		r.Set("start_date", "2026-08-01")
+		r.Set("end_date", "2026-08-31")
+		r.Set("status", "active")
+		return r
+	}())
+
 	admin1 := save("admin1", func() *core.Record {
 		r := rec("users")
 		r.SetEmail("admin@example.com")
@@ -64,7 +75,7 @@ func seedToggleData(t *testing.T, pb *pocketbase.PocketBase) toggleFixtures {
 		return r
 	}())
 
-	return toggleFixtures{site, admin1, iNoSite, iLocated}
+	return toggleFixtures{site, event, admin1, iNoSite, iLocated}
 }
 
 // doToggle POSTs the attendance toggle with the HTMX request header and the
@@ -117,6 +128,7 @@ func TestToggleLocated(t *testing.T) {
 		"intake_id": {fx.iLocated},
 		"date":      {"2026-08-13"},
 		"site_id":   {fx.site},
+		"event_id":  {fx.event},
 		"from":      {"2026-08-01"},
 		"to":        {"2026-08-14"},
 	}
@@ -131,5 +143,165 @@ func TestToggleLocated(t *testing.T) {
 	}
 	if att.GetString("site") != fx.site {
 		t.Errorf("site = %q, want %q", att.GetString("site"), fx.site)
+	}
+	if att.GetString("event") != fx.event {
+		t.Errorf("event = %q, want %q", att.GetString("event"), fx.event)
+	}
+}
+
+// TestToggleRequiresEvent proves a toggle without an event_id is rejected
+// with a 400 and writes no attendance record.
+func TestToggleRequiresEvent(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedToggleData(t, srv.pb)
+	admin := adminCookie(srv, fx.admin1)
+
+	form := url.Values{
+		"intake_id": {fx.iLocated},
+		"date":      {"2026-08-13"},
+		"site_id":   {fx.site},
+		"from":      {"2026-08-01"},
+		"to":        {"2026-08-14"},
+	}
+	rec := doToggle(srv, admin, form)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (event required)", rec.Code)
+	}
+	if body := strings.TrimSpace(rec.Body.String()); body != "an event must be selected before recording attendance" {
+		t.Errorf("body = %q, want canonical message", body)
+	}
+	if att := findAttendance(t, srv, fx.iLocated, "2026-08-13"); att != nil {
+		t.Fatalf("expected NO attendance record without an event, got one")
+	}
+}
+
+// TestToggleStoresEvent proves a toggle with an event_id stores that event on
+// the created record.
+func TestToggleStoresEvent(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedToggleData(t, srv.pb)
+	admin := adminCookie(srv, fx.admin1)
+
+	form := url.Values{
+		"intake_id": {fx.iLocated},
+		"date":      {"2026-08-13"},
+		"site_id":   {fx.site},
+		"event_id":  {fx.event},
+		"from":      {"2026-08-01"},
+		"to":        {"2026-08-14"},
+	}
+	rec := doToggle(srv, admin, form)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	att := findAttendance(t, srv, fx.iLocated, "2026-08-13")
+	if att == nil {
+		t.Fatalf("expected attendance record")
+	}
+	if att.GetString("event") != fx.event {
+		t.Errorf("event = %q, want %q", att.GetString("event"), fx.event)
+	}
+}
+
+// TestWalkinRequiresEvent proves a walk-in without an event_id is rejected
+// with a 400 and writes no attendance record.
+func TestWalkinRequiresEvent(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedToggleData(t, srv.pb)
+	admin := adminCookie(srv, fx.admin1)
+
+	form := url.Values{
+		"intake_id": {fx.iLocated},
+		"site_id":   {fx.site},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/attendance/walkin", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(admin)
+	rec := httptest.NewRecorder()
+	srv.Mux().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (event required)", rec.Code)
+	}
+	if body := strings.TrimSpace(rec.Body.String()); body != "an event must be selected before recording attendance" {
+		t.Errorf("body = %q, want canonical message", body)
+	}
+	today := time.Now().In(hst).Format("2006-01-02")
+	if att := findAttendance(t, srv, fx.iLocated, today); att != nil {
+		t.Fatalf("expected NO walk-in record without an event, got one")
+	}
+}
+
+// TestToggleScopesPerEvent proves the idempotency filter keys on
+// (event, intake, date): toggling a second event creates a separate record
+// rather than clobbering the first event's record.
+func TestToggleScopesPerEvent(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedToggleData(t, srv.pb)
+	admin := adminCookie(srv, fx.admin1)
+
+	// A second event for the same site.
+	ev2 := func() string {
+		col, err := srv.pb.FindCollectionByNameOrId("events")
+		if err != nil {
+			t.Fatalf("events collection: %v", err)
+		}
+		r := core.NewRecord(col)
+		r.Set("site", fx.site)
+		r.Set("name", "Evening Program")
+		r.Set("start_date", "2026-08-01")
+		r.Set("end_date", "2026-08-31")
+		r.Set("status", "active")
+		if err := srv.pb.Save(r); err != nil {
+			t.Fatalf("save event2: %v", err)
+		}
+		return r.Id
+	}()
+	ev2ID := ev2
+
+	base := url.Values{
+		"intake_id": {fx.iLocated},
+		"date":      {"2026-08-13"},
+		"site_id":   {fx.site},
+		"from":      {"2026-08-01"},
+		"to":        {"2026-08-14"},
+	}
+
+	formA := url.Values{}
+	for k, v := range base {
+		formA[k] = v
+	}
+	formA["event_id"] = []string{fx.event}
+	if rec := doToggle(srv, admin, formA); rec.Code != http.StatusOK {
+		t.Fatalf("toggle event A = %d, want 200", rec.Code)
+	}
+
+	formB := url.Values{}
+	for k, v := range base {
+		formB[k] = v
+	}
+	formB["event_id"] = []string{ev2ID}
+	if rec := doToggle(srv, admin, formB); rec.Code != http.StatusOK {
+		t.Fatalf("toggle event B = %d, want 200", rec.Code)
+	}
+
+	// Two distinct records coexist: one per event, same intake/date.
+	col, err := srv.pb.FindCollectionByNameOrId("attendance")
+	if err != nil {
+		t.Fatalf("attendance collection: %v", err)
+	}
+	recs, err := srv.pb.FindRecordsByFilter(col.Id,
+		"intake='"+fx.iLocated+"' && date='2026-08-13'", "", 10, 0)
+	if err != nil {
+		t.Fatalf("find attendance: %v", err)
+	}
+	if len(recs) != 2 {
+		t.Fatalf("record count = %d, want 2 (one per event)", len(recs))
+	}
+	events := map[string]bool{}
+	for _, r := range recs {
+		events[r.GetString("event")] = true
+	}
+	if !events[fx.event] || !events[ev2ID] {
+		t.Errorf("expected records for both events, got %v", events)
 	}
 }

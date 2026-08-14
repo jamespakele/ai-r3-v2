@@ -454,6 +454,15 @@ func cycleStatus(current string) string {
 	return ""
 }
 
+// requireEventID rejects an attendance write that does not name an event.
+func requireEventID(w http.ResponseWriter, eventID string) bool {
+	if strings.TrimSpace(eventID) == "" {
+		http.Error(w, "an event must be selected before recording attendance", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
 // handleToggle handles the HTMX cell toggle POST. It cycles the attendance
 // status for (intake, date) and returns the updated cell fragment (HTMX) or a
 // 303 redirect back to the matrix (no-JS fallback).
@@ -524,6 +533,9 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "attendance requires a location", http.StatusBadRequest)
 		return
 	}
+	if !requireEventID(w, eventID) {
+		return
+	}
 
 	attCol, err := s.attendanceCollection()
 	if err != nil {
@@ -532,10 +544,8 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Find existing record.
-	filter := fmt.Sprintf("intake='%s' && date='%s'", mcpmod.EscapeFilter(intakeID), mcpmod.EscapeFilter(date))
-	if eventID != "" {
-		filter += fmt.Sprintf(" && event='%s'", mcpmod.EscapeFilter(eventID))
-	}
+	filter := fmt.Sprintf("intake='%s' && date='%s' && event='%s'",
+		mcpmod.EscapeFilter(intakeID), mcpmod.EscapeFilter(date), mcpmod.EscapeFilter(eventID))
 	recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -562,14 +572,13 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 		rec.Set("status", next)
 		rec.Set("recorded_by", u.ID)
 		rec.Set("check_in_time", now)
-		if eventID != "" {
-			rec.Set("event", eventID)
-		}
+		rec.Set("event", eventID)
 		_ = s.pb.Save(rec)
 	case next != "" && existing != nil:
 		existing.Set("status", next)
 		existing.Set("recorded_by", u.ID)
 		existing.Set("check_in_time", now)
+		existing.Set("event", eventID)
 		_ = s.pb.Save(existing)
 	}
 
@@ -684,6 +693,10 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no site resolved", http.StatusBadRequest)
 		return
 	}
+	eventID := strings.TrimSpace(r.FormValue("event_id"))
+	if !requireEventID(w, eventID) {
+		return
+	}
 	today := time.Now().In(hst).Format("2006-01-02")
 
 	intakeCol, err := s.intakeCollection()
@@ -723,8 +736,9 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Idempotent upsert for (intake, date).
-	filter := fmt.Sprintf("intake='%s' && date='%s'", mcpmod.EscapeFilter(intakeID), mcpmod.EscapeFilter(today))
+	// Idempotent upsert for (event, intake, date).
+	filter := fmt.Sprintf("intake='%s' && date='%s' && event='%s'",
+		mcpmod.EscapeFilter(intakeID), mcpmod.EscapeFilter(today), mcpmod.EscapeFilter(eventID))
 	recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -737,6 +751,7 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 		existing.Set("site", siteID)
 		existing.Set("recorded_by", u.ID)
 		existing.Set("check_in_time", now)
+		existing.Set("event", eventID)
 		_ = s.pb.Save(existing)
 	} else {
 		rec := core.NewRecord(attCol)
@@ -746,6 +761,7 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 		rec.Set("status", "walk_in")
 		rec.Set("recorded_by", u.ID)
 		rec.Set("check_in_time", now)
+		rec.Set("event", eventID)
 		_ = s.pb.Save(rec)
 	}
 

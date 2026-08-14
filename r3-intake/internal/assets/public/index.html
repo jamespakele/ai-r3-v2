@@ -1247,12 +1247,18 @@
         hx-post="/intake/{{.IntakeID}}/attendance/day?date={{.Date}}" hx-target="#person-attendance-calendar" hx-swap="outerHTML">
     <input type="hidden" name="date" value="{{.Date}}">
     <div class="field-group">
+      <label class="field-label">Event <span class="field-required">*</span></label>
+      <select name="event_id" class="field-input" required>
+        <option value="">Select an event…</option>
+        {{range .Events}}<option value="{{.ID}}" {{if eq $.SelectedEventID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </div>
+    <div class="field-group">
       <label class="field-label">Status</label>
       <select name="status" class="field-input">
         {{range .StatusOptions}}<option value="{{.Value}}" {{if .Selected}}selected{{end}}>{{.Label}}</option>{{end}}
       </select>
     </div>
-    {{if .EventName}}<div class="field-group"><label class="field-label">Event</label><div class="field-input">{{.EventName}}</div></div>{{end}}
     {{if .RecordedBy}}<div class="field-group"><label class="field-label">Recorded by</label><div class="field-input">{{.RecordedBy}}</div></div>{{end}}
     {{if .CheckInTime}}<div class="field-group"><label class="field-label">Check-in time</label><div class="field-input">{{.CheckInTime}}</div></div>{{end}}
     <div class="field-group">
@@ -1275,6 +1281,13 @@
   <form method="post" action="/intake/{{.IntakeID}}/attendance/day?date={{.Date}}"
         hx-post="/intake/{{.IntakeID}}/attendance/day?date={{.Date}}" hx-target="#person-attendance-calendar" hx-swap="outerHTML">
     <input type="hidden" name="date" value="{{.Date}}">
+    <div class="field-group">
+      <label class="field-label">Event <span class="field-required">*</span></label>
+      <select name="event_id" class="field-input" required>
+        <option value="">Select an event…</option>
+        {{range .Events}}<option value="{{.ID}}" {{if eq $.SelectedEventID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </div>
     <div class="field-group">
       <label class="field-label">Status</label>
       <select name="status" class="field-input">
