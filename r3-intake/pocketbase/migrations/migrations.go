@@ -20,4 +20,5 @@ func Register(app *pocketbase.PocketBase) {
 	migrations.Register(upAttendanceUniqueIndexes, downAttendanceUniqueIndexes, "013_attendance_unique_indexes.go")
 	migrations.Register(upUsersDeleted, downUsersDeleted, "014_users_deleted.go")
 	migrations.Register(upEventsDeleted, downEventsDeleted, "014_events_deleted.go")
+	migrations.Register(upSitesDeleted, downSitesDeleted, "014_sites_deleted.go")
 }

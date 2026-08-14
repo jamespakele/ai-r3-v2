@@ -687,21 +687,34 @@
         <table class="admin-table">
           <thead><tr><th>Name</th><th>Address</th><th>Active</th><th>Default</th><th>Order</th>{{if .IsAdmin}}<th></th>{{end}}</tr></thead>
           <tbody>
-          {{range .Sites}}
+          {{range $site := .Sites}}
             <tr>
-              <td>{{.Name}}</td>
-              <td>{{.Address}}</td>
-              <td>{{if .Active}}Yes{{else}}No{{end}}</td>
-              <td>{{if .Default}}Yes{{else}}No{{end}}</td>
-              <td>{{.SortOrder}}</td>
+              <td>{{$site.Name}}</td>
+              <td>{{$site.Address}}</td>
+              <td>{{if $site.Active}}Yes{{else}}No{{end}}</td>
+              <td>{{if $site.Default}}Yes{{else}}No{{end}}</td>
+              <td>{{$site.SortOrder}}</td>
               {{if $.IsAdmin}}<td>
-                <form method="post" action="/admin/sites/{{.ID}}/default" style="display:inline">
-                  <button class="btn btn-tiny" type="submit" {{if .Default}}disabled{{end}}>Set Default</button>
+                <form method="post" action="/admin/sites/{{$site.ID}}/default" style="display:inline">
+                  <button class="btn btn-tiny" type="submit" {{if $site.Default}}disabled{{end}}>Set Default</button>
                 </form>
-                <form method="post" action="/admin/sites/{{.ID}}/toggle" style="display:inline">
-                  <button class="btn btn-tiny" type="submit">{{if .Active}}Deactivate{{else}}Activate{{end}}</button>
+                <form method="post" action="/admin/sites/{{$site.ID}}/toggle" style="display:inline">
+                  <button class="btn btn-tiny" type="submit">{{if $site.Active}}Deactivate{{else}}Activate{{end}}</button>
+                </form>
+                <button type="button" class="btn btn-tiny" onclick="document.getElementById('edit-site-{{$site.ID}}').style.display=document.getElementById('edit-site-{{$site.ID}}').style.display==='none'?'table-row':'none'">Edit</button>
+                <form method="post" action="/admin/sites/{{$site.ID}}/delete" style="display:inline" onsubmit="return confirm('Delete this location?')">
+                  <button class="btn btn-tiny btn-danger" type="submit">Delete</button>
                 </form>
               </td>{{end}}
+            </tr>
+            <tr id="edit-site-{{$site.ID}}" style="display:none">
+              <td colspan="6">
+                <form method="post" action="/admin/sites/{{$site.ID}}/update" class="inline-form">
+                  <input type="text" name="name" value="{{$site.Name}}" placeholder="Site name" required class="field-input">
+                  <input type="text" name="address" value="{{$site.Address}}" placeholder="Address" class="field-input">
+                  <button type="submit" class="btn btn-primary">Save</button>
+                </form>
+              </td>
             </tr>
           {{end}}
           </tbody>

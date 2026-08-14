@@ -223,6 +223,10 @@ func (s *Server) handleAdminSub(w http.ResponseWriter, r *http.Request) {
 		s.adminSiteSetDefault(w, r, path)
 	case strings.HasPrefix(path, "sites/") && strings.HasSuffix(path, "/toggle") && u.Role == "admin":
 		s.adminSiteToggle(w, r, path)
+	case strings.HasPrefix(path, "sites/") && strings.HasSuffix(path, "/update") && u.Role == "admin":
+		s.adminSiteUpdate(w, r, path)
+	case strings.HasPrefix(path, "sites/") && strings.HasSuffix(path, "/delete") && u.Role == "admin":
+		s.adminSiteDelete(w, r, path)
 	case strings.HasPrefix(path, "intake/") && strings.HasSuffix(path, "/claim"):
 		s.adminClaim(w, r, u)
 	case strings.HasPrefix(path, "intake/") && strings.HasSuffix(path, "/complete"):
@@ -290,6 +294,47 @@ func (s *Server) adminSiteToggle(w http.ResponseWriter, r *http.Request, path st
 	}
 	rec.Set("active", !rec.GetBool("active"))
 	_ = s.pb.Save(rec)
+	http.Redirect(w, r, "/admin?tab=sites", http.StatusSeeOther)
+}
+
+// adminSiteUpdate edits a site's name and address. Soft-deleted sites are
+// treated as not found. Admin-only (route-gated).
+func (s *Server) adminSiteUpdate(w http.ResponseWriter, r *http.Request, path string) {
+	id := strings.TrimSuffix(strings.TrimPrefix(path, "sites/"), "/update")
+	rec, err := s.pb.FindRecordById("sites", id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if rec.GetBool("deleted") {
+		http.NotFound(w, r)
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" {
+		http.Redirect(w, r, "/admin?tab=sites", http.StatusSeeOther)
+		return
+	}
+	rec.Set("name", name)
+	rec.Set("address", strings.TrimSpace(r.FormValue("address")))
+	_ = s.pb.Save(rec)
+	http.Redirect(w, r, "/admin?tab=sites", http.StatusSeeOther)
+}
+
+// adminSiteDelete soft-deletes a site by setting deleted=true. The record row
+// is kept; only the flag flips. Idempotent: an already-deleted site is a
+// no-op. Admin-only (route-gated).
+func (s *Server) adminSiteDelete(w http.ResponseWriter, r *http.Request, path string) {
+	id := strings.TrimSuffix(strings.TrimPrefix(path, "sites/"), "/delete")
+	rec, err := s.pb.FindRecordById("sites", id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if !rec.GetBool("deleted") {
+		rec.Set("deleted", true)
+		_ = s.pb.Save(rec)
+	}
 	http.Redirect(w, r, "/admin?tab=sites", http.StatusSeeOther)
 }
 

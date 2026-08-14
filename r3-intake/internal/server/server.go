@@ -260,15 +260,16 @@ type Site struct {
 }
 
 // loadSites returns active sites sorted by sort_order then name. When
-// includeInactive is true, all sites are returned (admin views).
+// includeInactive is true, all non-deleted sites are returned (admin views).
+// Soft-deleted sites (deleted=true) are always excluded.
 func (s *Server) loadSites(includeInactive bool) ([]Site, error) {
 	col, err := s.sitesCollection()
 	if err != nil {
 		return nil, err
 	}
-	filter := "active = true"
+	filter := "active = true && deleted = false"
 	if includeInactive {
-		filter = "1=1"
+		filter = "deleted = false"
 	}
 	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "sort_order,name", 1000, 0)
 	if err != nil {
