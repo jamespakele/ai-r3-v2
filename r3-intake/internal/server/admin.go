@@ -567,7 +567,7 @@ func (s *Server) loadEnrolledRoster(eventID, start, end string) ([]EnrolledRow, 
 	if err != nil {
 		return nil, err
 	}
-	filter := fmt.Sprintf("event='%s' && deleted=false", mcpmod.EscapeFilter(eventID))
+	filter := fmt.Sprintf("event='%s' && (deleted = false || deleted = null)", mcpmod.EscapeFilter(eventID))
 	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "enrolled_date", 1000, 0)
 	if err != nil {
 		return nil, err
@@ -768,8 +768,8 @@ func (s *Server) respondRoster(w http.ResponseWriter, r *http.Request, eventID s
 	_ = s.tpl.ExecuteTemplate(w, "event-roster", view)
 }
 
-// handleEnrollSearch returns an HTML fragment listing intake records at the
-// event's site whose name matches the ?name= query. Min 2 chars, max 10
+// handleEnrollSearch returns an HTML fragment listing intake records whose
+// name matches the ?name= query, across all sites. Min 2 chars, max 10
 // results. Already-enrolled results are marked.
 func (s *Server) handleEnrollSearch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -782,19 +782,15 @@ func (s *Server) handleEnrollSearch(w http.ResponseWriter, r *http.Request) {
 	if len(q) < 2 {
 		return
 	}
-	eventRec, err := s.pb.FindRecordById("events", id)
+	_, err := s.pb.FindRecordById("events", id)
 	if err != nil {
 		return
 	}
-	eventSite := eventRec.GetString("site")
 	col, err := s.intakeCollection()
 	if err != nil {
 		return
 	}
 	filter := fmt.Sprintf(`name ~ "%s"`, mcpmod.EscapeFilter(q))
-	if eventSite != "" {
-		filter += fmt.Sprintf(" && site='%s'", mcpmod.EscapeFilter(eventSite))
-	}
 	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "-created", 10, 0)
 	if err != nil {
 		return
