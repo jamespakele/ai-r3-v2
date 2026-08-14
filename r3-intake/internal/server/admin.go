@@ -59,13 +59,15 @@ type AdminView struct {
 
 // EventRow is the flat admin list view of an events record.
 type EventRow struct {
-	ID        string
-	Name      string
-	SiteName  string
-	StartDate string
-	EndDate   string
-	Enrolled  int
-	Status    string
+	ID          string
+	Name        string
+	SiteID      string
+	SiteName    string
+	StartDate   string
+	EndDate     string
+	Description string
+	Enrolled    int
+	Status      string
 }
 
 // EnrolledRow is one row of the event roster with attendance stats.
@@ -976,13 +978,15 @@ func (s *Server) loadAllEvents() ([]EventRow, error) {
 			site = "—"
 		}
 		out = append(out, EventRow{
-			ID:        r.Id,
-			Name:      r.GetString("name"),
-			SiteName:  site,
-			StartDate: r.GetString("start_date"),
-			EndDate:   r.GetString("end_date"),
-			Enrolled:  s.loadEnrolledCount(r.Id),
-			Status:    r.GetString("status"),
+			ID:          r.Id,
+			Name:        r.GetString("name"),
+			SiteID:      r.GetString("site"),
+			SiteName:    site,
+			StartDate:   r.GetString("start_date"),
+			EndDate:     r.GetString("end_date"),
+			Description: r.GetString("description"),
+			Enrolled:    s.loadEnrolledCount(r.Id),
+			Status:      r.GetString("status"),
 		})
 	}
 	return out, nil
