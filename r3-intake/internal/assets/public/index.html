@@ -17,6 +17,32 @@
   document.addEventListener('htmx:configRequest', function(e){
     var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
   });
+  function inject(form){
+    if(!form || form.tagName!=='FORM') return;
+    if((form.method||'get').toLowerCase()!=='post') return;
+    if(form.hasAttribute('hx-post')) return;
+    if(form.querySelector('input[name="csrf_token"]')) return;
+    var t=getCookie('r3_csrf'); if(!t) return;
+    var h=document.createElement('input');
+    h.type='hidden'; h.name='csrf_token'; h.value=t;
+    form.appendChild(h);
+  }
+  function scan(container){
+    var roots=container?[container]:document.querySelectorAll('form');
+    for(var i=0;i<roots.length;i++) inject(roots[i]);
+    if(container && container.querySelectorAll){
+      var fs=container.querySelectorAll('form');
+      for(var j=0;j<fs.length;j++) inject(fs[j]);
+    }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ scan(document); });
+  }else{
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function(e){
+    if(e.detail && e.detail.el) scan(e.detail.el);
+  });
 })();
 </script>
 </head>
@@ -413,6 +439,32 @@
   document.addEventListener('htmx:configRequest', function(e){
     var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
   });
+  function inject(form){
+    if(!form || form.tagName!=='FORM') return;
+    if((form.method||'get').toLowerCase()!=='post') return;
+    if(form.hasAttribute('hx-post')) return;
+    if(form.querySelector('input[name="csrf_token"]')) return;
+    var t=getCookie('r3_csrf'); if(!t) return;
+    var h=document.createElement('input');
+    h.type='hidden'; h.name='csrf_token'; h.value=t;
+    form.appendChild(h);
+  }
+  function scan(container){
+    var roots=container?[container]:document.querySelectorAll('form');
+    for(var i=0;i<roots.length;i++) inject(roots[i]);
+    if(container && container.querySelectorAll){
+      var fs=container.querySelectorAll('form');
+      for(var j=0;j<fs.length;j++) inject(fs[j]);
+    }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ scan(document); });
+  }else{
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function(e){
+    if(e.detail && e.detail.el) scan(e.detail.el);
+  });
 })();
 </script>
 </head>
@@ -461,6 +513,32 @@
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
   document.addEventListener('htmx:configRequest', function(e){
     var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+  function inject(form){
+    if(!form || form.tagName!=='FORM') return;
+    if((form.method||'get').toLowerCase()!=='post') return;
+    if(form.hasAttribute('hx-post')) return;
+    if(form.querySelector('input[name="csrf_token"]')) return;
+    var t=getCookie('r3_csrf'); if(!t) return;
+    var h=document.createElement('input');
+    h.type='hidden'; h.name='csrf_token'; h.value=t;
+    form.appendChild(h);
+  }
+  function scan(container){
+    var roots=container?[container]:document.querySelectorAll('form');
+    for(var i=0;i<roots.length;i++) inject(roots[i]);
+    if(container && container.querySelectorAll){
+      var fs=container.querySelectorAll('form');
+      for(var j=0;j<fs.length;j++) inject(fs[j]);
+    }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ scan(document); });
+  }else{
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function(e){
+    if(e.detail && e.detail.el) scan(e.detail.el);
   });
 })();
 </script>
@@ -547,6 +625,32 @@
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
   document.addEventListener('htmx:configRequest', function(e){
     var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+  function inject(form){
+    if(!form || form.tagName!=='FORM') return;
+    if((form.method||'get').toLowerCase()!=='post') return;
+    if(form.hasAttribute('hx-post')) return;
+    if(form.querySelector('input[name="csrf_token"]')) return;
+    var t=getCookie('r3_csrf'); if(!t) return;
+    var h=document.createElement('input');
+    h.type='hidden'; h.name='csrf_token'; h.value=t;
+    form.appendChild(h);
+  }
+  function scan(container){
+    var roots=container?[container]:document.querySelectorAll('form');
+    for(var i=0;i<roots.length;i++) inject(roots[i]);
+    if(container && container.querySelectorAll){
+      var fs=container.querySelectorAll('form');
+      for(var j=0;j<fs.length;j++) inject(fs[j]);
+    }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ scan(document); });
+  }else{
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function(e){
+    if(e.detail && e.detail.el) scan(e.detail.el);
   });
 })();
 </script>
@@ -741,6 +845,32 @@
   document.addEventListener('htmx:configRequest', function(e){
     var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
   });
+  function inject(form){
+    if(!form || form.tagName!=='FORM') return;
+    if((form.method||'get').toLowerCase()!=='post') return;
+    if(form.hasAttribute('hx-post')) return;
+    if(form.querySelector('input[name="csrf_token"]')) return;
+    var t=getCookie('r3_csrf'); if(!t) return;
+    var h=document.createElement('input');
+    h.type='hidden'; h.name='csrf_token'; h.value=t;
+    form.appendChild(h);
+  }
+  function scan(container){
+    var roots=container?[container]:document.querySelectorAll('form');
+    for(var i=0;i<roots.length;i++) inject(roots[i]);
+    if(container && container.querySelectorAll){
+      var fs=container.querySelectorAll('form');
+      for(var j=0;j<fs.length;j++) inject(fs[j]);
+    }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ scan(document); });
+  }else{
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function(e){
+    if(e.detail && e.detail.el) scan(e.detail.el);
+  });
 })();
 </script>
 </head>
@@ -819,13 +949,39 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Note History</title>
-<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0;500;0,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=3">
 <script>
 (function(){
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
   document.addEventListener('htmx:configRequest', function(e){
     var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+  function inject(form){
+    if(!form || form.tagName!=='FORM') return;
+    if((form.method||'get').toLowerCase()!=='post') return;
+    if(form.hasAttribute('hx-post')) return;
+    if(form.querySelector('input[name="csrf_token"]')) return;
+    var t=getCookie('r3_csrf'); if(!t) return;
+    var h=document.createElement('input');
+    h.type='hidden'; h.name='csrf_token'; h.value=t;
+    form.appendChild(h);
+  }
+  function scan(container){
+    var roots=container?[container]:document.querySelectorAll('form');
+    for(var i=0;i<roots.length;i++) inject(roots[i]);
+    if(container && container.querySelectorAll){
+      var fs=container.querySelectorAll('form');
+      for(var j=0;j<fs.length;j++) inject(fs[j]);
+    }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ scan(document); });
+  }else{
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function(e){
+    if(e.detail && e.detail.el) scan(e.detail.el);
   });
 })();
 </script>
@@ -892,6 +1048,32 @@
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
   document.addEventListener('htmx:configRequest', function(e){
     var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+  function inject(form){
+    if(!form || form.tagName!=='FORM') return;
+    if((form.method||'get').toLowerCase()!=='post') return;
+    if(form.hasAttribute('hx-post')) return;
+    if(form.querySelector('input[name="csrf_token"]')) return;
+    var t=getCookie('r3_csrf'); if(!t) return;
+    var h=document.createElement('input');
+    h.type='hidden'; h.name='csrf_token'; h.value=t;
+    form.appendChild(h);
+  }
+  function scan(container){
+    var roots=container?[container]:document.querySelectorAll('form');
+    for(var i=0;i<roots.length;i++) inject(roots[i]);
+    if(container && container.querySelectorAll){
+      var fs=container.querySelectorAll('form');
+      for(var j=0;j<fs.length;j++) inject(fs[j]);
+    }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ scan(document); });
+  }else{
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function(e){
+    if(e.detail && e.detail.el) scan(e.detail.el);
   });
 })();
 </script>
@@ -1073,6 +1255,32 @@
   document.addEventListener('htmx:configRequest', function(e){
     var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
   });
+  function inject(form){
+    if(!form || form.tagName!=='FORM') return;
+    if((form.method||'get').toLowerCase()!=='post') return;
+    if(form.hasAttribute('hx-post')) return;
+    if(form.querySelector('input[name="csrf_token"]')) return;
+    var t=getCookie('r3_csrf'); if(!t) return;
+    var h=document.createElement('input');
+    h.type='hidden'; h.name='csrf_token'; h.value=t;
+    form.appendChild(h);
+  }
+  function scan(container){
+    var roots=container?[container]:document.querySelectorAll('form');
+    for(var i=0;i<roots.length;i++) inject(roots[i]);
+    if(container && container.querySelectorAll){
+      var fs=container.querySelectorAll('form');
+      for(var j=0;j<fs.length;j++) inject(fs[j]);
+    }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ scan(document); });
+  }else{
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function(e){
+    if(e.detail && e.detail.el) scan(e.detail.el);
+  });
 })();
 </script>
 </head>
@@ -1217,6 +1425,32 @@
   document.addEventListener('htmx:configRequest', function(e){
     var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
   });
+  function inject(form){
+    if(!form || form.tagName!=='FORM') return;
+    if((form.method||'get').toLowerCase()!=='post') return;
+    if(form.hasAttribute('hx-post')) return;
+    if(form.querySelector('input[name="csrf_token"]')) return;
+    var t=getCookie('r3_csrf'); if(!t) return;
+    var h=document.createElement('input');
+    h.type='hidden'; h.name='csrf_token'; h.value=t;
+    form.appendChild(h);
+  }
+  function scan(container){
+    var roots=container?[container]:document.querySelectorAll('form');
+    for(var i=0;i<roots.length;i++) inject(roots[i]);
+    if(container && container.querySelectorAll){
+      var fs=container.querySelectorAll('form');
+      for(var j=0;j<fs.length;j++) inject(fs[j]);
+    }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ scan(document); });
+  }else{
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function(e){
+    if(e.detail && e.detail.el) scan(e.detail.el);
+  });
 })();
 </script>
 </head>
@@ -1260,6 +1494,32 @@
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
   document.addEventListener('htmx:configRequest', function(e){
     var t=getCookie('r3_csrf'); if(t){ e.detail.headers['X-CSRF-Token']=t; }
+  });
+  function inject(form){
+    if(!form || form.tagName!=='FORM') return;
+    if((form.method||'get').toLowerCase()!=='post') return;
+    if(form.hasAttribute('hx-post')) return;
+    if(form.querySelector('input[name="csrf_token"]')) return;
+    var t=getCookie('r3_csrf'); if(!t) return;
+    var h=document.createElement('input');
+    h.type='hidden'; h.name='csrf_token'; h.value=t;
+    form.appendChild(h);
+  }
+  function scan(container){
+    var roots=container?[container]:document.querySelectorAll('form');
+    for(var i=0;i<roots.length;i++) inject(roots[i]);
+    if(container && container.querySelectorAll){
+      var fs=container.querySelectorAll('form');
+      for(var j=0;j<fs.length;j++) inject(fs[j]);
+    }
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', function(){ scan(document); });
+  }else{
+    scan(document);
+  }
+  document.addEventListener('htmx:afterProcessNode', function(e){
+    if(e.detail && e.detail.el) scan(e.detail.el);
   });
 })();
 </script>
