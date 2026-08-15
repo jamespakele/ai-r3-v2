@@ -151,6 +151,7 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view.Sites = must(s.loadSites(false))
+	view.Events = must(s.loadAllEvents())
 	_ = s.tpl.ExecuteTemplate(w, "list", view)
 }
 

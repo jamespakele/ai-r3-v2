@@ -573,12 +573,12 @@
         <option value="claimed"{{if eq .StatusFilter "claimed"}} selected{{end}}>Claimed</option>
         <option value="completed"{{if eq .StatusFilter "completed"}} selected{{end}}>Completed</option>
       </select>
-      <select name="site" class="field-input">
-        <option value="">All sites</option>
-        {{range .Sites}}<option value="{{.ID}}"{{if eq $.SiteFilter .ID}} selected{{end}}>{{.Name}}</option>{{end}}
+      <select name="event" class="field-input">
+        <option value="">All Events</option>
+        {{range .Events}}<option value="{{.ID}}"{{if eq $.EventFilter .ID}} selected{{end}}>{{.Name}}</option>{{end}}
       </select>
       <button type="submit" class="btn btn-primary">Filter</button>
-      {{if or .Query .StatusFilter .SiteFilter}}<a href="/" class="btn btn-ghost">Clear</a>{{end}}
+      {{if or .Query .StatusFilter .EventFilter}}<a href="/" class="btn btn-ghost">Clear</a>{{end}}
     </form>
     <p class="admin-result-count">Showing {{.Total}} record{{if ne .Total 1}}s{{end}}{{if .Query}} matching "{{.Query}}"{{end}}</p>
     {{if .IsAdmin}}<form id="bulk-delete-form" method="post" action="/admin/intake/bulk-delete"></form>
@@ -604,7 +604,7 @@
           </td>
         </tr>
       {{end}}
-      {{if not .Rows}}<tr><td colspan="{{if .IsAdmin}}8{{else}}7{{end}}" class="empty-state">{{if or .Query .StatusFilter .SiteFilter}}No records match your search.{{else}}No intake records yet.{{end}}</td></tr>{{end}}
+      {{if not .Rows}}<tr><td colspan="{{if .IsAdmin}}8{{else}}7{{end}}" class="empty-state">{{if or .Query .StatusFilter .EventFilter}}No records match your search.{{else}}No intake records yet.{{end}}</td></tr>{{end}}
       </tbody>
     </table>
   </div>
