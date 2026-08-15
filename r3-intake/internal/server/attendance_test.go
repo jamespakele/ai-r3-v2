@@ -84,7 +84,7 @@ func TestMatrixContentRender(t *testing.T) {
 		DateTo:   "2026-08-14",
 		Dates:    []string{"2026-08-01", "2026-08-02"},
 		Rows: []MatrixRow{
-			{IntakeID: "i2", Name: "Bob", TotalDays: 2, NoLocation: true,
+			{IntakeID: "i2", Name: "Bob", TotalDays: 2,
 				Cells: []MatrixCell{
 					{IntakeID: "i2", Date: "2026-08-01", Status: "absent", SiteID: "", From: "2026-08-01", To: "2026-08-14", Disabled: true},
 					{IntakeID: "i2", Date: "2026-08-02", Status: "", SiteID: "", From: "2026-08-01", To: "2026-08-14", Disabled: true},
@@ -96,11 +96,10 @@ func TestMatrixContentRender(t *testing.T) {
 				},
 				PresentCount: 1, WalkInCount: 1},
 		},
-		Sites:         []Site{{ID: "site1", Name: "Kona"}},
-		Events:        []Event{{ID: "ev1", Name: "Morning Program"}},
-		Summary:       MatrixSummary{TotalCheckIns: 2, ActiveParticipants: 1, Stopped: 0, AvgRate: 25},
-		EventID:       "ev1",
-		HasNoLocation: true,
+		Sites:   []Site{{ID: "site1", Name: "Kona"}},
+		Events:  []Event{{ID: "ev1", Name: "Morning Program"}},
+		Summary: MatrixSummary{TotalCheckIns: 2, ActiveParticipants: 1, Stopped: 0, AvgRate: 25},
+		EventID: "ev1",
 	}
 
 	var buf bytes.Buffer
@@ -112,17 +111,11 @@ func TestMatrixContentRender(t *testing.T) {
 		"Total check-ins", "Active participants", "Stopped", "Avg attendance rate",
 		"Morning Program", "Alice",
 		`>2</div><div class="stat-label">Total check-ins`, "25%",
-		"No Location", "matrix-group-header", "row-no-location", "dot-disabled",
-		"Select an event…",
+		"dot-disabled",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("matrix-content output missing %q", want)
 		}
-	}
-
-	// The no-location row (Bob) must render before the located row (Alice).
-	if strings.Index(out, "Bob") > strings.Index(out, "Alice") {
-		t.Errorf("expected no-location row (Bob) to precede located row (Alice)")
 	}
 
 	// The full-page matrix template must also render (no-JS path).
@@ -135,8 +128,8 @@ func TestMatrixContentRender(t *testing.T) {
 	}
 }
 
-// TestMatrixContentRenderEventRequired verifies that when no event is
-// selected, the matrix renders the event-required banner, hides the walk-in
+// TestMatrixContentRenderEventRequired verifies that when no events exist,
+// the matrix renders the create-an-event empty state, hides the walk-in
 // panel, and disables every cell.
 func TestMatrixContentRenderEventRequired(t *testing.T) {
 	html, err := assets.TemplateString()
@@ -166,9 +159,10 @@ func TestMatrixContentRenderEventRequired(t *testing.T) {
 				PresentCount: 1},
 		},
 		Sites:         []Site{{ID: "site1", Name: "Kona"}},
-		Events:        []Event{{ID: "ev1", Name: "Morning Program"}},
+		Events:        []Event{},
 		EventID:       "",
 		EventRequired: true,
+		NoEvents:      true,
 	}
 
 	var buf bytes.Buffer
@@ -177,8 +171,8 @@ func TestMatrixContentRenderEventRequired(t *testing.T) {
 	}
 	out := buf.String()
 	for _, want := range []string{
-		"Select an event to record attendance.",
-		"Select an event…",
+		"Create an Event to track attendance.",
+		"/admin",
 		"Alice",
 		"dot-disabled",
 	} {
@@ -192,6 +186,65 @@ func TestMatrixContentRenderEventRequired(t *testing.T) {
 	} {
 		if strings.Contains(out, forbid) {
 			t.Errorf("matrix-content (event required) output should not contain %q", forbid)
+		}
+	}
+}
+
+// TestMatrixContentRenderDefaultsToFirstEvent verifies that when an event is
+// selected (the server defaults to the first active event), the matrix
+// renders that event as the selected option and no placeholder option.
+func TestMatrixContentRenderDefaultsToFirstEvent(t *testing.T) {
+	html, err := assets.TemplateString()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tpl, err := template.New("index.html").Funcs(templateFuncs()).Parse(html)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	view := MatrixViewData{
+		UserName: "Admin",
+		Role:     "admin",
+		IsAdmin:  true,
+		SiteID:   "site1",
+		SiteName: "Kona",
+		DateFrom: "2026-08-01",
+		DateTo:   "2026-08-14",
+		Dates:    []string{"2026-08-01", "2026-08-02"},
+		Rows: []MatrixRow{
+			{IntakeID: "i1", Name: "Alice", TotalDays: 2,
+				Cells: []MatrixCell{
+					{IntakeID: "i1", Date: "2026-08-01", Status: "present", SiteID: "site1", From: "2026-08-01", To: "2026-08-14"},
+					{IntakeID: "i1", Date: "2026-08-02", Status: "", SiteID: "site1", From: "2026-08-01", To: "2026-08-14"},
+				},
+				PresentCount: 1},
+		},
+		Sites:   []Site{{ID: "site1", Name: "Kona"}},
+		Events:  []Event{{ID: "ev1", Name: "Morning Program"}},
+		Summary: MatrixSummary{TotalCheckIns: 1, ActiveParticipants: 1, Stopped: 0, AvgRate: 50},
+		EventID: "ev1",
+	}
+
+	var buf bytes.Buffer
+	if err := tpl.ExecuteTemplate(&buf, "matrix-content", view); err != nil {
+		t.Fatalf("render matrix-content: %v", err)
+	}
+	out := buf.String()
+	for _, want := range []string{
+		`<option value="ev1" selected>Morning Program</option>`,
+		"Alice",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("matrix-content (defaulted event) output missing %q", want)
+		}
+	}
+	for _, forbid := range []string{
+		"Select an event…",
+		"Create an Event to track attendance.",
+	} {
+		if strings.Contains(out, forbid) {
+			t.Errorf("matrix-content (defaulted event) output should not contain %q", forbid)
 		}
 	}
 }

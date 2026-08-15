@@ -1162,7 +1162,6 @@
         hx-get="/attendance" hx-target="#matrix-and-stats" hx-swap="outerHTML"
         hx-trigger="change, submit" hx-push-url="true">
     <select class="field-input" name="event">
-      <option value="">Select an event…</option>
       {{range .Events}}<option value="{{.ID}}" {{if eq $.EventID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
     </select>
     {{if .IsAdmin}}
@@ -1176,8 +1175,8 @@
     <button type="submit" class="btn btn-primary">Apply</button>
   </form>
 
-  {{if .EventRequired}}
-  <p class="empty-state">Select an event to record attendance.</p>
+  {{if .NoEvents}}
+  <p class="empty-state">Create an Event to track attendance. <a href="/admin">Go to Events</a></p>
   {{end}}
 
   {{if not .EventRequired}}
@@ -1219,16 +1218,8 @@
         </tr>
       </thead>
       <tbody>
-        {{if .HasNoLocation}}
-        <tr class="matrix-group-header">
-          <td colspan="{{len .Dates | add1 | add1}}">
-            <span class="matrix-group-title">No Location</span>
-            <span class="matrix-no-location-note">Attendance is NOT trackable without a location - assign one in Records to group here.</span>
-          </td>
-        </tr>
-        {{end}}
         {{range .Rows}}
-        <tr class="{{if .IsDropout}}row-dropout {{end}}{{if .NoLocation}}row-no-location{{end}}">
+        <tr class="{{if .IsDropout}}row-dropout {{end}}">
           <td class="matrix-name-col">
             {{if .IntakeID}}<a href="/intake/{{.IntakeID}}" class="matrix-name-link"><span class="matrix-name">{{.Name}}</span></a>{{else}}<span class="matrix-name">{{.Name}}</span>{{end}}
             {{if .IsDropout}}<span class="status-badge">STOPPED</span>{{end}}

@@ -1,61 +1,38 @@
-# RESULT — Epic 21: Replace intake site/location with event reference
+# RESULT — t_ca71ac0b: Update attendance matrix (default event, empty state, remove No Location)
 
-This epic merged four child story worktrees into `epic/21-replace-intake-sitelocation-with-event-a`.
+## What was built
 
-## Child stories merged
+Two coordinated changes to the attendance matrix, implemented by omp from the MOA working plan.
 
-### 1. wt/t_27c37c36 — Migrate intake site field to event reference
+### Change A — Default to first event + empty state
+- Removed the "Select an event…" placeholder option from the matrix event selector.
+- Added `effectiveEventID(eventID, events)` helper: explicit event wins; otherwise defaults to the first active event (loadEvents sorts by start_date,name); returns "" when no events.
+- `handleMatrix` now loads events first, resolves the effective eventID, then loads rows — so the roster/attendance scope to the default event.
+- `handleStats` resolves the same effective eventID so stat cards always match the matrix.
+- Added `NoEvents` view field; when zero active events, the matrix renders "Create an Event to track attendance. [Go to Events](/admin)" instead of an empty matrix.
+- `EventRequired` is now true only when there are no events (still gates the walk-in panel).
 
-Renamed `intake.site` (→ `sites`) to `intake.event` (→ `events`) across schema and Go code.
+### Change B — Remove "No Location" warnings
+- Removed the "No Location" group header + note from the matrix template.
+- Removed the `row-no-location` class from participant rows.
+- Removed Go-side `NoLocation` / `HasNoLocation` fields, the `hasNoLocation` computation, `row.NoLocation = cellSiteID == ""`, and the no-location sort.
+- Rows now render in pure name order (intakeRecs is already sorted by name).
+- Removed 7 dead CSS rules (row-no-location, matrix-group-header, matrix-no-location-note, matrix-group-title).
 
-- `pocketbase/migrations/016_intake_site_to_event.go`: up removes `intake.site`, adds `intake.event`, best-effort backfills each old site to the first active non-deleted event at that site; down reverses and backfills `site` from the event's site. Idempotency guards both ways.
-- `pocketbase/migrations/migrations.go`: registered migration 016.
-- `r3-intake/internal/server/handlers.go`: `REQUIRED_FIELDS` "site"→"event"; `FormState.SiteSel`→`EventSel`; `blankState` defaults to first active event; `stateFromRecord`, `applySection`, `applyToState`, `validateState` read/write `event`.
-- `r3-intake/internal/server/admin.go`: `IntakeRow.SiteName`→`EventName`; participant-list resolution via `nameFor("events", …)`; `?site=` filter → `?event=` filter on `intake.event` (`EventFilter`).
-- `r3-intake/internal/server/attendance.go`: `intake.site` reads → `intake.event` in `resolveSite`, `loadMatrixRows`, `handleToggle`, `handleWalkin`.
-- `r3-intake/internal/server/person_attendance.go`: `SiteName`→`EventName` via `nameFor("events", …)`.
-- `r3-intake/internal/mcp/mcp.go`: `intake.site` reads → `intake.event`; new `loadEventMap`/`resolveEvent` helpers; MCP contract field name stays `site` for backward compatibility.
-- Tests: 4 integration files seed intakes with `r.Set("event", <eventID>)`; `person_attendance_test.go` fixture renamed.
-
-### 2. wt/t_fb0d46ce — Change participant list Site column to Event column
-
-- `r3-intake/internal/assets/public/index.html` admin participant-list table:
-  - Header `<th>Site</th>` → `<th>Event</th>`.
-  - Row cell `{{.SiteName}}` → `{{.EventName}}`.
-
-### 3. wt/t_146484f2 — Replace Site/Location dropdown with Event dropdown on intake form
-
-- `r3-intake/internal/assets/public/index.html` section 01:
-  - Label "R3 Site Location" → "R3 Event".
-  - `{{template "site-fragment" .}}` → `{{template "event-fragment" .}}`.
-  - Error key `Errors.site` → `Errors.event`.
-  - New template block `event-fragment` renders `<select name="event">` from `.Events` with `selected` on `.EventSel`.
-- `r3-intake/internal/server/handlers.go`:
-  - Added `Events []Event` to `FormState`.
-  - `blankState` loads events via `must(s.loadEvents())`, assigns `st.Events`, defaults `EventSel` to the first active event.
-  - `stateFromRecord` populates `Events: must(s.loadEvents())`.
-
-### 4. wt/t_35775bf1 — Reorder admin tabs to put Events first
-
-- `r3-intake/internal/assets/public/index.html` admin tabs:
-  - Order for admins: Events (default active) → Users → Sites.
-  - Non-admins still see only the Sites tab.
-  - Panel order matches tab order.
+## Files changed
+- r3-intake/internal/server/attendance.go
+- r3-intake/internal/assets/public/index.html
+- r3-intake/internal/assets/public/app.css
+- r3-intake/internal/server/attendance_test.go
+- r3-intake/internal/server/attendance_matrix_default_integration_test.go (new)
 
 ## Verification
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+- `go test ./...` — PASS (server 17.0s, migrations ok)
+- New tests: TestMatrixContentRenderDefaultsToFirstEvent, TestMatrixDefaultsToFirstEvent, TestMatrixNoEventsEmptyState, TestStatsDefaultsToFirstEvent
+- grep across the 5 files: zero matches for NoLocation/HasNoLocation/hasNoLocation/row-no-location/matrix-group-header/matrix-no-location-note/matrix-group-title
+- Remaining "Select an event…" refs are in out-of-scope person-attendance templates and in test forbid lists (asserting absence) — correct.
 
-- `make vendor` — fetched htmx + alpine.
-- `go build ./...` — PASS.
-- `go vet ./...` — PASS.
-- `go test ./...` — PASS except one pre-existing unrelated failure:
-  - `TestExportCSVSiteFilter/site1_only` fails on current master (`row count = 3, want 4`) and is unrelated to this epic.
-
-## Artifacts added
-
-- `docs/plans/omp-plan-intake-site-to-event.md`
-- `docs/plans/omp-plan-participant-list-site-to-event.md`
-- `docs/plans/omp-plan-event-dropdown-on-intake.md`
-- `docs/plans/omp-plan-reorder-admin-tabs-events-first.md`
-- `WORKING_PLAN_reorder-admin-tabs-events-first.md`
-- `.hermes/plans/20260815-participant-list-site-to-event.md`
-- `pocketbase/migrations/016_intake_site_to_event.go`
+## Notes
+- No runnable binary in this worktree (no cmd/r3-intake main package), so browser-level check was not possible; the new integration tests exercise the identical HTTP path (handler, auth, template rendering) through the real in-process server.
