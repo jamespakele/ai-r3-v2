@@ -62,8 +62,8 @@
         <button type="submit" form="finish-form" class="btn btn-primary">Check Form</button>
         <button type="button" onclick="window.print()" class="btn btn-ghost">Print / Save PDF</button>
         {{if and .HasRecord .IsAuthed}}<a href="/notes/{{.ID}}" class="btn btn-ghost">Notes</a>{{end}}
-        {{if .IsAuthed}}<a href="/" class="btn btn-ghost">View All</a>{{else}}<a href="/login" class="btn btn-ghost">Sign in</a>{{end}}
-        <a href="/public/intake" class="btn btn-primary">New Form</a>
+        {{if .IsAuthed}}<a href="/" class="btn btn-ghost">Records</a>{{else}}<a href="/login" class="btn btn-ghost">Sign in</a>{{end}}
+        <a href="/public/intake" class="btn btn-primary">Intake</a>
       </div>
     </div>
     <div class="topbar-progress">
@@ -556,7 +556,7 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <a href="/public/intake" class="btn btn-primary">New Intake</a>
+        <a href="/public/intake" class="btn btn-primary">Intake</a>
         <a href="/attendance" class="btn btn-ghost">Attendance</a>
         {{if .IsAdmin}}<a href="/admin" class="btn btn-ghost">Admin</a>{{end}}
         <a href="/logout" class="btn btn-ghost">Sign out</a>
@@ -675,7 +675,7 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <a href="/" class="btn btn-ghost">Back to List</a>
+        <a href="/" class="btn btn-ghost">Records</a>
         <a href="/logout" class="btn btn-ghost">Sign out</a>
       </div>
     </div>
@@ -945,7 +945,7 @@
       </div>
       <div class="topbar-actions">
         <a href="/intake/{{.IntakeID}}" class="btn btn-ghost">Intake Form</a>
-        <a href="/" class="btn btn-ghost">View All</a>
+        <a href="/" class="btn btn-ghost">Records</a>
         <a href="/logout" class="btn btn-ghost">Sign out</a>
       </div>
     </div>
@@ -1057,7 +1057,7 @@
       </div>
       <div class="topbar-actions">
         <a href="/notes/{{.IntakeID}}" class="btn btn-ghost">Back to Notes</a>
-        <a href="/" class="btn btn-ghost">View All</a>
+        <a href="/" class="btn btn-ghost">Records</a>
         <a href="/logout" class="btn btn-ghost">Sign out</a>
       </div>
     </div>
@@ -1149,6 +1149,7 @@
       </div>
       <div class="topbar-actions">
         <a href="/" class="btn btn-ghost">Records</a>
+        <a href="/public/intake" class="btn btn-primary">Intake</a>
         {{if .IsAdmin}}<a href="/admin" class="btn btn-ghost">Admin</a>{{end}}
         <a href="/logout" class="btn btn-ghost">Sign out</a>
       </div>
@@ -1368,7 +1369,7 @@
       </div>
       <div class="topbar-actions">
         <a href="/intake/{{.IntakeID}}" class="btn btn-ghost">← Intake</a>
-        <a href="/" class="btn btn-ghost">View All</a>
+        <a href="/" class="btn btn-ghost">Records</a>
         <a href="/logout" class="btn btn-ghost">Sign out</a>
       </div>
     </div>
