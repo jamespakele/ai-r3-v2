@@ -375,8 +375,9 @@ func TestExportCSVDateRangeFilter(t *testing.T) {
 	})
 }
 
-// TestExportCSVSiteFilter verifies the ?site filter scopes rows to one site
-// and that an invalid site id resolves to all locations for an admin.
+// TestExportCSVSiteFilter verifies the legacy ?site query param is ignored:
+// the event determines the location, so rows resolve to the event's site
+// regardless of the site param.
 func TestExportCSVSiteFilter(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedExportData(t, srv.pb)
@@ -620,7 +621,7 @@ func TestExportCSVNameResolution(t *testing.T) {
 		t.Errorf("nameFor(sites, nonexistent) = %q, want empty", got)
 	}
 
-	rows, err := srv.loadExportRows("", "", "2026-08-01", "2026-08-05")
+	rows, err := srv.loadExportRows("", "2026-08-01", "2026-08-05")
 	if err != nil {
 		t.Fatalf("loadExportRows: %v", err)
 	}
@@ -648,34 +649,32 @@ func TestExportCSVNameResolution(t *testing.T) {
 	}
 }
 
-// TestExportSiteNoActiveEvents proves loadExportRows early-returns an empty
-// slice when the resolved event set is empty (a site with no active events),
-// while an unrestricted (all-sites) query still returns rows — confirming the
-// nil-vs-empty event-set distinction gates the early return.
-func TestExportSiteNoActiveEvents(t *testing.T) {
+// TestExportRowsEventScoping proves loadExportRows with no event returns all
+// in-range records, while a specific event scopes to its own records.
+func TestExportRowsEventScoping(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedRosterData(t, srv.pb)
 
-	// Seed attendance so the all-sites query has rows to return.
+	// Seed attendance so the queries have rows to return.
 	saveAttendance(t, srv.pb, fx.iInSite1, fx.site, fx.ev1, "2026-08-13", "present")
 	saveAttendance(t, srv.pb, fx.iInSite2, fx.site, fx.ev2, "2026-08-13", "present")
 	saveAttendance(t, srv.pb, fx.iOtherSite, fx.site2, fx.ev1, "2026-08-13", "walk_in")
 
-	// site2 (Hilo) has no active events -> empty event set -> early return.
-	rows, err := srv.loadExportRows(fx.site2, "", "2026-08-01", "2026-08-31")
-	if err != nil {
-		t.Fatalf("loadExportRows(site2): %v", err)
-	}
-	if len(rows) != 0 {
-		t.Errorf("site2 export rows = %d, want 0 (no active events)", len(rows))
-	}
-
-	// All-sites (nil event set) still returns the seeded rows.
-	allRows, err := srv.loadExportRows("", "", "2026-08-01", "2026-08-31")
+	// No event (nil event set): all in-range records.
+	allRows, err := srv.loadExportRows("", "2026-08-01", "2026-08-31")
 	if err != nil {
 		t.Fatalf("loadExportRows(all): %v", err)
 	}
-	if len(allRows) == 0 {
-		t.Errorf("all-sites export rows = 0, want > 0 (nil event set must not early-return)")
+	if len(allRows) != 3 {
+		t.Errorf("all-rows export = %d, want 3 (nil event set must not restrict)", len(allRows))
+	}
+
+	// Specific event: only its records.
+	ev1Rows, err := srv.loadExportRows(fx.ev1, "2026-08-01", "2026-08-31")
+	if err != nil {
+		t.Fatalf("loadExportRows(ev1): %v", err)
+	}
+	if len(ev1Rows) != 2 {
+		t.Errorf("ev1 export rows = %d, want 2", len(ev1Rows))
 	}
 }

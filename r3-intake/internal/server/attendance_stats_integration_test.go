@@ -53,7 +53,7 @@ func TestStatsEndpoint(t *testing.T) {
 			t.Fatalf("toggle status = %d, want 200", rec.Code)
 		}
 
-		query := "site=" + url.QueryEscape(fx.site) + "&from=2026-08-01&to=2026-08-14&event_id=" + url.QueryEscape(fx.ev)
+		query := "from=2026-08-01&to=2026-08-14&event_id=" + url.QueryEscape(fx.ev)
 		rec := doStats(srv, admin, query)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("stats status = %d, want 200", rec.Code)
@@ -70,7 +70,7 @@ func TestStatsEndpoint(t *testing.T) {
 		}
 
 		// A different event sees none of this attendance (event-scoped).
-		other := "site=" + url.QueryEscape(fx.site) + "&from=2026-08-01&to=2026-08-14&event_id=other-event"
+		other := "from=2026-08-01&to=2026-08-14&event_id=other-event"
 		recOther := doStats(srv, admin, other)
 		if recOther.Code != http.StatusOK {
 			t.Fatalf("stats (other event) status = %d, want 200", recOther.Code)
@@ -81,7 +81,7 @@ func TestStatsEndpoint(t *testing.T) {
 	})
 
 	t.Run("renders fragment when no event selected", func(t *testing.T) {
-		query := "site=" + url.QueryEscape(fx.site) + "&from=2026-08-01&to=2026-08-14"
+		query := "from=2026-08-01&to=2026-08-14"
 		rec := doStats(srv, admin, query)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("stats (no event) status = %d, want 200", rec.Code)

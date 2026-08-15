@@ -147,7 +147,7 @@ func (s *Server) buildPersonAttendanceView(u *sessionUser, intake *core.Record, 
 	firstStr := first.Format("2006-01-02")
 	lastStr := last.Format("2006-01-02")
 
-	events, _ := s.loadEvents("")
+	events, _ := s.loadEvents()
 
 	records := map[string]string{}
 	var recList []personAttendanceRecord
@@ -248,7 +248,7 @@ func (s *Server) buildPersonDayDetailView(intake *core.Record, date, eventID, er
 		Error:    errMsg,
 		EventID:  eventID,
 	}
-	events, _ := s.loadEvents("")
+	events, _ := s.loadEvents()
 	view.Events = events
 	if attCol, err := s.attendanceCollection(); err == nil {
 		filter := fmt.Sprintf("intake='%s' && event='%s' && date='%s'",
