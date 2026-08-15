@@ -72,6 +72,7 @@ a:hover { color: #b5502e; }
 .btn-tiny.btn-danger { color: #b3261e; }
 .btn-tiny.btn-danger:hover { background: #b3261e; color: #fffdfa; border-color: #b3261e; }
 .btn-block { width: 100%; padding: 13px 26px; font-size: 15px; }
+.btn-auto { justify-self: start; width: auto; }
 .link-btn { border: none; background: none; color: #8a3c20; cursor: pointer;
   font: 600 12px 'Public Sans', sans-serif; text-decoration: underline; padding: 0; }
 .link-btn-danger { color: #b3261e; }
