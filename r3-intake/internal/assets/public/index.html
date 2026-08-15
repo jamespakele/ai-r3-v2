@@ -1214,6 +1214,10 @@
   <p class="muted">Location: {{.EventLocation}}</p>
   {{end}}
 
+  {{if and .EventStartDate .EventEndDate}}
+  <p class="muted">Event dates: {{slice .EventStartDate 5 7}}/{{slice .EventStartDate 8 10}} – {{slice .EventEndDate 5 7}}/{{slice .EventEndDate 8 10}}</p>
+  {{end}}
+
   {{if .Rows}}
   <div class="matrix-wrap">
     <table class="matrix-table">
