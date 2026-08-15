@@ -123,10 +123,10 @@
   <div class="section-eyebrow">01 — Personal Profile</div>
   <h2 class="section-title">Who we're meeting</h2>
 
-  <div class="field-group {{if .Errors.site}}has-error{{end}}">
-    <label class="field-label">R3 Site Location <span class="field-required">*</span></label>
-    {{template "site-fragment" .}}
-    {{if .Errors.site}}<div class="field-error">Please select a site.</div>{{end}}
+  <div class="field-group {{if .Errors.event}}has-error{{end}}">
+    <label class="field-label">R3 Event <span class="field-required">*</span></label>
+    {{template "event-fragment" .}}
+    {{if .Errors.event}}<div class="field-error">Please select an event.</div>{{end}}
   </div>
 
   <div class="grid-2">
@@ -1418,7 +1418,7 @@
     </div>
   </div>
   <div class="container container-admin">
-    <h2 class="section-title">Attendance — {{.IntakeName}}{{if .SiteName}} ({{.SiteName}}){{end}}</h2>
+    <h2 class="section-title">Attendance — {{.IntakeName}}{{if .EventName}} ({{.EventName}}){{end}}</h2>
     {{template "person-attendance-calendar" .}}
   </div>
 </div>
@@ -1545,4 +1545,11 @@
   </form>
   {{end}}
 </div>
+{{end}}
+
+{{define "event-fragment"}}
+<select name="event" class="field-input">
+  <option value="">Select an event</option>
+  {{range .Events}}<option value="{{.ID}}" {{if eq .ID $.EventSel}}selected{{end}}>{{.Name}}</option>{{end}}
+</select>
 {{end}}

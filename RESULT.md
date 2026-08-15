@@ -1,32 +1,33 @@
-# RESULT — Run attendance matrix tests and verify fix
+# RESULT — Replace Site/Location dropdown with Event dropdown on intake form
 
-## What was verified
-Assembled the combined fix (sibling worktrees) into this worktree and ran the
-full attendance matrix test suite:
+## What was built
+Replaced the section-01 "R3 Site Location" dropdown (which listed SITES via the
+`site-fragment` template) with an EVENT dropdown on the R3 Intake form.
 
-- **attendance.go** (from sibling t_e0d89c58): removed the `eventSite`-based
-  intake filter in `loadMatrixRows` so the roster is always the full
-  site/role-scoped participant list, independent of the selected event. Event
-  scoping now applies only to the attendance map.
-- **attendance_roster_integration_test.go** (from sibling t_6b3eff3f):
-  restored `TestMatrixRosterEventIndependent` (renamed from
-  `TestMatrixRosterEventScoped`), asserting the roster is identical with/without
-  a selected event (full admin roster [iInSite1, iInSite2, iOtherSite,
-  iAssignedCM] in both cases), with attendance dots differing only for the
-  attendee whose record belongs to a different event.
+- **Template** (`r3-intake/internal/assets/public/index.html`):
+  - New `event-fragment` block: `<select name="event">` iterating `.Events`,
+    selected by `.EventSel`, with a "Select an event" empty option.
+  - Section-01 field group relabeled "R3 Event", error key `Errors.event`
+    ("Please select an event.").
+  - `site-fragment` left intact (still used by `handleSites` in server.go).
+- **Go** (`r3-intake/internal/server/handlers.go`):
+  - Added `Events []Event` to `FormState`.
+  - `blankState` loads events once via `must(s.loadEvents())`, assigns
+    `st.Events`, defaults `EventSel` to the first active event.
+  - `stateFromRecord` populates `Events: must(s.loadEvents())`.
 
-## Verification results
+## Verification
 - `go build ./...` — PASS
 - `go vet ./...` — PASS
-- `go test ./...` — PASS (internal/server 14.8s ok; migrations ok)
-- `go test ./internal/server/ -run TestMatrixRosterEventIndependent -v` — PASS
+- `go test ./...` — PASS (internal/server 15.6s, pocketbase/migrations 0.18s)
+- Template render check (real funcs map): `event-fragment` outputs
+  `<select name="event">` with options from `.Events` and `selected` on the
+  saved value.
 
-## Conclusion
-The regression is fixed: selecting an event no longer filters the participant
-list; the roster is always the full site/role-scoped list, and the event scopes
-only the attendance map. All tests pass with the combined fix.
-
-## Note
-This is a child story card. The parent epic task (t_eefa9c57) merges the child
-worktrees (t_e0d89c58, t_6b3eff3f, t_69f207ad) onto the epic branch, then to
-master, and closes the GitHub issue.
+## Notes
+- No new `/events` htmx handler added — the section-01 form already
+  self-persists via `hx-post="/section/01"` on change; a dynamic refresh handler
+  would be dead code.
+- The parent card's Go renames (EventSel, intake.event, loadEvents) were copied
+  into this worktree from the parent's worktree (uncommitted there) so the
+  template could be built against the correct view model.

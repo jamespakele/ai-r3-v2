@@ -50,7 +50,7 @@ func NewServer(d Deps) (*mcp.Server, error) {
 			"type": "object",
 			"properties": map[string]any{
 				"status":      map[string]any{"type": "string", "enum": []string{"unassigned", "claimed", "completed"}, "description": "Filter by intake status"},
-				"site":        map[string]any{"type": "string", "description": "Filter by site id or site name"},
+				"site":        map[string]any{"type": "string", "description": "Filter by event id or event name (the intake's home event; intake.site was renamed to intake.event)"},
 				"assigned_to": map[string]any{"type": "string", "description": "Filter by assigned user id or email"},
 				"limit":       map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "description": "Maximum records to return (default 50, max 200)"},
 				"offset":      map[string]any{"type": "integer", "minimum": 0, "description": "Offset for pagination (default 0)"},
@@ -279,11 +279,13 @@ func (d Deps) handleListIntakes(ctx context.Context, req *mcp.CallToolRequest, i
 		parts = append(parts, fmt.Sprintf("status='%s'", EscapeFilter(in.Status)))
 	}
 	if in.Site != "" {
-		id, err := d.resolveSite(in.Site)
+		// intake.site was renamed to intake.event (migration 016); the filter
+		// now scopes by the intake's home event.
+		id, err := d.resolveEvent(in.Site)
 		if err != nil {
 			return nil, listIntakesOut{}, err
 		}
-		parts = append(parts, fmt.Sprintf("site='%s'", EscapeFilter(id)))
+		parts = append(parts, fmt.Sprintf("event='%s'", EscapeFilter(id)))
 	}
 	if in.AssignedTo != "" {
 		id, err := d.resolveUser(in.AssignedTo)
@@ -302,7 +304,7 @@ func (d Deps) handleListIntakes(ctx context.Context, req *mcp.CallToolRequest, i
 		return nil, listIntakesOut{}, fmt.Errorf("list intakes: %w", err)
 	}
 
-	sites, err := d.loadSiteMap()
+	sites, err := d.loadEventMap()
 	if err != nil {
 		return nil, listIntakesOut{}, err
 	}
@@ -314,13 +316,13 @@ func (d Deps) handleListIntakes(ctx context.Context, req *mcp.CallToolRequest, i
 	sums := make([]intakeSummary, 0, len(recs))
 	for _, r := range recs {
 		d.decryptSensitive(r)
-		siteID := r.GetString("site")
+		eventID := r.GetString("event")
 		assignedID := r.GetString("assigned_to")
 		sums = append(sums, intakeSummary{
 			ID:           r.Id,
 			Name:         r.GetString("name"),
 			Status:       r.GetString("status"),
-			SiteName:     sites[siteID],
+			SiteName:     sites[eventID],
 			AssignedName: userName(users[assignedID]),
 			Created:      hstCreated(r.GetString("created")),
 			SSNLast4:     ssnLast4(r.GetString("ssn")),
@@ -390,7 +392,7 @@ func (d Deps) handleSearchIntakes(ctx context.Context, req *mcp.CallToolRequest,
 		return nil, searchIntakesOut{}, fmt.Errorf("search intakes: %w", err)
 	}
 
-	sites, err := d.loadSiteMap()
+	events, err := d.loadEventMap()
 	if err != nil {
 		return nil, searchIntakesOut{}, err
 	}
@@ -402,13 +404,13 @@ func (d Deps) handleSearchIntakes(ctx context.Context, req *mcp.CallToolRequest,
 	sums := make([]intakeSummary, 0, len(recs))
 	for _, r := range recs {
 		d.decryptSensitive(r)
-		siteID := r.GetString("site")
+		eventID := r.GetString("event")
 		assignedID := r.GetString("assigned_to")
 		sums = append(sums, intakeSummary{
 			ID:           r.Id,
 			Name:         r.GetString("name"),
 			Status:       r.GetString("status"),
-			SiteName:     sites[siteID],
+			SiteName:     events[eventID],
 			AssignedName: userName(users[assignedID]),
 			Created:      hstCreated(r.GetString("created")),
 			SSNLast4:     ssnLast4(r.GetString("ssn")),
@@ -446,7 +448,7 @@ func (d Deps) handleIntakeStats(ctx context.Context, req *mcp.CallToolRequest, i
 		return nil, intakeStatsOut{}, fmt.Errorf("load intakes: %w", err)
 	}
 
-	sites, err := d.loadSiteMap()
+	events, err := d.loadEventMap()
 	if err != nil {
 		return nil, intakeStatsOut{}, err
 	}
@@ -471,12 +473,14 @@ func (d Deps) handleIntakeStats(ctx context.Context, req *mcp.CallToolRequest, i
 				out.CompletedThisMonth++
 			}
 		}
-		if sid := r.GetString("site"); sid != "" {
-			bySite[sid]++
+		// Group by the intake's home event (intake.site was renamed to
+		// intake.event in migration 016).
+		if eid := r.GetString("event"); eid != "" {
+			bySite[eid]++
 		}
 	}
-	for sid, count := range bySite {
-		out.BySite = append(out.BySite, siteCount{SiteName: sites[sid], Count: count})
+	for eid, count := range bySite {
+		out.BySite = append(out.BySite, siteCount{SiteName: events[eid], Count: count})
 	}
 	return nil, out, nil
 }
@@ -567,12 +571,15 @@ func (d Deps) handleListUsers(ctx context.Context, req *mcp.CallToolRequest, in 
 
 // --- resolution helpers ---------------------------------------------------
 
-func (d Deps) loadSiteMap() (map[string]string, error) {
-	col, err := d.PB.FindCollectionByNameOrId("sites")
+// loadEventMap returns {eventID: name} for all non-deleted events. Intake
+// records reference their home event (migration 016 renamed intake.site to
+// intake.event), so event names replace site names in intake summaries.
+func (d Deps) loadEventMap() (map[string]string, error) {
+	col, err := d.PB.FindCollectionByNameOrId("events")
 	if err != nil {
 		return nil, err
 	}
-	recs, err := d.PB.FindRecordsByFilter(col.Id, "1=1", "sort_order,name", 1000, 0)
+	recs, err := d.PB.FindRecordsByFilter(col.Id, "(deleted = false || deleted = null)", "name", 1000, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -609,15 +616,18 @@ func (d Deps) loadUserMap() (map[string]userInfo, error) {
 	return m, nil
 }
 
-func (d Deps) resolveSite(nameOrID string) (string, error) {
+// resolveEvent resolves an event name or id to an event id. The intake list
+// tools' site filter now scopes by the intake's home event (migration 016
+// renamed intake.site to intake.event), so the input resolves against events.
+func (d Deps) resolveEvent(nameOrID string) (string, error) {
 	// Fast path: already an id.
-	if r, err := d.PB.FindRecordById("sites", nameOrID); err == nil {
+	if r, err := d.PB.FindRecordById("events", nameOrID); err == nil {
 		return r.Id, nil
 	}
 	// Resolve by name.
-	r, err := d.PB.FindFirstRecordByData("sites", "name", nameOrID)
+	r, err := d.PB.FindFirstRecordByData("events", "name", nameOrID)
 	if err != nil {
-		return "", fmt.Errorf("site not found: %s", nameOrID)
+		return "", fmt.Errorf("event not found: %s", nameOrID)
 	}
 	return r.Id, nil
 }

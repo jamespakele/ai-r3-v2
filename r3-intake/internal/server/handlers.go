@@ -48,7 +48,7 @@ var (
 		"How can we help you right now?",
 	}
 	REQUIRED_FIELDS = []string{
-		"site", "name", "dob", "contact", "race", "sexAtBirth",
+		"event", "name", "dob", "contact", "race", "sexAtBirth",
 		"servedMilitary", "hasPets", "employment", "mentalHealth",
 		"substanceUse", "fleeingViolence",
 	}
@@ -59,7 +59,8 @@ type FormState struct {
 	ID        string
 	HasRecord bool
 	Sites     []Site
-	SiteSel   string
+	Events    []Event // active events for the intake dropdown
+	EventSel  string
 	UserName  string
 	Role      string
 	IsAuthed  bool
@@ -147,7 +148,7 @@ func templateFuncs() map[string]any {
 // header progress bar.
 func (st *FormState) Progress() int {
 	filled := 0
-	if st.SiteSel != "" {
+	if st.EventSel != "" {
 		filled++
 	}
 	if st.Name != "" {
@@ -209,8 +210,10 @@ func (s *Server) loadCaseManagers() []UserOption {
 // blankState builds a fresh, unsaved FormState.
 func (s *Server) blankState(user *sessionUser) *FormState {
 	sites := must(s.loadSites(false))
+	events := must(s.loadEvents())
 	st := &FormState{
 		Sites:         sites,
+		Events:        events,
 		CaseManagers:  s.loadCaseManagers(),
 		Race:          map[string]bool{},
 		Documents:     map[string]bool{},
@@ -223,11 +226,11 @@ func (s *Server) blankState(user *sessionUser) *FormState {
 		Status:        "unassigned",
 		Errors:        map[string]bool{},
 	}
-	for _, site := range sites {
-		if site.Default {
-			st.SiteSel = site.ID
-			break
-		}
+	// Default the intake's home event to the first active event. There is no
+	// "default event" concept (unlike the old default site), so pick the
+	// first active, non-deleted event.
+	if len(events) > 0 {
+		st.EventSel = events[0].ID
 	}
 	if user != nil {
 		st.IsAuthed = true
@@ -244,8 +247,9 @@ func (s *Server) stateFromRecord(rec *core.Record, user *sessionUser, errors map
 		ID:                    rec.Id,
 		HasRecord:             true,
 		Sites:                 must(s.loadSites(false)),
+		Events:                must(s.loadEvents()),
 		CaseManagers:          s.loadCaseManagers(),
-		SiteSel:               rec.GetString("site"),
+		EventSel:              rec.GetString("event"),
 		Name:                  rec.GetString("name"),
 		DOB:                   rec.GetString("dob"),
 		SSN:                   rec.GetString("ssn"),
@@ -530,7 +534,7 @@ func (s *Server) applySection(rec *core.Record, r *http.Request, section string)
 	_ = r.ParseMultipartForm(10 << 20)
 	switch section {
 	case "01":
-		rec.Set("site", r.FormValue("site"))
+		rec.Set("event", r.FormValue("event"))
 		rec.Set("name", r.FormValue("name"))
 		rec.Set("dob", normalizeDob(r.FormValue("dob")))
 		rec.Set("ssn", ssnLast4(r.FormValue("ssn")))
@@ -615,7 +619,7 @@ func cryptoRandHex(n int) string {
 // is posted before any section has been saved).
 func (s *Server) applyToState(st *FormState, r *http.Request) {
 	_ = r.ParseMultipartForm(10 << 20)
-	st.SiteSel = r.FormValue("site")
+	st.EventSel = r.FormValue("event")
 	st.Name = r.FormValue("name")
 	st.DOB = normalizeDob(r.FormValue("dob"))
 	st.SSN = ssnLast4(r.FormValue("ssn"))
@@ -678,7 +682,7 @@ func (s *Server) validateState(st *FormState) map[string]bool {
 			errs[k] = true
 		}
 	}
-	check("site", st.SiteSel)
+	check("event", st.EventSel)
 	check("name", st.Name)
 	check("dob", st.DOB)
 	check("contact", st.Contact)
