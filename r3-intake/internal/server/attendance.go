@@ -285,9 +285,9 @@ func (s *Server) loadMatrixRows(u *sessionUser, dates []string, eventID, to stri
 		return nil, err
 	}
 
-	// Roster scope: the selected event's site when an event is selected;
-	// otherwise the role-based default (case_manager: assigned intakes;
-	// admin: all intakes).
+	// Participants: ALWAYS the full site/role-scoped roster, independent of the
+	// selected event (AC #1). The event only scopes the attendance map below; it
+	// must never change which participants are listed.
 	eventSite := ""
 	if eventID != "" {
 		eventsCol, err := s.eventsCollection()
@@ -300,8 +300,6 @@ func (s *Server) loadMatrixRows(u *sessionUser, dates []string, eventID, to stri
 	}
 	var intakeFilter string
 	switch {
-	case eventSite != "":
-		intakeFilter = fmt.Sprintf("site='%s'", mcpmod.EscapeFilter(eventSite))
 	case u.Role == "case_manager":
 		intakeFilter = fmt.Sprintf("assigned_to='%s'", mcpmod.EscapeFilter(u.ID))
 	default:
