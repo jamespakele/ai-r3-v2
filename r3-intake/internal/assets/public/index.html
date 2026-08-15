@@ -676,108 +676,15 @@
   <div class="container container-admin">
     <div class="tabs" data-tabs>
       <div class="tab-list" role="tablist" aria-label="Admin sections">
-        <button type="button" class="tab" role="tab" id="tab-sites" aria-controls="panel-sites" aria-selected="true" data-tab-target="panel-sites">Sites</button>
         {{if .IsAdmin}}
+        <button type="button" class="tab" role="tab" id="tab-events" aria-controls="panel-events" aria-selected="true" data-tab-target="panel-events">Events</button>
         <button type="button" class="tab" role="tab" id="tab-users" aria-controls="panel-users" aria-selected="false" data-tab-target="panel-users" tabindex="-1">Users</button>
-        <button type="button" class="tab" role="tab" id="tab-events" aria-controls="panel-events" aria-selected="false" data-tab-target="panel-events" tabindex="-1">Events</button>
         {{end}}
-      </div>
-
-      <div class="tab-panel" role="tabpanel" id="panel-sites" aria-labelledby="tab-sites">
-        <table class="admin-table">
-          <thead><tr><th>Name</th><th>Address</th><th>Active</th><th>Default</th><th>Order</th>{{if .IsAdmin}}<th></th>{{end}}</tr></thead>
-          <tbody>
-          {{range $site := .Sites}}
-            <tr>
-              <td>{{$site.Name}}</td>
-              <td>{{$site.Address}}</td>
-              <td>{{if $site.Active}}Yes{{else}}No{{end}}</td>
-              <td>{{if $site.Default}}Yes{{else}}No{{end}}</td>
-              <td>{{$site.SortOrder}}</td>
-              {{if $.IsAdmin}}<td>
-                <form method="post" action="/admin/sites/{{$site.ID}}/default" style="display:inline">
-                  <button class="btn btn-tiny" type="submit" {{if $site.Default}}disabled{{end}}>Set Default</button>
-                </form>
-                <form method="post" action="/admin/sites/{{$site.ID}}/toggle" style="display:inline">
-                  <button class="btn btn-tiny" type="submit">{{if $site.Active}}Deactivate{{else}}Activate{{end}}</button>
-                </form>
-                <button type="button" class="btn btn-tiny" onclick="toggleEditRow('edit-site-{{$site.ID}}', this)">Edit</button>
-                <form method="post" action="/admin/sites/{{$site.ID}}/delete" style="display:inline" onsubmit="return confirm('Delete this location?')">
-                  <button class="btn btn-tiny btn-danger" type="submit">Delete</button>
-                </form>
-              </td>{{end}}
-            </tr>
-            <tr id="edit-site-{{$site.ID}}" style="display:none">
-              <td colspan="6">
-                <form method="post" action="/admin/sites/{{$site.ID}}/update" class="inline-form">
-                  <input type="text" name="name" value="{{$site.Name}}" placeholder="Site name" required class="field-input">
-                  <input type="text" name="address" value="{{$site.Address}}" placeholder="Address" class="field-input">
-                  <button type="submit" class="btn btn-primary">Save</button>
-                </form>
-              </td>
-            </tr>
-          {{end}}
-          </tbody>
-        </table>
-
-        {{if .IsAdmin}}
-        <form method="post" action="/admin/sites" class="inline-form">
-          <input type="text" name="name" placeholder="Site name" required class="field-input">
-          <input type="text" name="address" placeholder="Address" class="field-input">
-          <button type="submit" class="btn btn-primary">Add site</button>
-        </form>
-        {{end}}
+        <button type="button" class="tab" role="tab" id="tab-sites" aria-controls="panel-sites" aria-selected="false" data-tab-target="panel-sites" tabindex="-1">Sites</button>
       </div>
 
       {{if .IsAdmin}}
-      <div class="tab-panel" role="tabpanel" id="panel-users" aria-labelledby="tab-users" hidden>
-        <table class="admin-table">
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
-          <tbody>
-          {{range .Users}}
-          <tr>
-            <td>{{.Name}}</td>
-            <td>{{.Email}}</td>
-            <td>{{.Role}}</td>
-            <td>
-              <button type="button" class="btn btn-tiny" onclick="toggleEditRow('edit-user-{{.ID}}', this)">Edit</button>
-              <form method="post" action="/admin/users/{{.ID}}/delete" onsubmit="return confirm('Delete this user?')">
-                <button class="btn btn-tiny btn-danger" type="submit">Delete</button>
-              </form>
-            </td>
-          </tr>
-          <tr id="edit-user-{{.ID}}" style="display:none">
-            <td colspan="4">
-              <form method="post" action="/admin/users/{{.ID}}/update" class="inline-form">
-                <input type="text" name="name" value="{{.Name}}" placeholder="Full name" class="field-input">
-                <input type="email" name="email" value="{{.Email}}" placeholder="Email" class="field-input">
-                <input type="password" name="password" placeholder="New password (leave blank to keep)" class="field-input">
-                <select name="role" class="field-input">
-                  <option value="case_manager"{{if eq .Role "case_manager"}} selected{{end}}>case_manager</option>
-                  <option value="intake"{{if eq .Role "intake"}} selected{{end}}>intake</option>
-                  <option value="admin"{{if eq .Role "admin"}} selected{{end}}>admin</option>
-                </select>
-                <button type="submit" class="btn btn-primary">Save</button>
-              </form>
-            </td>
-          </tr>
-          {{end}}
-          </tbody>
-        </table>
-        <form method="post" action="/admin/users" class="inline-form">
-          <input type="text" name="name" placeholder="Full name" required class="field-input">
-          <input type="email" name="email" placeholder="Email" required class="field-input">
-          <input type="password" name="password" placeholder="Password (≥8 chars)" required class="field-input">
-          <select name="role" class="field-input">
-            <option value="case_manager">case_manager</option>
-            <option value="intake">intake</option>
-            <option value="admin">admin</option>
-          </select>
-          <button type="submit" class="btn btn-primary">Add user</button>
-        </form>
-      </div>
-
-      <div class="tab-panel" role="tabpanel" id="panel-events" aria-labelledby="tab-events" hidden>
+      <div class="tab-panel" role="tabpanel" id="panel-events" aria-labelledby="tab-events">
         <table class="admin-table">
           <thead><tr><th>Event Name</th><th>Location</th><th>Dates</th><th>Enrolled</th><th>Status</th><th></th></tr></thead>
           <tbody>
@@ -829,7 +736,101 @@
           <button type="submit" class="btn btn-primary">Create Event</button>
         </form>
       </div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-users" aria-labelledby="tab-users" hidden>
+        <table class="admin-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
+          <tbody>
+          {{range .Users}}
+          <tr>
+            <td>{{.Name}}</td>
+            <td>{{.Email}}</td>
+            <td>{{.Role}}</td>
+            <td>
+              <button type="button" class="btn btn-tiny" onclick="toggleEditRow('edit-user-{{.ID}}', this)">Edit</button>
+              <form method="post" action="/admin/users/{{.ID}}/delete" onsubmit="return confirm('Delete this user?')">
+                <button class="btn btn-tiny btn-danger" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+          <tr id="edit-user-{{.ID}}" style="display:none">
+            <td colspan="4">
+              <form method="post" action="/admin/users/{{.ID}}/update" class="inline-form">
+                <input type="text" name="name" value="{{.Name}}" placeholder="Full name" class="field-input">
+                <input type="email" name="email" value="{{.Email}}" placeholder="Email" class="field-input">
+                <input type="password" name="password" placeholder="New password (leave blank to keep)" class="field-input">
+                <select name="role" class="field-input">
+                  <option value="case_manager"{{if eq .Role "case_manager"}} selected{{end}}>case_manager</option>
+                  <option value="intake"{{if eq .Role "intake"}} selected{{end}}>intake</option>
+                  <option value="admin"{{if eq .Role "admin"}} selected{{end}}>admin</option>
+                </select>
+                <button type="submit" class="btn btn-primary">Save</button>
+              </form>
+            </td>
+          </tr>
+          {{end}}
+          </tbody>
+        </table>
+        <form method="post" action="/admin/users" class="inline-form">
+          <input type="text" name="name" placeholder="Full name" required class="field-input">
+          <input type="email" name="email" placeholder="Email" required class="field-input">
+          <input type="password" name="password" placeholder="Password (≥8 chars)" required class="field-input">
+          <select name="role" class="field-input">
+            <option value="case_manager">case_manager</option>
+            <option value="intake">intake</option>
+            <option value="admin">admin</option>
+          </select>
+          <button type="submit" class="btn btn-primary">Add user</button>
+        </form>
+      </div>
+
       {{end}}
+
+      <div class="tab-panel" role="tabpanel" id="panel-sites" aria-labelledby="tab-sites" hidden>
+        <table class="admin-table">
+          <thead><tr><th>Name</th><th>Address</th><th>Active</th><th>Default</th><th>Order</th>{{if .IsAdmin}}<th></th>{{end}}</tr></thead>
+          <tbody>
+          {{range $site := .Sites}}
+            <tr>
+              <td>{{$site.Name}}</td>
+              <td>{{$site.Address}}</td>
+              <td>{{if $site.Active}}Yes{{else}}No{{end}}</td>
+              <td>{{if $site.Default}}Yes{{else}}No{{end}}</td>
+              <td>{{$site.SortOrder}}</td>
+              {{if $.IsAdmin}}<td>
+                <form method="post" action="/admin/sites/{{$site.ID}}/default" style="display:inline">
+                  <button class="btn btn-tiny" type="submit" {{if $site.Default}}disabled{{end}}>Set Default</button>
+                </form>
+                <form method="post" action="/admin/sites/{{$site.ID}}/toggle" style="display:inline">
+                  <button class="btn btn-tiny" type="submit">{{if $site.Active}}Deactivate{{else}}Activate{{end}}</button>
+                </form>
+                <button type="button" class="btn btn-tiny" onclick="toggleEditRow('edit-site-{{$site.ID}}', this)">Edit</button>
+                <form method="post" action="/admin/sites/{{$site.ID}}/delete" style="display:inline" onsubmit="return confirm('Delete this location?')">
+                  <button class="btn btn-tiny btn-danger" type="submit">Delete</button>
+                </form>
+              </td>{{end}}
+            </tr>
+            <tr id="edit-site-{{$site.ID}}" style="display:none">
+              <td colspan="6">
+                <form method="post" action="/admin/sites/{{$site.ID}}/update" class="inline-form">
+                  <input type="text" name="name" value="{{$site.Name}}" placeholder="Site name" required class="field-input">
+                  <input type="text" name="address" value="{{$site.Address}}" placeholder="Address" class="field-input">
+                  <button type="submit" class="btn btn-primary">Save</button>
+                </form>
+              </td>
+            </tr>
+          {{end}}
+          </tbody>
+        </table>
+
+        {{if .IsAdmin}}
+        <form method="post" action="/admin/sites" class="inline-form">
+          <input type="text" name="name" placeholder="Site name" required class="field-input">
+          <input type="text" name="address" placeholder="Address" class="field-input">
+          <button type="submit" class="btn btn-primary">Add site</button>
+        </form>
+        {{end}}
+      </div>
     </div>
   </div>
 </div>
