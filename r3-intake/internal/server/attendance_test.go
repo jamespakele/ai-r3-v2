@@ -249,6 +249,63 @@ func TestMatrixContentRenderDefaultsToFirstEvent(t *testing.T) {
 	}
 }
 
+// TestMatrixContentRenderEventScopedFormDates verifies that the walk-in
+// panel's hidden from/to inputs and the matrix-cell toggle forms' hidden
+// from/to inputs carry the event-scoped date range from the view model.
+func TestMatrixContentRenderEventScopedFormDates(t *testing.T) {
+	html, err := assets.TemplateString()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tpl, err := template.New("index.html").Funcs(templateFuncs()).Parse(html)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	view := MatrixViewData{
+		UserName: "Admin",
+		Role:     "admin",
+		IsAdmin:  true,
+		SiteID:   "site1",
+		SiteName: "Kona",
+		DateFrom: "2026-08-01", // event-scoped start
+		DateTo:   "2026-08-31", // event-scoped end
+		Dates:    []string{"2026-08-01", "2026-08-31"},
+		Rows: []MatrixRow{
+			{IntakeID: "i1", Name: "Alice", TotalDays: 2,
+				Cells: []MatrixCell{
+					{IntakeID: "i1", Date: "2026-08-01", Status: "present",
+						SiteID: "site1", From: "2026-08-01", To: "2026-08-31"},
+					{IntakeID: "i1", Date: "2026-08-31", Status: "absent",
+						SiteID: "site1", From: "2026-08-01", To: "2026-08-31",
+						Disabled: true},
+				},
+				PresentCount: 1, WalkInCount: 0},
+		},
+		Sites:   []Site{{ID: "site1", Name: "Kona"}},
+		Events:  []Event{{ID: "ev1", Name: "Morning Program"}},
+		Summary: MatrixSummary{TotalCheckIns: 1, ActiveParticipants: 1, Stopped: 0, AvgRate: 50},
+		EventID: "ev1",
+	}
+
+	var buf bytes.Buffer
+	if err := tpl.ExecuteTemplate(&buf, "matrix-content", view); err != nil {
+		t.Fatalf("render matrix-content: %v", err)
+	}
+	out := buf.String()
+
+	for _, want := range []string{
+		`<input type="hidden" name="from" value="2026-08-01">`,
+		`<input type="hidden" name="to" value="2026-08-31">`,
+		`name="from" value="2026-08-01"`,
+		`name="to" value="2026-08-31"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("matrix-content output missing event-scoped form date %q", want)
+		}
+	}
+}
+
 // TestExportCSVRecords verifies the pure CSV builder: header row, per-record
 // rows with title-cased status and empty-relation cells, and a trailing
 // summary row with the expected counts and rate.
