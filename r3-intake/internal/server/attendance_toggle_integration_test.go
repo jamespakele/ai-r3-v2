@@ -119,8 +119,9 @@ func TestToggleNoLocation(t *testing.T) {
 	}
 }
 
-// TestToggleLocated proves a located participant's toggle still stores the
-// intake's site.
+// TestToggleLocated proves a located participant's toggle stores the event
+// and no longer writes a redundant site on the attendance row (location is
+// derived from the event).
 func TestToggleLocated(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedToggleData(t, srv.pb)
@@ -143,8 +144,8 @@ func TestToggleLocated(t *testing.T) {
 	if att == nil {
 		t.Fatalf("expected attendance record for located intake")
 	}
-	if att.GetString("site") != fx.site {
-		t.Errorf("site = %q, want %q", att.GetString("site"), fx.site)
+	if att.GetString("site") != "" {
+		t.Errorf("site = %q, want empty (location derived from event)", att.GetString("site"))
 	}
 	if att.GetString("event") != fx.ev {
 		t.Errorf("event = %q, want %q", att.GetString("event"), fx.ev)

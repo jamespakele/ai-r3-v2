@@ -323,7 +323,6 @@ func (s *Server) handlePersonAttendanceDaySave(w http.ResponseWriter, r *http.Re
 		rec.Set("date", date)
 		rec.Set("status", status)
 		rec.Set("note", note)
-		rec.Set("site", intake.GetString("site"))
 		rec.Set("recorded_by", u.ID)
 		if err := s.pb.Save(rec); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -317,14 +317,14 @@ func TestPersonAttendanceDaySaveCreate(t *testing.T) {
 		t.Errorf("save response missing calendar fragment")
 	}
 
-	// The record exists with site derived from the intake, event set, and
-	// recorded_by set.
+	// The record exists with event set and recorded_by set; no redundant site
+	// is stored (location is derived from the event).
 	att := findAttendance(t, srv, fx.i1, "2026-08-20")
 	if att == nil {
 		t.Fatalf("expected attendance record for 2026-08-20")
 	}
-	if att.GetString("site") != fx.site {
-		t.Errorf("site = %q, want %q", att.GetString("site"), fx.site)
+	if att.GetString("site") != "" {
+		t.Errorf("site = %q, want empty (location derived from event)", att.GetString("site"))
 	}
 	if att.GetString("event") != fx.ev {
 		t.Errorf("event = %q, want %q", att.GetString("event"), fx.ev)

@@ -400,7 +400,7 @@ func TestExportCSVSiteFilter(t *testing.T) {
 	}
 
 	t.Run("site1 only", func(t *testing.T) {
-		// ev1 has only Kona records: att-1, att-2.
+		// ev1 is at Kona; its records att-1, att-2 resolve to Kona.
 		rows := rowsFor("?site=" + fx.site1 + "&event=" + fx.ev1)
 		m := allSites(rows)
 		if len(m) != 1 || !m["Kona"] {
@@ -412,24 +412,25 @@ func TestExportCSVSiteFilter(t *testing.T) {
 	})
 
 	t.Run("site2 only", func(t *testing.T) {
-		// ev2 has Waianae records att-3, att-4 (and one Kona record att-5).
+		// ev2 is at Waianae; all its records (att-3, att-4, att-5) resolve to
+		// Waianae even though att-5 stored a divergent Kona site.
 		rows := rowsFor("?site=" + fx.site2 + "&event=" + fx.ev2)
 		m := allSites(rows)
 		if len(m) != 1 || !m["Waianae"] {
 			t.Errorf("site2 filter sites = %v, want only Waianae", m)
 		}
-		if len(rows) != 4 { // header + 2 records + summary
-			t.Errorf("row count = %d, want 4", len(rows))
+		if len(rows) != 5 { // header + 3 records + summary
+			t.Errorf("row count = %d, want 5", len(rows))
 		}
 	})
 
-	t.Run("invalid site all locations", func(t *testing.T) {
-		// ev2 spans both sites (att-3/att-4 Waianae, att-5 Kona); an invalid
-		// site resolves to all locations.
-		rows := rowsFor("?site=does-not-exist&event=" + fx.ev2)
+	t.Run("event wins over site", func(t *testing.T) {
+		// When both site and event are given, the event determines the
+		// location: ev2 is at Waianae regardless of the site param.
+		rows := rowsFor("?site=" + fx.site1 + "&event=" + fx.ev2)
 		m := allSites(rows)
-		if !m["Kona"] || !m["Waianae"] {
-			t.Errorf("invalid site should return all locations, got %v", m)
+		if len(m) != 1 || !m["Waianae"] {
+			t.Errorf("event-wins sites = %v, want only Waianae", m)
 		}
 		if len(rows) != 5 { // header + 3 records + summary
 			t.Errorf("row count = %d, want 5", len(rows))
@@ -437,11 +438,11 @@ func TestExportCSVSiteFilter(t *testing.T) {
 	})
 
 	t.Run("no site param", func(t *testing.T) {
-		// ev2 spans both sites; omitting site returns all locations.
+		// ev2 is at Waianae; omitting site returns all ev2 records (Waianae).
 		rows := rowsFor("?event=" + fx.ev2)
 		m := allSites(rows)
-		if !m["Kona"] || !m["Waianae"] {
-			t.Errorf("no site param should return all locations, got %v", m)
+		if len(m) != 1 || !m["Waianae"] {
+			t.Errorf("no site param sites = %v, want only Waianae", m)
 		}
 		if len(rows) != 5 { // header + 3 records + summary
 			t.Errorf("row count = %d, want 5", len(rows))

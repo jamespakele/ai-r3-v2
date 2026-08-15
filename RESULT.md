@@ -1,64 +1,38 @@
-# Epic 17: Remove the Event Manage Screen
+# RESULT: Update filtering logic to use event-derived location
 
-**Status:** COMPLETE — child story branches merged into `epic/17-remove-the-event-manage-screen-rely-on-m`.
+## What was built
+Updated the Go attendance read/write paths so location is always derived from
+the event (`events.site`), never from the redundant `attendance.site` field.
 
-## Stories implemented
+## Changes
+- `r3-intake/internal/server/attendance.go`
+  - Added `resolveEventIDs(eventID, siteID)` helper: specific event wins; else
+    active events at site (empty slice when none); nil = no restriction (admin).
+  - `loadMatrixRows`: attendance filter is now date range + `event='id1' || event='id2' …`
+    (OR-chain; PocketBase has no IN operator). Empty event set skips the query.
+    Removed the `(site='' || site='%s')` clause. Roster (intakeFilter) unchanged.
+  - `loadExportRows`: same event-set resolution; empty set returns empty rows;
+    removed `site='%s'` clause.
+  - Export `SiteName` resolved from the row's event's site via
+    `FindRecordById(eventsCol.Id, event)`; empty on lookup failure.
+  - Removed `Set("site", siteID)` from `handleToggle` insert and all three
+    `handleWalkin` write paths. `siteID` kept for `Disabled` flag + redirect.
+- `r3-intake/internal/server/person_attendance.go`
+  - Removed `rec.Set("site", intake.GetString("site"))` from day-detail insert.
 
-- **t_1c442540** — Remove Manage route and enrollment handlers from server.
-  Removed 5 route registrations from `server.go` (`GET /admin/events/` subtree,
-  `POST /admin/events/{id}/enroll`, `POST /admin/events/{id}/unenroll`,
-  `GET /admin/events/{id}/enroll-search`, `POST /admin/events/{id}/status`).
-  Removed 5 `AdminView` fields, 3 view types (`EnrolledRow`,
-  `EnrollSearchResult`, `EnrollSearchView`), and 11 handler/helper funcs from
-  `admin.go`. Dropped the unused `sort` import. Kept `loadEnrolledCount`,
-  `loadAllEvents`, event report, and event create/update/delete handlers.
+## Home-site reads left untouched (roster scoping, NOT event location)
+`intake.site` in roster filter, toggle site derivation, `cellSiteID`/NoLocation
+grouping, walk-in intake creation (line 770), person calendar SiteName.
 
-- **t_4ac127a6** — Update admin events tests for removed Manage screen.
-  Deleted `event_enrollment_flow_test.go`. Updated `admin_events_test.go` and
-  `admin_events_update_delete_test.go` to remove manage-link assertions,
-  `event-manage` render blocks, and helpers that exercised removed routes and
-  types. Dropped the now-unused `time` import in `admin_events_test.go`. Kept
-  event-report render, admin list render, validation-error path, create-route
-  tests, auth tests, and all update/delete tests.
-
-- **t_a7679d78** — Remove Event Manage UI and per-event Manage link.
-  Removed the Manage anchor from the admin Events tab row-actions in
-  `index.html`. Deleted the `event-manage`, `event-roster`, and
-  `enroll-search-results` template blocks. Removed the
-  `.event-manage-actions` rule and the Event-enrollment CSS section
-  (`.enroll-tabs`, `.enroll-tab`, `.search-panel`, `.enroll-results`,
-  `.enroll-result`, `.roster-table`, etc.) from `app.css`. Kept
-  `.event-readonly`, `.form-grid-2`, `.rate-good`, `.rate-low`.
-
-## Files changed
-
-- `r3-intake/internal/server/server.go` — removed Manage/enrollment routes.
-- `r3-intake/internal/server/admin.go` — removed Manage view types, fields,
-  handlers, helpers, and the `sort` import.
-- `r3-intake/internal/server/admin_events_test.go` — removed manage-link and
-  manage-render tests; dropped unused `time` import.
-- `r3-intake/internal/server/admin_events_update_delete_test.go` — removed
-  `doEventManage` helper and manage 404 test.
-- `r3-intake/internal/server/event_enrollment_flow_test.go` — deleted.
-- `r3-intake/internal/assets/public/index.html` — removed Manage link and
-  manage/roster/enroll-search template blocks.
-- `r3-intake/internal/assets/public/app.css` — removed manage-actions and
-  enrollment CSS rules.
-- `docs/plans/omp-plan-remove-event-manage.md` — working plan (t_1c442540).
-- `docs/plans/omp-plan-update-admin-events-tests.md` — working plan (t_4ac127a6).
-
-## Merge resolution notes
-
-- `server.go` and `admin.go` merged cleanly from t_1c442540; no overlapping
-  changes with t_4ac127a6 (test-only branch).
-- `index.html` and `app.css` merged cleanly from t_a7679d78; only UI
-  deletions, no overlap with server or test changes.
-- `RESULT.md` was replaced independently by each child branch. Synthesized into
-  this Epic 17 document.
+## Tests updated (asserted on the now-removed field)
+- `TestToggleLocated`, `TestPersonAttendanceDaySaveCreate`: assert site empty.
+- `TestExportCSVSiteFilter`: site2-only now expects 3 records (att-5's divergent
+  stored Kona site resolves to ev2's Waianae); added "event wins over site"
+  subtest; removed invalid site-only subtest (export requires an event).
 
 ## Verification
-
-- `go build ./...` — pass
-- `go vet ./...` — pass
-- `go test ./...` — pass
-- Conflict-marker sweep — none
+- `go build ./...` PASS
+- `go vet ./...` PASS
+- `go test ./...` PASS (internal/server 15.3s ok, migrations ok)
+- Attendance queries contain no `site=` clause; remaining `site='%s'` filters
+  are on `intake` (roster) and `events` (event-set resolution) only.
