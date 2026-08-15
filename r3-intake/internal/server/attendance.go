@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 
@@ -32,9 +31,9 @@ type MatrixViewData struct {
 	// EventRequired reports that no event is selected, so the matrix must
 	// disable toggling and hide the walk-in panel.
 	EventRequired bool
-	// HasNoLocation reports whether at least one row is a no-location
-	// participant, so the template can render the "No Location" group header.
-	HasNoLocation bool
+	// NoEvents reports that there are no active events, so the template can
+	// render the "Create an Event" empty state.
+	NoEvents bool
 	// EventLocation is the display-only location name of the currently selected
 	// event. It is empty when no event is selected or the event has no site.
 	EventLocation string
@@ -50,7 +49,6 @@ type MatrixRow struct {
 	WalkInCount  int
 	LastPresent  string // YYYY-MM-DD or ""
 	IsDropout    bool
-	NoLocation   bool // participant has no assigned site
 }
 
 // MatrixSummary holds the aggregate stat cards below the matrix, computed
@@ -86,13 +84,14 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 
 	from, to, eventID, dates := s.parseMatrixFilters(r)
 
-	rows, err := s.loadMatrixRows(u, dates, eventID, to)
+	events, err := s.loadEvents()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	eventID = s.effectiveEventID(eventID, events)
 
-	events, err := s.loadEvents()
+	rows, err := s.loadMatrixRows(u, dates, eventID, to)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -111,14 +110,6 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 	// Non-admin filter bar still shows the resolved site name.
 	_, siteName := s.resolveSite(u, "")
 
-	hasNoLocation := false
-	for _, row := range rows {
-		if row.NoLocation {
-			hasNoLocation = true
-			break
-		}
-	}
-
 	view := MatrixViewData{
 		UserName:      u.Name,
 		Role:          u.Role,
@@ -132,7 +123,7 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		Summary:       computeSummary(rows, len(dates)),
 		EventID:       eventID,
 		EventRequired: eventID == "",
-		HasNoLocation: hasNoLocation,
+		NoEvents:      len(events) == 0,
 		EventLocation: eventLocation,
 	}
 
@@ -183,6 +174,19 @@ func (s *Server) parseMatrixFilters(r *http.Request) (from, to, eventID string, 
 	return from, to, eventID, dates
 }
 
+// effectiveEventID resolves the event the matrix and stat cards operate on.
+// An explicit eventID wins; otherwise the first active event (loadEvents
+// sorts by start_date,name) is the default; with no events it returns "".
+func (s *Server) effectiveEventID(eventID string, events []Event) string {
+	if eventID != "" {
+		return eventID
+	}
+	if len(events) > 0 {
+		return events[0].ID
+	}
+	return ""
+}
+
 // handleStats renders only the stat-cards fragment for the current filters.
 // It is wrapped with requireAuth in the mux and only ever called via HTMX
 // after a dot toggle, so it shares parseMatrixFilters with handleMatrix to
@@ -190,6 +194,13 @@ func (s *Server) parseMatrixFilters(r *http.Request) (from, to, eventID string, 
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	u := s.currentSession(r)
 	_, to, eventID, dates := s.parseMatrixFilters(r)
+
+	events, err := s.loadEvents()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	eventID = s.effectiveEventID(eventID, events)
 
 	rows, err := s.loadMatrixRows(u, dates, eventID, to)
 	if err != nil {
@@ -398,14 +409,8 @@ func (s *Server) loadMatrixRows(u *sessionUser, dates []string, eventID, to stri
 			}
 		}
 		row.IsDropout = row.LastPresent != "" && row.LastPresent < thresholdStr
-		row.NoLocation = cellSiteID == ""
 		rows = append(rows, row)
 	}
-	// Group no-location participants at the top, preserving the existing name
-	// order within each group.
-	sort.SliceStable(rows, func(i, j int) bool {
-		return rows[i].NoLocation && !rows[j].NoLocation
-	})
 	return rows, nil
 }
 
