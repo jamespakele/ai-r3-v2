@@ -59,6 +59,7 @@ type FormState struct {
 	ID        string
 	HasRecord bool
 	Sites     []Site
+	Events    []Event // active events for the intake dropdown
 	EventSel  string
 	UserName  string
 	Role      string
@@ -209,8 +210,10 @@ func (s *Server) loadCaseManagers() []UserOption {
 // blankState builds a fresh, unsaved FormState.
 func (s *Server) blankState(user *sessionUser) *FormState {
 	sites := must(s.loadSites(false))
+	events := must(s.loadEvents())
 	st := &FormState{
 		Sites:         sites,
+		Events:        events,
 		CaseManagers:  s.loadCaseManagers(),
 		Race:          map[string]bool{},
 		Documents:     map[string]bool{},
@@ -226,7 +229,7 @@ func (s *Server) blankState(user *sessionUser) *FormState {
 	// Default the intake's home event to the first active event. There is no
 	// "default event" concept (unlike the old default site), so pick the
 	// first active, non-deleted event.
-	if events, err := s.loadEvents(); err == nil && len(events) > 0 {
+	if len(events) > 0 {
 		st.EventSel = events[0].ID
 	}
 	if user != nil {
@@ -244,6 +247,7 @@ func (s *Server) stateFromRecord(rec *core.Record, user *sessionUser, errors map
 		ID:                    rec.Id,
 		HasRecord:             true,
 		Sites:                 must(s.loadSites(false)),
+		Events:                must(s.loadEvents()),
 		CaseManagers:          s.loadCaseManagers(),
 		EventSel:              rec.GetString("event"),
 		Name:                  rec.GetString("name"),
