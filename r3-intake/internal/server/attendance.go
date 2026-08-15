@@ -37,6 +37,11 @@ type MatrixViewData struct {
 	// EventLocation is the display-only location name of the currently selected
 	// event. It is empty when no event is selected or the event has no site.
 	EventLocation string
+	// EventStartDate / EventEndDate are the selected event's date range
+	// (YYYY-MM-DD). They are empty when no event is selected or the event
+	// has no dates. Used to render the "Event dates" label.
+	EventStartDate string
+	EventEndDate   string
 }
 
 // MatrixRow is one participant row in the matrix.
@@ -98,10 +103,14 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 	}
 
 	eventLocation := ""
+	eventStartDate := ""
+	eventEndDate := ""
 	if eventID != "" {
 		for _, ev := range events {
 			if ev.ID == eventID {
 				eventLocation = s.nameFor("sites", ev.SiteID)
+				eventStartDate = ev.StartDate
+				eventEndDate = ev.EndDate
 				break
 			}
 		}
@@ -123,8 +132,10 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		Summary:       computeSummary(rows, len(dates)),
 		EventID:       eventID,
 		EventRequired: eventID == "",
-		NoEvents:      len(events) == 0,
-		EventLocation: eventLocation,
+		NoEvents:       len(events) == 0,
+		EventLocation:  eventLocation,
+		EventStartDate: eventStartDate,
+		EventEndDate:   eventEndDate,
 	}
 
 	if r.Header.Get("HX-Request") == "true" {
