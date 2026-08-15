@@ -35,6 +35,9 @@ type MatrixViewData struct {
 	// HasNoLocation reports whether at least one row is a no-location
 	// participant, so the template can render the "No Location" group header.
 	HasNoLocation bool
+	// EventLocation is the display-only location name of the currently selected
+	// event. It is empty when no event is selected or the event has no site.
+	EventLocation string
 }
 
 // MatrixRow is one participant row in the matrix.
@@ -101,6 +104,16 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	eventLocation := ""
+	if eventID != "" {
+		for _, ev := range events {
+			if ev.ID == eventID {
+				eventLocation = s.nameFor("sites", ev.SiteID)
+				break
+			}
+		}
+	}
+
 	hasNoLocation := false
 	for _, row := range rows {
 		if row.NoLocation {
@@ -125,6 +138,7 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		EventID:       eventID,
 		EventRequired: eventID == "",
 		HasNoLocation: hasNoLocation,
+		EventLocation: eventLocation,
 	}
 
 	if r.Header.Get("HX-Request") == "true" {

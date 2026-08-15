@@ -1165,10 +1165,8 @@
       {{range .Events}}<option value="{{.ID}}" {{if eq $.EventID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
     </select>
     {{if .IsAdmin}}
-    <select class="field-input" name="site">
-      <option value="">All locations</option>
-      {{range .Sites}}<option value="{{.ID}}" {{if eq $.SiteID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
-    </select>
+    <input type="text" class="field-input" value="{{.EventLocation}}" disabled
+           placeholder="Select an event to show its location">
     {{else}}
     <span class="muted">Site: {{.SiteName}}</span>
     {{end}}
