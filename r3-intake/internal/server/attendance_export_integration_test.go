@@ -134,13 +134,13 @@ func seedExportData(t *testing.T, pb *pocketbase.PocketBase) exportFixtures {
 	i1 := save("i1", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Alice")
-		r.Set("site", site1)
+		r.Set("event", ev1)
 		return r
 	}())
 	i2 := save("i2", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Bob")
-		r.Set("site", site2)
+		r.Set("event", ev2)
 		return r
 	}())
 
@@ -401,8 +401,10 @@ func TestExportCSVSiteFilter(t *testing.T) {
 	}
 
 	t.Run("site1 only", func(t *testing.T) {
-		// ev1 is at Kona; its records att-1, att-2 resolve to Kona.
-		rows := rowsFor("?site=" + fx.site1 + "&event=" + fx.ev1)
+		// ev1 is at Kona; its records att-1, att-2 resolve to Kona. The date
+		// window is pinned so the test is independent of the real clock (the
+		// default window is today-13d..today and drifts past att-1's date).
+		rows := rowsFor("?site=" + fx.site1 + "&event=" + fx.ev1 + "&from=2026-08-01&to=2026-08-31")
 		m := allSites(rows)
 		if len(m) != 1 || !m["Kona"] {
 			t.Errorf("site1 filter sites = %v, want only Kona", m)
@@ -415,7 +417,7 @@ func TestExportCSVSiteFilter(t *testing.T) {
 	t.Run("site2 only", func(t *testing.T) {
 		// ev2 is at Waianae; all its records (att-3, att-4, att-5) resolve to
 		// Waianae even though att-5 stored a divergent Kona site.
-		rows := rowsFor("?site=" + fx.site2 + "&event=" + fx.ev2)
+		rows := rowsFor("?site=" + fx.site2 + "&event=" + fx.ev2 + "&from=2026-08-01&to=2026-08-31")
 		m := allSites(rows)
 		if len(m) != 1 || !m["Waianae"] {
 			t.Errorf("site2 filter sites = %v, want only Waianae", m)
@@ -428,7 +430,7 @@ func TestExportCSVSiteFilter(t *testing.T) {
 	t.Run("event wins over site", func(t *testing.T) {
 		// When both site and event are given, the event determines the
 		// location: ev2 is at Waianae regardless of the site param.
-		rows := rowsFor("?site=" + fx.site1 + "&event=" + fx.ev2)
+		rows := rowsFor("?site=" + fx.site1 + "&event=" + fx.ev2 + "&from=2026-08-01&to=2026-08-31")
 		m := allSites(rows)
 		if len(m) != 1 || !m["Waianae"] {
 			t.Errorf("event-wins sites = %v, want only Waianae", m)
@@ -440,7 +442,7 @@ func TestExportCSVSiteFilter(t *testing.T) {
 
 	t.Run("no site param", func(t *testing.T) {
 		// ev2 is at Waianae; omitting site returns all ev2 records (Waianae).
-		rows := rowsFor("?event=" + fx.ev2)
+		rows := rowsFor("?event=" + fx.ev2 + "&from=2026-08-01&to=2026-08-31")
 		m := allSites(rows)
 		if len(m) != 1 || !m["Waianae"] {
 			t.Errorf("no site param sites = %v, want only Waianae", m)

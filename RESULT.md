@@ -1,32 +1,26 @@
-# RESULT — Run attendance matrix tests and verify fix
+# RESULT: Change participant list Site column to Event column
 
-## What was verified
-Assembled the combined fix (sibling worktrees) into this worktree and ran the
-full attendance matrix test suite:
+## What was built
+Changed the admin participant list table in `r3-intake/internal/assets/public/index.html`:
+- Header cell (line 587): `<th>Site</th>` -> `<th>Event</th>`
+- Row cell (line 594): `<td>{{.SiteName}}</td>` -> `<td>{{.EventName}}</td>`
 
-- **attendance.go** (from sibling t_e0d89c58): removed the `eventSite`-based
-  intake filter in `loadMatrixRows` so the roster is always the full
-  site/role-scoped participant list, independent of the selected event. Event
-  scoping now applies only to the attendance map.
-- **attendance_roster_integration_test.go** (from sibling t_6b3eff3f):
-  restored `TestMatrixRosterEventIndependent` (renamed from
-  `TestMatrixRosterEventScoped`), asserting the roster is identical with/without
-  a selected event (full admin roster [iInSite1, iInSite2, iOtherSite,
-  iAssignedCM] in both cases), with attendance dots differing only for the
-  attendee whose record belongs to a different event.
+## Dependency handling
+The `IntakeRow.EventName` field + population live in sibling worktree
+`t_27c37c36` (uncommitted). Copied the sibling's changed Go source files
+(admin.go, handlers.go, attendance.go, person_attendance.go, mcp.go,
+migrations.go, 016_intake_site_to_event.go, and 4 integration test files) into
+this worktree so the template reference resolves. One documented deviation:
+attendance page line 1421 `{{.SiteName}}` -> `{{.EventName}}`, required because
+the copied sibling `PersonAttendanceView` removed `SiteName`.
 
-## Verification results
-- `go build ./...` — PASS
-- `go vet ./...` — PASS
-- `go test ./...` — PASS (internal/server 14.8s ok; migrations ok)
-- `go test ./internal/server/ -run TestMatrixRosterEventIndependent -v` — PASS
+## Verification
+- `go build ./...` PASS
+- `go vet ./...` PASS
+- `go test ./...` PASS (server 16.6s, migrations 0.22s)
+- Grep confirms `<th>Event</th>` (1 match, line 587) and `{{.EventName}}` (line 594)
+- Collateral Site refs intact: `{{$ev.SiteName}}` (events table, line 787),
+  `{{.SiteName}}` (line 1171), event-form site dropdown untouched
 
-## Conclusion
-The regression is fixed: selecting an event no longer filters the participant
-list; the roster is always the full site/role-scoped list, and the event scopes
-only the attendance map. All tests pass with the combined fix.
-
-## Note
-This is a child story card. The parent epic task (t_eefa9c57) merges the child
-worktrees (t_e0d89c58, t_6b3eff3f, t_69f207ad) onto the epic branch, then to
-master, and closes the GitHub issue.
+## Artifacts
+- Plan: `docs/plans/omp-plan-participant-list-site-to-event.md`

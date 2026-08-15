@@ -20,7 +20,7 @@ type IntakeRow struct {
 	ID           string
 	Name         string
 	SSNMasked    string
-	SiteName     string
+	EventName    string
 	Status       string
 	AssignedName string
 	Created      string
@@ -47,7 +47,7 @@ type AdminView struct {
 	EventStatus      string
 	Query            string
 	StatusFilter     string
-	SiteFilter       string
+	EventFilter      string
 	Total            int
 }
 
@@ -101,11 +101,11 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 			parts = append(parts, fmt.Sprintf("status='%s'", mcpmod.EscapeFilter(statusFilter)))
 			view.StatusFilter = statusFilter
 		}
-		// Site filter from ?site= (value is a site record ID)
-		siteFilter := strings.TrimSpace(r.URL.Query().Get("site"))
-		if siteFilter != "" {
-			parts = append(parts, fmt.Sprintf("site='%s'", mcpmod.EscapeFilter(siteFilter)))
-			view.SiteFilter = siteFilter
+		// Event filter from ?event= (value is an event record ID)
+		eventFilter := strings.TrimSpace(r.URL.Query().Get("event"))
+		if eventFilter != "" {
+			parts = append(parts, fmt.Sprintf("event='%s'", mcpmod.EscapeFilter(eventFilter)))
+			view.EventFilter = eventFilter
 		}
 		// Free-text search from ?q= (min 2 chars, matching mcp.go behavior)
 		query := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -120,7 +120,6 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		}
 		recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "-created", 500, 0)
 		if err == nil {
-			siteMap := s.siteNameMap()
 			userMap := s.userNameMap()
 			for _, rec := range recs {
 				s.decryptSensitive(rec)
@@ -133,9 +132,9 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 					CreatedByID:  rec.GetString("created_by"),
 					AssignedToID: rec.GetString("assigned_to"),
 				}
-				row.SiteName = siteMap[rec.GetString("site")]
-				if row.SiteName == "" {
-					row.SiteName = "—"
+				row.EventName = s.nameFor("events", rec.GetString("event"))
+				if row.EventName == "" {
+					row.EventName = "—"
 				}
 				row.AssignedName = userMap[row.AssignedToID]
 				if row.AssignedName == "" {

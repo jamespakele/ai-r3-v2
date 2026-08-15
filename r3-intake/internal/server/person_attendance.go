@@ -23,7 +23,7 @@ type PersonAttendanceView struct {
 	IsAdmin    bool
 	IntakeID   string
 	IntakeName string
-	SiteName   string
+	EventName  string
 	Month      string // "YYYY-MM" visible month
 	PrevMonth  string // "YYYY-MM"
 	NextMonth  string // "YYYY-MM"
@@ -180,7 +180,7 @@ func (s *Server) buildPersonAttendanceView(u *sessionUser, intake *core.Record, 
 		IsAdmin:    u.Role == "admin",
 		IntakeID:   intake.Id,
 		IntakeName: intake.GetString("name"),
-		SiteName:   s.nameFor("sites", intake.GetString("site")),
+		EventName:   s.nameFor("events", intake.GetString("event")),
 		Month:      month,
 		PrevMonth:  t.AddDate(0, -1, 0).Format("2006-01"),
 		NextMonth:  t.AddDate(0, 1, 0).Format("2006-01"),

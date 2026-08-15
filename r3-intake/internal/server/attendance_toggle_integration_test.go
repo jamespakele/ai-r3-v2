@@ -71,7 +71,7 @@ func seedToggleData(t *testing.T, pb *pocketbase.PocketBase) toggleFixtures {
 	iLocated := save("iLocated", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Located Alice")
-		r.Set("site", site)
+		r.Set("event", ev)
 		return r
 	}())
 
