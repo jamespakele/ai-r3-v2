@@ -228,3 +228,82 @@ func equalStrings(a, b []string) bool {
 	}
 	return true
 }
+
+// TestMatrixSitedFilteringAllEvents proves that a site-scoped matrix with no
+// selected event resolves the site's active event set and excludes attendance
+// recorded under events at other sites, while still surfacing same-site
+// records across all of that site's events.
+func TestMatrixSitedFilteringAllEvents(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedExportData(t, srv.pb)
+
+	admin := &sessionUser{ID: "admin1", Email: "admin@example.com", Name: "Admin One", Role: "admin"}
+	dates := []string{"2026-08-01", "2026-08-02", "2026-08-10"}
+
+	rows, err := srv.loadMatrixRows(admin, fx.site1, dates, "", "2026-08-10")
+	if err != nil {
+		t.Fatalf("loadMatrixRows: %v", err)
+	}
+
+	// Same-site records under ev1 (Kona) surface in the site-scoped matrix.
+	if got := cellStatus(rows, fx.i1, "2026-08-01"); got != "present" {
+		t.Errorf("i1 08-01 status = %q, want present (att-1 via ev1)", got)
+	}
+	if got := cellStatus(rows, fx.i1, "2026-08-02"); got != "walk_in" {
+		t.Errorf("i1 08-02 status = %q, want walk_in (att-2 via ev1)", got)
+	}
+	// att-5 is i1 attending ev2 (Waianae); it must NOT surface in the Kona
+	// site-scoped matrix.
+	if got := cellStatus(rows, fx.i1, "2026-08-10"); got != "" {
+		t.Errorf("i1 08-10 status = %q, want \"\" (att-5 is under ev2/Waianae, excluded)", got)
+	}
+	// i2 is a Waianae intake; excluded from the Kona roster entirely.
+	for _, r := range rows {
+		if r.IntakeID == fx.i2 {
+			t.Errorf("Waianae intake i2 rendered as a row in the Kona matrix")
+		}
+	}
+}
+
+// TestMatrixSiteNoActiveEvents proves a site with no active events still
+// renders its full roster, but the empty resolved event set skips the
+// attendance query so no cells are filled.
+func TestMatrixSiteNoActiveEvents(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedRosterData(t, srv.pb)
+
+	admin := &sessionUser{ID: "admin1", Email: "admin@example.com", Name: "Admin One", Role: "admin"}
+	dates := []string{"2026-08-13"}
+
+	rows, err := srv.loadMatrixRows(admin, fx.site2, dates, "", "2026-08-13")
+	if err != nil {
+		t.Fatalf("loadMatrixRows: %v", err)
+	}
+
+	found := false
+	for _, r := range rows {
+		if r.IntakeID == fx.iOtherSite {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("site2 roster missing iOtherSite (roster must still render with no active events)")
+	}
+	if got := cellStatus(rows, fx.iOtherSite, "2026-08-13"); got != "" {
+		t.Errorf("iOtherSite status = %q, want \"\" (empty event set skips attendance query)", got)
+	}
+}
+
+// TestAttendanceSchemaNoSiteField proves migration 015 removed the site field
+// from the attendance collection schema.
+func TestAttendanceSchemaNoSiteField(t *testing.T) {
+	srv := newTestServer(t)
+
+	attCol, err := srv.pb.FindCollectionByNameOrId("attendance")
+	if err != nil {
+		t.Fatalf("attendance collection: %v", err)
+	}
+	if f := attCol.Fields.GetByName("site"); f != nil {
+		t.Errorf("attendance schema still has a site field; migration 015 should have removed it")
+	}
+}

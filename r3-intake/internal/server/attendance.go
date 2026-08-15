@@ -295,28 +295,36 @@ func (s *Server) loadMatrixRows(u *sessionUser, siteID string, dates []string, e
 		return nil, err
 	}
 
-	// Attendance map: intakeID -> date -> status.
+	// Attendance map: intakeID -> date -> status. Location is derived from the
+	// event's site, so the attendance query filters by event set, never by site.
 	from := dates[0]
 	toDate := dates[len(dates)-1]
-	attFilter := fmt.Sprintf("date>='%s' && date<='%s'", mcpmod.EscapeFilter(from), mcpmod.EscapeFilter(toDate))
-	if siteID != "" {
-		attFilter += fmt.Sprintf(" && (site='' || site='%s')", mcpmod.EscapeFilter(siteID))
-	}
-	if eventID != "" {
-		attFilter += fmt.Sprintf(" && event='%s'", mcpmod.EscapeFilter(eventID))
-	}
-	attRecs, err := s.pb.FindRecordsByFilter(attCol.Id, attFilter, "date", 5000, 0)
+	eventIDs, err := s.resolveEventIDs(eventID, siteID)
 	if err != nil {
 		return nil, err
 	}
 	attMap := map[string]map[string]string{}
-	for _, rec := range attRecs {
-		iid := rec.GetString("intake")
-		d := rec.GetString("date")
-		if attMap[iid] == nil {
-			attMap[iid] = map[string]string{}
+	if eventIDs == nil || len(eventIDs) > 0 {
+		attFilter := fmt.Sprintf("date>='%s' && date<='%s'", mcpmod.EscapeFilter(from), mcpmod.EscapeFilter(toDate))
+		if eventIDs != nil {
+			ors := make([]string, 0, len(eventIDs))
+			for _, id := range eventIDs {
+				ors = append(ors, "event='"+mcpmod.EscapeFilter(id)+"'")
+			}
+			attFilter += " && (" + strings.Join(ors, " || ") + ")"
 		}
-		attMap[iid][d] = rec.GetString("status")
+		attRecs, err := s.pb.FindRecordsByFilter(attCol.Id, attFilter, "date", 5000, 0)
+		if err != nil {
+			return nil, err
+		}
+		for _, rec := range attRecs {
+			iid := rec.GetString("intake")
+			d := rec.GetString("date")
+			if attMap[iid] == nil {
+				attMap[iid] = map[string]string{}
+			}
+			attMap[iid][d] = rec.GetString("status")
+		}
 	}
 
 	threshold, _ := time.Parse("2006-01-02", to)
@@ -438,6 +446,28 @@ func (s *Server) loadEvents(siteID string) ([]Event, error) {
 		})
 	}
 	return out, nil
+}
+
+// resolveEventIDs returns the set of event IDs to include in an attendance
+// query. A specific eventID wins; otherwise the set is the active events at
+// siteID (empty slice when the site has no active events); nil means no event
+// restriction (admin, all locations).
+func (s *Server) resolveEventIDs(eventID, siteID string) ([]string, error) {
+	if eventID != "" {
+		return []string{eventID}, nil
+	}
+	if siteID == "" {
+		return nil, nil
+	}
+	events, err := s.loadEvents(siteID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(events))
+	for _, e := range events {
+		ids = append(ids, e.ID)
+	}
+	return ids, nil
 }
 
 // requireEventID returns a 400 if eventID is empty. Attendance is now
@@ -571,7 +601,6 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 	case next != "" && existing == nil:
 		rec := core.NewRecord(attCol)
 		rec.Set("intake", intakeID)
-		rec.Set("site", siteID)
 		rec.Set("date", date)
 		rec.Set("status", next)
 		rec.Set("recorded_by", u.ID)
@@ -771,7 +800,6 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 	if len(recs) > 0 {
 		existing := recs[0]
 		existing.Set("status", "walk_in")
-		existing.Set("site", siteID)
 		existing.Set("event", eventID)
 		existing.Set("recorded_by", u.ID)
 		existing.Set("check_in_time", now)
@@ -783,7 +811,6 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 	} else {
 		rec := core.NewRecord(attCol)
 		rec.Set("intake", intakeID)
-		rec.Set("site", siteID)
 		rec.Set("event", eventID)
 		rec.Set("date", today)
 		rec.Set("status", "walk_in")
@@ -794,7 +821,6 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 			recs, ferr := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
 			if ferr == nil && len(recs) > 0 {
 				recs[0].Set("status", "walk_in")
-				recs[0].Set("site", siteID)
 				recs[0].Set("event", eventID)
 				recs[0].Set("recorded_by", u.ID)
 				recs[0].Set("check_in_time", now)
@@ -910,13 +936,25 @@ func (s *Server) loadExportRows(siteID, eventID, from, to string) ([]ExportRow, 
 	if err != nil {
 		return nil, err
 	}
+	eventsCol, err := s.eventsCollection()
+	if err != nil {
+		return nil, err
+	}
+	eventIDs, err := s.resolveEventIDs(eventID, siteID)
+	if err != nil {
+		return nil, err
+	}
+	if eventIDs != nil && len(eventIDs) == 0 {
+		return []ExportRow{}, nil
+	}
 	filter := fmt.Sprintf("date>='%s' && date<='%s'",
 		mcpmod.EscapeFilter(from), mcpmod.EscapeFilter(to))
-	if siteID != "" {
-		filter += fmt.Sprintf(" && site='%s'", mcpmod.EscapeFilter(siteID))
-	}
-	if eventID != "" {
-		filter += fmt.Sprintf(" && event='%s'", mcpmod.EscapeFilter(eventID))
+	if eventIDs != nil {
+		ors := make([]string, 0, len(eventIDs))
+		for _, id := range eventIDs {
+			ors = append(ors, "event='"+mcpmod.EscapeFilter(id)+"'")
+		}
+		filter += " && (" + strings.Join(ors, " || ") + ")"
 	}
 	recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "date,intake", 10000, 0)
 	if err != nil {
@@ -925,9 +963,15 @@ func (s *Server) loadExportRows(siteID, eventID, from, to string) ([]ExportRow, 
 
 	out := make([]ExportRow, 0, len(recs))
 	for _, rec := range recs {
+		// Location is derived from the event's site, never from attendance.site.
+		eventRec, err := s.pb.FindRecordById(eventsCol.Id, rec.GetString("event"))
+		siteName := ""
+		if err == nil {
+			siteName = s.nameFor("sites", eventRec.GetString("site"))
+		}
 		out = append(out, ExportRow{
 			ParticipantName: s.nameFor("intake", rec.GetString("intake")),
-			SiteName:        s.nameFor("sites", rec.GetString("site")),
+			SiteName:        siteName,
 			EventName:       s.nameFor("events", rec.GetString("event")),
 			Date:            rec.GetString("date"),
 			Status:          rec.GetString("status"),
