@@ -222,7 +222,7 @@ func TestPersonAttendanceTemplateRenders(t *testing.T) {
 		IsAdmin:    true,
 		IntakeID:   "i1",
 		IntakeName: "Alice",
-		SiteName:   "Kona",
+		EventName:  "Kona",
 		Month:      "2026-08",
 		PrevMonth:  "2026-07",
 		NextMonth:  "2026-09",

@@ -82,14 +82,14 @@ func seedPersonAttendanceData(t *testing.T, pb *pocketbase.PocketBase) personAtt
 	i1 := save("i1", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Alice")
-		r.Set("site", site)
+		r.Set("event", ev)
 		r.Set("assigned_to", cm1)
 		return r
 	}())
 	i2 := save("i2", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Bob")
-		r.Set("site", site)
+		r.Set("event", ev)
 		r.Set("assigned_to", cm2)
 		return r
 	}())
@@ -257,7 +257,7 @@ func TestPersonAttendanceMonthRender(t *testing.T) {
 	}
 	body := rec.Body.String()
 	for _, want := range []string{
-		"Alice", "Kona",
+		"Alice", "Morning Program",
 		"3 of 5 days (60%)",
 		"Current streak: 1",
 		"Present", "Absent", "Excused", "Walk-in",

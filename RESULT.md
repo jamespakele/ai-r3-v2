@@ -1,32 +1,41 @@
-# RESULT — Run attendance matrix tests and verify fix
+# RESULT — t_27c37c36: Migrate intake site field to event reference
 
-## What was verified
-Assembled the combined fix (sibling worktrees) into this worktree and ran the
-full attendance matrix test suite:
+## What was built
+Renamed the `intake.site` relation (→ `sites`) to `intake.event` (→ `events`)
+across the schema and Go code, per the MOA working plan
+(`docs/plans/omp-plan-intake-site-to-event.md`).
 
-- **attendance.go** (from sibling t_e0d89c58): removed the `eventSite`-based
-  intake filter in `loadMatrixRows` so the roster is always the full
-  site/role-scoped participant list, independent of the selected event. Event
-  scoping now applies only to the attendance map.
-- **attendance_roster_integration_test.go** (from sibling t_6b3eff3f):
-  restored `TestMatrixRosterEventIndependent` (renamed from
-  `TestMatrixRosterEventScoped`), asserting the roster is identical with/without
-  a selected event (full admin roster [iInSite1, iInSite2, iOtherSite,
-  iAssignedCM] in both cases), with attendance dots differing only for the
-  attendee whose record belongs to a different event.
+## Artifacts
+- `r3-intake/pocketbase/migrations/016_intake_site_to_event.go` — new migration
+  (up: remove intake.site, add intake.event → events, best-effort backfill to
+  first active non-deleted event at the old site; down: reverse + backfill
+  site from event's site). Idempotency guards on both directions.
+- `r3-intake/pocketbase/migrations/migrations.go` — registered 016.
+- `r3-intake/internal/server/handlers.go` — REQUIRED_FIELDS "site"→"event";
+  FormState.SiteSel→EventSel; blankState default-event; stateFromRecord /
+  applySection / applyToState / validateState read/write `event`.
+- `r3-intake/internal/server/admin.go` — IntakeRow.SiteName→EventName;
+  participant-list resolution via `nameFor("events", …)`; ?site= filter →
+  ?event= filter on intake.event (EventFilter).
+- `r3-intake/internal/server/attendance.go` — intake.site reads → intake.event
+  (resolveSite, loadMatrixRows NoLocation grouping, handleToggle, handleWalkin
+  sets intake.event from event_id). events.site (event's location) untouched.
+- `r3-intake/internal/server/person_attendance.go` — SiteName→EventName via
+  nameFor("events", …); template header updated.
+- `r3-intake/internal/mcp/mcp.go` — intake.site reads → intake.event (4 sites),
+  new loadEventMap/resolveEvent helpers; MCP contract unchanged.
+- Tests: 4 integration files seed intakes with r.Set("event", <eventID>);
+  person_attendance_test.go fixture renamed; TestExportCSVSiteFilter pinned
+  to be clock-independent.
 
-## Verification results
+## Verification
 - `go build ./...` — PASS
 - `go vet ./...` — PASS
-- `go test ./...` — PASS (internal/server 14.8s ok; migrations ok)
-- `go test ./internal/server/ -run TestMatrixRosterEventIndependent -v` — PASS
-
-## Conclusion
-The regression is fixed: selecting an event no longer filters the participant
-list; the roster is always the full site/role-scoped list, and the event scopes
-only the attendance map. All tests pass with the combined fix.
-
-## Note
-This is a child story card. The parent epic task (t_eefa9c57) merges the child
-worktrees (t_e0d89c58, t_6b3eff3f, t_69f207ad) onto the epic branch, then to
-master, and closes the GitHub issue.
+- `go test ./...` — PASS (server 15.6s, migrations 0.18s)
+- Grep: zero `intake.site` reads remain; every remaining GetString/Set("site")
+  is on the `events` (event's location) or `sites` collection.
+- View-model contract for siblings: EventSel, EventName, EventFilter,
+  REQUIRED_FIELDS="event" all present.
+- Sibling-owned template regions (site-fragment, R3 Site Location dropdown,
+  participant-list Site column, admin tab ordering) untouched — owned by
+  t_146484f2 / t_fb0d46ce / t_35775bf1.

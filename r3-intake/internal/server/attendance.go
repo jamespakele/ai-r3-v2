@@ -238,15 +238,28 @@ func (s *Server) resolveSite(u *sessionUser, param string) (string, string) {
 		}
 		return "", "All locations"
 	}
-	// case_manager: derive site from assigned intakes.
+	// case_manager: derive site from assigned intakes. Each intake's home
+	// event determines the site: resolve the event's site and count by site so
+	// the derived value stays a site id (callers use it as a site
+	// filter/guard). The matrix is event-scoped, but this function's contract
+	// is a site, so we resolve through the event rather than keying by event.
 	counts := map[string]int{}
 	col, err := s.intakeCollection()
 	if err == nil {
 		filter := fmt.Sprintf("assigned_to='%s'", mcpmod.EscapeFilter(u.ID))
 		recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "name", 1000, 0)
 		if err == nil {
+			eventsCol, eerr := s.eventsCollection()
 			for _, rec := range recs {
-				sid := rec.GetString("site")
+				eventID := rec.GetString("event")
+				if eventID == "" || eerr != nil {
+					continue
+				}
+				ev, err := s.pb.FindRecordById(eventsCol.Id, eventID)
+				if err != nil {
+					continue
+				}
+				sid := ev.GetString("site")
 				if sid != "" {
 					counts[sid]++
 				}
@@ -351,7 +364,7 @@ func (s *Server) loadMatrixRows(u *sessionUser, dates []string, eventID, to stri
 		iid := rec.Id
 		cellSiteID := eventSite
 		if cellSiteID == "" {
-			cellSiteID = rec.GetString("site")
+			cellSiteID = rec.GetString("event")
 		}
 		row := MatrixRow{
 			IntakeID:  iid,
@@ -530,8 +543,8 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Authorization: case managers may only toggle their own intakes.
-	// The intake record is also the source of the effective site for
-	// participants with no explicit site selected.
+	// The intake record is also the source of the effective event for
+	// participants with no explicit event selected.
 	intakeCol, err := s.intakeCollection()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -546,17 +559,17 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 		}
 		intakeLoaded = true
 		if siteID == "" {
-			siteID = rec.GetString("site")
+			siteID = rec.GetString("event")
 		}
 	}
 	if siteID == "" && !intakeLoaded {
 		if rec, err := s.pb.FindRecordById(intakeCol.Id, intakeID); err == nil {
-			siteID = rec.GetString("site")
+			siteID = rec.GetString("event")
 		}
 	}
 
 	// Attendance cannot be toggled for a participant with no assigned
-	// location. The intake record is the source of truth for the site.
+	// location. The intake record is the source of truth for the event.
 	if siteID == "" {
 		http.Error(w, "attendance requires a location", http.StatusBadRequest)
 		return
@@ -682,7 +695,7 @@ type walkinResult struct {
 }
 
 // handleWalkinSearch returns an HTML fragment listing intake records whose
-// name matches the ?name= query, scoped to the resolved site (auth-only).
+// name matches the ?name= query, scoped to the target event (auth-only).
 // Min 2 chars, max 10 results. Used by the matrix "Add walk-in" panel.
 func (s *Server) handleWalkinSearch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -694,15 +707,26 @@ func (s *Server) handleWalkinSearch(w http.ResponseWriter, r *http.Request) {
 	if len(q) < 2 {
 		return // empty body — no results for short queries
 	}
-	u := s.currentSession(r)
 	col, err := s.intakeCollection()
 	if err != nil {
 		return
 	}
 	filter := fmt.Sprintf(`name ~ "%s"`, mcpmod.EscapeFilter(q))
-	siteID, _ := s.resolveSite(u, strings.TrimSpace(r.URL.Query().Get("site_id")))
-	if siteID != "" {
-		filter += fmt.Sprintf(" && site='%s'", mcpmod.EscapeFilter(siteID))
+	// Scope to the walk-in's target event: intake.event replaced intake.site
+	// as the roster-scoping key (migration 016).
+	eventID := strings.TrimSpace(r.URL.Query().Get("event_id"))
+	if eventID != "" {
+		filter += fmt.Sprintf(" && event='%s'", mcpmod.EscapeFilter(eventID))
+	}
+	// The walk-in form still needs a site_id (the event's site) so the
+	// walk-in handler's location guard passes.
+	siteID := ""
+	if eventID != "" {
+		if eventsCol, err := s.eventsCollection(); err == nil {
+			if ev, err := s.pb.FindRecordById(eventsCol.Id, eventID); err == nil {
+				siteID = ev.GetString("site")
+			}
+		}
 	}
 	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "-created", 10, 0)
 	if err != nil {
@@ -710,7 +734,6 @@ func (s *Server) handleWalkinSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	from := strings.TrimSpace(r.URL.Query().Get("from"))
 	to := strings.TrimSpace(r.URL.Query().Get("to"))
-	eventID := strings.TrimSpace(r.URL.Query().Get("event_id"))
 	results := make([]walkinResult, 0, len(recs))
 	for _, rec := range recs {
 		name := rec.GetString("name")
@@ -766,7 +789,7 @@ func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
 		}
 		rec := core.NewRecord(intakeCol)
 		rec.Set("name", name)
-		rec.Set("site", siteID)
+		rec.Set("event", eventID)
 		rec.Set("created_by", u.ID)
 		rec.Set("status", "unassigned")
 		if err := s.pb.Save(rec); err != nil {

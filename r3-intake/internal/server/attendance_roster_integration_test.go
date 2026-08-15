@@ -72,25 +72,25 @@ func seedRosterData(t *testing.T, pb *pocketbase.PocketBase) rosterFixtures {
 	iInSite1 := save("iInSite1", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Alice")
-		r.Set("site", site)
+		r.Set("event", ev1)
 		return r
 	}())
 	iInSite2 := save("iInSite2", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Bob")
-		r.Set("site", site)
+		r.Set("event", ev1)
 		return r
 	}())
 	iOtherSite := save("iOtherSite", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Carol")
-		r.Set("site", site2)
+		r.Set("event", ev2)
 		return r
 	}())
 	iAssignedCM := save("iAssignedCM", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Dana")
-		r.Set("site", site)
+		r.Set("event", ev1)
 		r.Set("assigned_to", cm)
 		return r
 	}())
