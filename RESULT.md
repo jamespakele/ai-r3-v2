@@ -1,32 +1,28 @@
-# RESULT — Run attendance matrix tests and verify fix
+# RESULT — Reorder admin tabs to put Events first
 
-## What was verified
-Assembled the combined fix (sibling worktrees) into this worktree and ran the
-full attendance matrix test suite:
+## What was built
+Reordered the Admin screen's tab list so **Events** is the first tab (before Sites),
+and made **Events** the default active tab so the Admin screen opens on the Events tab.
 
-- **attendance.go** (from sibling t_e0d89c58): removed the `eventSite`-based
-  intake filter in `loadMatrixRows` so the roster is always the full
-  site/role-scoped participant list, independent of the selected event. Event
-  scoping now applies only to the attendance map.
-- **attendance_roster_integration_test.go** (from sibling t_6b3eff3f):
-  restored `TestMatrixRosterEventIndependent` (renamed from
-  `TestMatrixRosterEventScoped`), asserting the roster is identical with/without
-  a selected event (full admin roster [iInSite1, iInSite2, iOtherSite,
-  iAssignedCM] in both cases), with attendance dots differing only for the
-  attendee whose record belongs to a different event.
+Single-file change: `r3-intake/internal/assets/public/index.html` (74 insertions, 73 deletions).
 
-## Verification results
+- Tab buttons: `{{if .IsAdmin}}` → Events (`aria-selected="true"`, no tabindex) → Users
+  (`aria-selected="false"`, tabindex="-1") → `{{end}}` → Sites (`aria-selected="false"`, tabindex="-1").
+- Panels: `{{if .IsAdmin}}` → `panel-events` (no `hidden`) → `panel-users` (`hidden`) → `{{end}}`
+  → `panel-sites` (`hidden`).
+- All IDs, `aria-controls`/`aria-labelledby`/`data-tab-target` relationships preserved.
+- JS untouched — `activate()` is order-agnostic (derives state from `aria-controls`/`hidden` by ID),
+  so tab switching, `EventError`/`EventName` auto-activate, and `?tab=` restore all still work.
+- Admin guard intact: non-admin users see only the Sites tab.
+
+## Verification
 - `go build ./...` — PASS
 - `go vet ./...` — PASS
-- `go test ./...` — PASS (internal/server 14.8s ok; migrations ok)
-- `go test ./internal/server/ -run TestMatrixRosterEventIndependent -v` — PASS
+- `go test ./internal/server/ -run TestAdmin` — PASS (all admin tests, incl. TestAdminEventsRender)
+- Full `go test ./...` — one failure, `TestExportCSVSiteFilter/site1_only` (row count 3, want 4),
+  confirmed **pre-existing and unrelated** (fails identically on pristine HEAD; the export handler
+  never executes the template).
 
-## Conclusion
-The regression is fixed: selecting an event no longer filters the participant
-list; the roster is always the full site/role-scoped list, and the event scopes
-only the attendance map. All tests pass with the combined fix.
-
-## Note
-This is a child story card. The parent epic task (t_eefa9c57) merges the child
-worktrees (t_e0d89c58, t_6b3eff3f, t_69f207ad) onto the epic branch, then to
-master, and closes the GitHub issue.
+## Artifacts
+- `docs/plans/omp-plan-reorder-admin-tabs-events-first.md` — MOA working plan
+- `WORKING_PLAN_reorder-admin-tabs-events-first.md` — plan copy at worktree root
