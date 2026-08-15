@@ -1,33 +1,26 @@
-# RESULT — Fix attendance matrix date handling and remove STOPPED heuristic
+# RESULT — Add Intake button and standardize button labels across screens
 
 ## What was built
-All four changes implemented in one coherent pass by omp (plan: docs/plans/omp-plan-attendance-matrix-date-fix.md):
+Template-only change to `r3-intake/internal/assets/public/index.html` (8 edits, 1 file).
 
-1. **Removed from/to date filter boxes + Apply button** from the matrix filter form. The event dropdown is now the single source of truth for the date range.
-2. **Grid dates reflect the event's dates** — with the date inputs gone, `explicitRange` is always false and `parseMatrixFilters` auto-scopes to the effective event's start/end dates. Grid header, stat cards, and toggle/walk-in forms all use the event-scoped range.
-3. **Year shown in date labels** — event dates label renders `Mar 1 – Apr 15, 2026` (via `formatEventStart`/`formatEventEnd`); grid headers render compact `3/1/26` (via `formatGridDate` + new `DatesLabel []string`).
-4. **Removed the STOPPED dropout heuristic** — `IsDropout` field, the 13-day threshold block, `row.IsDropout` computation, `s.Stopped++` branch, `Stopped` summary field, `row-dropout` CSS rules, matrix-only `.status-badge` block, `.stat-red`, the STOPPED badge, and the Stopped stat card all removed. Matrix rows are uniform attendance ticks.
+**Change 2 — Intake button on attendance matrix:** added `<a href="/public/intake" class="btn btn-primary">Intake</a>` in the matrix topbar immediately after the Records button (L1152).
 
-## Files changed
-- r3-intake/internal/server/attendance.go
-- r3-intake/internal/assets/public/index.html
-- r3-intake/internal/assets/public/app.css
-- r3-intake/internal/server/attendance_test.go
-- r3-intake/internal/server/attendance_stats_integration_test.go
-- r3-intake/internal/server/attendance_roster_integration_test.go
+**Change 3 — Standardized button labels:**
+- `/public/intake` buttons → "Intake": intake form topbar (L66, was "New Form"), records list topbar (L559, was "New Intake").
+- `/` (records list) buttons → "Records": intake form topbar authed branch (L65, was "View All"), admin topbar (L678, was "Back to List"), notes topbar (L948, was "View All"), note-history topbar (L1060, was "View All"), person-attendance topbar (L1414, was "View All"). Matrix topbar Records (L1151) already correct.
+
+## Excluded (per plan)
+- L93 `link-btn-muted` "New Form" (semantically "start a new form", not nav-to-list)
+- L496 login-hint prose link
+- L591 "Clear" filter button
+- L65 "Sign in" branch
+- Walk-in panel/code (sibling t_9ce22e69's scope)
 
 ## Verification
-- `go build ./... && go vet ./... && go test ./...` — all pass (server 16.9s).
-- Grep for `IsDropout|row-dropout|.Stopped|thresholdStr|EventStartDate|EventEndDate|stat-red|STOPPED` — zero hits.
-- Filter form shows only the event select (no date inputs, no Apply).
-- Event dates label uses `EventStartLabel – EventEndLabel` (year on end).
-- Grid header ranges `.DatesLabel` (M/D/YY).
-- Walk-in search/create and toggle/walk-in forms keep hidden event-scoped `from`/`to`.
-- Stat cards: Total check-ins, Active participants, Avg attendance rate only.
+- `go build ./... && go vet ./... && go test ./...` all PASS (server 16.5s, migrations 0.2s). Template-render tests exercise matrix, person-attendance, admin, notes, note-history blocks.
+- Grep: every `href="/public/intake"` button reads `>Intake<`; every `href="/"` nav button reads `>Records<`; excluded links unchanged.
+- No Go handler, route, CSS, or test files changed.
 
-## Acceptance criteria
-- [x] Selecting an event shows the grid with exactly that event's date span, years visible.
-- [x] No date filter boxes or Apply button.
-- [x] No STOPPED red highlighting or stat card.
-- [x] Event is the single source of truth for the matrix date range.
-- [x] Toggle/walk-in forms still carry the correct event-scoped date range.
+## Artifacts
+- Plan: `docs/plans/omp-plan-intake-button-standardize-labels.md`
+- Diff: 1 file, 8 insertions / 7 deletions
