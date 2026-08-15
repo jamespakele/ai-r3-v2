@@ -1173,7 +1173,7 @@
       {{range .Events}}<option value="{{.ID}}" {{if eq $.EventID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
     </select>
     {{if .IsAdmin}}
-    <input type="text" class="field-input" value="{{.EventLocation}}" disabled
+    <input type="text" class="field-input event-location-box" value="{{.EventLocation}}" disabled
            placeholder="Select an event to show its location">
     {{else}}
     <span class="muted">Site: {{.SiteName}}</span>
