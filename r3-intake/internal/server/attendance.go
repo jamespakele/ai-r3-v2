@@ -82,14 +82,12 @@ func (s *Server) attendanceCollection() (*core.Collection, error) {
 func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 	u := s.currentSession(r)
 
-	from, to, eventID, dates := s.parseMatrixFilters(r)
-
 	events, err := s.loadEvents()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	eventID = s.effectiveEventID(eventID, events)
+	from, to, eventID, dates := s.parseMatrixFilters(r, events)
 
 	rows, err := s.loadMatrixRows(u, dates, eventID, to)
 	if err != nil {
@@ -137,10 +135,17 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 // parseMatrixFilters derives the effective attendance filters from the
 // request query, applying the same defaults and validation used by the
 // matrix: a 14-day window (today and the prior 13 days), inverted ranges
-// swapped, and ranges capped at 30 days. The event filter is read from the
-// query key "event" (matrix filter bar) and falls back to "event_id"
-// (toggle/walk-in forms).
-func (s *Server) parseMatrixFilters(r *http.Request) (from, to, eventID string, dates []string) {
+// swapped, and ranges capped at 30 days. When the user did not explicitly
+// provide a valid from/to range and an event is in effect, the range
+// auto-scopes to that event's start_date -> end_date (full span, no cap).
+// The event filter is read from the query key "event" (matrix filter bar)
+// and falls back to "event_id" (toggle/walk-in forms).
+func (s *Server) parseMatrixFilters(r *http.Request, events []Event) (from, to, eventID string, dates []string) {
+	eventID = strings.TrimSpace(r.URL.Query().Get("event"))
+	if eventID == "" {
+		eventID = strings.TrimSpace(r.URL.Query().Get("event_id"))
+	}
+
 	// Parse and validate from/to.
 	now := time.Now().In(hst)
 	defTo := now.Format("2006-01-02")
@@ -150,6 +155,7 @@ func (s *Server) parseMatrixFilters(r *http.Request) (from, to, eventID string, 
 	to = strings.TrimSpace(r.URL.Query().Get("to"))
 	fromT, errFrom := time.Parse("2006-01-02", from)
 	toT, errTo := time.Parse("2006-01-02", to)
+	explicitRange := errFrom == nil && errTo == nil
 	if errFrom != nil || errTo != nil {
 		from, to = defFrom, defTo
 		fromT, _ = time.Parse("2006-01-02", from)
@@ -165,9 +171,22 @@ func (s *Server) parseMatrixFilters(r *http.Request) (from, to, eventID string, 
 		to = toT.Format("2006-01-02")
 	}
 
-	eventID = strings.TrimSpace(r.URL.Query().Get("event"))
-	if eventID == "" {
-		eventID = strings.TrimSpace(r.URL.Query().Get("event_id"))
+	eventID = s.effectiveEventID(eventID, events)
+
+	// Auto-scope to the effective event's dates when the user did not
+	// explicitly provide a valid from/to range. The event span is
+	// authoritative: no 30-day cap applies.
+	if !explicitRange && eventID != "" {
+		for _, ev := range events {
+			if ev.ID == eventID {
+				start, errStart := time.Parse("2006-01-02", ev.StartDate)
+				end, errEnd := time.Parse("2006-01-02", ev.EndDate)
+				if errStart == nil && errEnd == nil && !start.After(end) {
+					from, to = ev.StartDate, ev.EndDate
+				}
+				break
+			}
+		}
 	}
 
 	dates = buildDateRange(from, to)
@@ -193,14 +212,13 @@ func (s *Server) effectiveEventID(eventID string, events []Event) string {
 // guarantee the cards always match the matrix.
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	u := s.currentSession(r)
-	_, to, eventID, dates := s.parseMatrixFilters(r)
 
 	events, err := s.loadEvents()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	eventID = s.effectiveEventID(eventID, events)
+	_, to, eventID, dates := s.parseMatrixFilters(r, events)
 
 	rows, err := s.loadMatrixRows(u, dates, eventID, to)
 	if err != nil {
