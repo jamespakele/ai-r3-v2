@@ -508,6 +508,7 @@
 <title>R3 Intake — Records</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css?v=3">
+<script src="/static/htmx.min.js" defer></script>
 <script>
 (function(){
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
@@ -565,52 +566,59 @@
 
   <div class="container container-admin">
     <h2 class="section-title section-title-sm">Intake records</h2>
-    <form method="get" action="/" class="inline-form">
-      <input type="text" name="q" value="{{.Query}}" placeholder="Search name, email, phone" class="field-input">
-      <select name="status" class="field-input">
-        <option value="">All statuses</option>
-        <option value="unassigned"{{if eq .StatusFilter "unassigned"}} selected{{end}}>Unassigned</option>
-        <option value="claimed"{{if eq .StatusFilter "claimed"}} selected{{end}}>Claimed</option>
-        <option value="completed"{{if eq .StatusFilter "completed"}} selected{{end}}>Completed</option>
-      </select>
-      <select name="event" class="field-input">
-        <option value="">All Events</option>
-        {{range .Events}}<option value="{{.ID}}"{{if eq $.EventFilter .ID}} selected{{end}}>{{.Name}}</option>{{end}}
-      </select>
-      <button type="submit" class="btn btn-primary">Filter</button>
-      {{if or .Query .StatusFilter .EventFilter}}<a href="/" class="btn btn-ghost">Clear</a>{{end}}
-    </form>
-    <p class="admin-result-count">Showing {{.Total}} record{{if ne .Total 1}}s{{end}}{{if .Query}} matching "{{.Query}}"{{end}}</p>
-    {{if .IsAdmin}}<form id="bulk-delete-form" method="post" action="/admin/intake/bulk-delete"></form>
-    <div class="bulk-bar"><button type="submit" form="bulk-delete-form" class="btn btn-tiny btn-danger" onclick="return confirm('Delete '+document.querySelectorAll('.bulk-check:checked').length+' selected records?')">Delete selected</button></div>{{end}}
-    <table class="admin-table">
-      <thead><tr>{{if .IsAdmin}}<th style="width:28px"><input type="checkbox" title="Select all" onclick="document.querySelectorAll('.bulk-check').forEach(c=>c.checked=this.checked)"></th>{{end}}<th>Participant</th><th>SSN</th><th>Event</th><th>Status</th><th>Assigned</th><th>Created</th><th></th></tr></thead>
-      <tbody>
-      {{range .Rows}}
-        <tr>
-          {{if $.IsAdmin}}<td><input type="checkbox" name="ids" value="{{.ID}}" form="bulk-delete-form" class="bulk-check"></td>{{end}}
-          <td><a href="/intake/{{.ID}}" class="admin-link">{{if .Name}}{{.Name}}{{else}}(unnamed){{end}}</a></td>
-          <td class="mono">{{.SSNMasked}}</td>
-          <td>{{.EventName}}</td>
-          <td><span class="status-badge status-{{.Status}}">{{.Status}}</span></td>
-          <td>{{.AssignedName}}</td>
-          <td class="mono">{{formatTime .Created}}</td>
-          <td class="admin-actions">
-            <a href="/intake/{{.ID}}" class="btn btn-tiny btn-primary">Edit</a>
-            <a href="/notes/{{.ID}}" class="btn btn-tiny">Notes</a>
-            {{if eq .Status "unassigned"}}<form method="post" action="/admin/intake/{{.ID}}/claim"><button class="btn btn-tiny" type="submit">Claim</button></form>{{end}}
-            {{if ne .Status "completed"}}<form method="post" action="/admin/intake/{{.ID}}/complete"><button class="btn btn-tiny" type="submit">Complete</button></form>{{end}}
-            {{if $.IsAdmin}}<form method="post" action="/admin/intake/{{.ID}}/delete" onsubmit="return confirm('Delete this intake?')"><button class="btn btn-tiny btn-danger" type="submit">Delete</button></form>{{end}}
-          </td>
-        </tr>
-      {{end}}
-      {{if not .Rows}}<tr><td colspan="{{if .IsAdmin}}8{{else}}7{{end}}" class="empty-state">{{if or .Query .StatusFilter .EventFilter}}No records match your search.{{else}}No intake records yet.{{end}}</td></tr>{{end}}
-      </tbody>
-    </table>
+    {{template "list-content" .}}
   </div>
 </div>
 </body>
 </html>{{end}}
+
+{{define "list-content"}}
+<div id="list-content">
+  <form method="get" action="/" class="inline-form"
+        hx-get="/" hx-target="#list-content" hx-swap="outerHTML"
+        hx-trigger="change, keyup changed delay:300ms" hx-push-url="true">
+    <input type="text" name="q" value="{{.Query}}" placeholder="Search name, email, phone" class="field-input">
+    <select name="status" class="field-input">
+      <option value="">All statuses</option>
+      <option value="unassigned"{{if eq .StatusFilter "unassigned"}} selected{{end}}>Unassigned</option>
+      <option value="claimed"{{if eq .StatusFilter "claimed"}} selected{{end}}>Claimed</option>
+      <option value="completed"{{if eq .StatusFilter "completed"}} selected{{end}}>Completed</option>
+    </select>
+    <select name="event" class="field-input">
+      <option value="">All Events</option>
+      {{range .Events}}<option value="{{.ID}}"{{if eq $.EventFilter .ID}} selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
+    {{if or .Query .StatusFilter .EventFilter}}<a href="/" class="btn btn-ghost">Clear</a>{{end}}
+  </form>
+  <p class="admin-result-count">Showing {{.Total}} record{{if ne .Total 1}}s{{end}}{{if .Query}} matching "{{.Query}}"{{end}}</p>
+  {{if .IsAdmin}}<form id="bulk-delete-form" method="post" action="/admin/intake/bulk-delete"></form>
+  <div class="bulk-bar"><button type="submit" form="bulk-delete-form" class="btn btn-tiny btn-danger" onclick="return confirm('Delete '+document.querySelectorAll('.bulk-check:checked').length+' selected records?')">Delete selected</button></div>{{end}}
+  <table class="admin-table">
+    <thead><tr>{{if .IsAdmin}}<th style="width:28px"><input type="checkbox" title="Select all" onclick="document.querySelectorAll('.bulk-check').forEach(c=>c.checked=this.checked)"></th>{{end}}<th>Participant</th><th>SSN</th><th>Event</th><th>Status</th><th>Assigned</th><th>Created</th><th></th></tr></thead>
+    <tbody>
+    {{range .Rows}}
+      <tr>
+        {{if $.IsAdmin}}<td><input type="checkbox" name="ids" value="{{.ID}}" form="bulk-delete-form" class="bulk-check"></td>{{end}}
+        <td><a href="/intake/{{.ID}}" class="admin-link">{{if .Name}}{{.Name}}{{else}}(unnamed){{end}}</a></td>
+        <td class="mono">{{.SSNMasked}}</td>
+        <td>{{.EventName}}</td>
+        <td><span class="status-badge status-{{.Status}}">{{.Status}}</span></td>
+        <td>{{.AssignedName}}</td>
+        <td class="mono">{{formatTime .Created}}</td>
+        <td class="admin-actions">
+          <a href="/intake/{{.ID}}" class="btn btn-tiny btn-primary">Edit</a>
+          <a href="/notes/{{.ID}}" class="btn btn-tiny">Notes</a>
+          {{if eq .Status "unassigned"}}<form method="post" action="/admin/intake/{{.ID}}/claim"><button class="btn btn-tiny" type="submit">Claim</button></form>{{end}}
+          {{if ne .Status "completed"}}<form method="post" action="/admin/intake/{{.ID}}/complete"><button class="btn btn-tiny" type="submit">Complete</button></form>{{end}}
+          {{if $.IsAdmin}}<form method="post" action="/admin/intake/{{.ID}}/delete" onsubmit="return confirm('Delete this intake?')"><button class="btn btn-tiny btn-danger" type="submit">Delete</button></form>{{end}}
+        </td>
+      </tr>
+    {{end}}
+    {{if not .Rows}}<tr><td colspan="{{if .IsAdmin}}8{{else}}7{{end}}" class="empty-state">{{if or .Query .StatusFilter .EventFilter}}No records match your search.{{else}}No intake records yet.{{end}}</td></tr>{{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
 
 {{define "admin"}}<!DOCTYPE html>
 <html lang="en">

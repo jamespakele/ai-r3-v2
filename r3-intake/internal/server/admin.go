@@ -152,6 +152,10 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 
 	view.Sites = must(s.loadSites(false))
 	view.Events = must(s.loadAllEvents())
+	if r.Header.Get("HX-Request") == "true" {
+		_ = s.tpl.ExecuteTemplate(w, "list-content", view)
+		return
+	}
 	_ = s.tpl.ExecuteTemplate(w, "list", view)
 }
 
