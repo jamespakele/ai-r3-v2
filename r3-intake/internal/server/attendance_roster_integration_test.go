@@ -170,11 +170,11 @@ func TestMatrixRosterEventIndependent(t *testing.T) {
 	admin := &sessionUser{ID: "admin1", Email: "admin@example.com", Name: "Admin One", Role: "admin"}
 	dates := []string{"2026-08-13"}
 
-	withEvent, err := srv.loadMatrixRows(admin, dates, fx.ev1, "2026-08-13")
+	withEvent, err := srv.loadMatrixRows(admin, dates, fx.ev1)
 	if err != nil {
 		t.Fatalf("loadMatrixRows(ev1): %v", err)
 	}
-	noEvent, err := srv.loadMatrixRows(admin, dates, "", "2026-08-13")
+	noEvent, err := srv.loadMatrixRows(admin, dates, "")
 	if err != nil {
 		t.Fatalf("loadMatrixRows(no event): %v", err)
 	}
@@ -235,7 +235,7 @@ func TestMatrixNoEventAdminAllIntakes(t *testing.T) {
 	admin := &sessionUser{ID: "admin1", Email: "admin@example.com", Name: "Admin One", Role: "admin"}
 	dates := []string{"2026-08-01", "2026-08-02", "2026-08-10"}
 
-	rows, err := srv.loadMatrixRows(admin, dates, "", "2026-08-10")
+	rows, err := srv.loadMatrixRows(admin, dates, "")
 	if err != nil {
 		t.Fatalf("loadMatrixRows: %v", err)
 	}
@@ -274,7 +274,7 @@ func TestMatrixNoEventEmptyCells(t *testing.T) {
 	admin := &sessionUser{ID: "admin1", Email: "admin@example.com", Name: "Admin One", Role: "admin"}
 	dates := []string{"2026-08-13"}
 
-	rows, err := srv.loadMatrixRows(admin, dates, "", "2026-08-13")
+	rows, err := srv.loadMatrixRows(admin, dates, "")
 	if err != nil {
 		t.Fatalf("loadMatrixRows: %v", err)
 	}

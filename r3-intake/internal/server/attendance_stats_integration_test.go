@@ -61,7 +61,7 @@ func TestStatsEndpoint(t *testing.T) {
 		body := rec.Body.String()
 		for _, want := range []string{
 			`id="stat-cards"`,
-			"Total check-ins", "Active participants", "Stopped", "Avg attendance rate",
+			"Total check-ins", "Active participants", "Avg attendance rate",
 			`>1</div><div class="stat-label">Total check-ins`,
 		} {
 			if !strings.Contains(body, want) {

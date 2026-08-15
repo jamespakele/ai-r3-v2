@@ -37,11 +37,15 @@ type MatrixViewData struct {
 	// EventLocation is the display-only location name of the currently selected
 	// event. It is empty when no event is selected or the event has no site.
 	EventLocation string
-	// EventStartDate / EventEndDate are the selected event's date range
-	// (YYYY-MM-DD). They are empty when no event is selected or the event
-	// has no dates. Used to render the "Event dates" label.
-	EventStartDate string
-	EventEndDate   string
+	// EventStartLabel / EventEndLabel are the selected event's date range
+	// formatted for display (e.g. "Mar 1" / "Apr 15, 2026"). They are empty
+	// when no event is selected or the event has no dates. Used to render
+	// the "Event dates" label.
+	EventStartLabel string
+	EventEndLabel   string
+	// DatesLabel is parallel to Dates, formatted as "M/D/YY" for the grid
+	// column headers.
+	DatesLabel []string
 }
 
 // MatrixRow is one participant row in the matrix.
@@ -52,8 +56,7 @@ type MatrixRow struct {
 	TotalDays    int
 	PresentCount int
 	WalkInCount  int
-	LastPresent  string // YYYY-MM-DD or ""
-	IsDropout    bool
+	LastPresent string // YYYY-MM-DD or ""
 }
 
 // MatrixSummary holds the aggregate stat cards below the matrix, computed
@@ -61,7 +64,6 @@ type MatrixRow struct {
 type MatrixSummary struct {
 	TotalCheckIns      int
 	ActiveParticipants int
-	Stopped            int
 	AvgRate            int // 0–100, truncated (integer division)
 }
 
@@ -94,7 +96,7 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 	}
 	from, to, eventID, dates := s.parseMatrixFilters(r, events)
 
-	rows, err := s.loadMatrixRows(u, dates, eventID, to)
+	rows, err := s.loadMatrixRows(u, dates, eventID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -114,6 +116,13 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	eventStartLabel := formatEventStart(eventStartDate)
+	eventEndLabel := formatEventEnd(eventEndDate)
+	datesLabel := make([]string, len(dates))
+	for i, d := range dates {
+		datesLabel[i] = formatGridDate(d)
+	}
+
 	// Non-admin filter bar still shows the resolved site name.
 	_, siteName := s.resolveSite(u, "")
 
@@ -131,9 +140,10 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		EventID:       eventID,
 		EventRequired: eventID == "",
 		NoEvents:       len(events) == 0,
-		EventLocation:  eventLocation,
-		EventStartDate: eventStartDate,
-		EventEndDate:   eventEndDate,
+		EventLocation:   eventLocation,
+		EventStartLabel: eventStartLabel,
+		EventEndLabel:   eventEndLabel,
+		DatesLabel:      datesLabel,
 	}
 
 	if r.Header.Get("HX-Request") == "true" {
@@ -229,9 +239,9 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_, to, eventID, dates := s.parseMatrixFilters(r, events)
+	_, _, eventID, dates := s.parseMatrixFilters(r, events)
 
-	rows, err := s.loadMatrixRows(u, dates, eventID, to)
+	rows, err := s.loadMatrixRows(u, dates, eventID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -328,7 +338,7 @@ func (s *Server) resolveSite(u *sessionUser, param string) (string, string) {
 }
 
 // loadMatrixRows builds the participant rows and fills cells from attendance.
-func (s *Server) loadMatrixRows(u *sessionUser, dates []string, eventID, to string) ([]MatrixRow, error) {
+func (s *Server) loadMatrixRows(u *sessionUser, dates []string, eventID string) ([]MatrixRow, error) {
 	intakeCol, err := s.intakeCollection()
 	if err != nil {
 		return nil, err
@@ -395,10 +405,6 @@ func (s *Server) loadMatrixRows(u *sessionUser, dates []string, eventID, to stri
 		}
 	}
 
-	threshold, _ := time.Parse("2006-01-02", to)
-	threshold = threshold.AddDate(0, 0, -13)
-	thresholdStr := threshold.Format("2006-01-02")
-
 	rows := make([]MatrixRow, 0, len(intakeRecs))
 	for _, rec := range intakeRecs {
 		iid := rec.Id
@@ -437,7 +443,6 @@ func (s *Server) loadMatrixRows(u *sessionUser, dates []string, eventID, to stri
 				}
 			}
 		}
-		row.IsDropout = row.LastPresent != "" && row.LastPresent < thresholdStr
 		rows = append(rows, row)
 	}
 	return rows, nil
@@ -457,13 +462,39 @@ func computeSummary(rows []MatrixRow, days int) MatrixSummary {
 		if row.PresentCount >= 1 {
 			s.ActiveParticipants++
 		}
-		if row.IsDropout {
-			s.Stopped++
-		}
 		totalPresent += row.PresentCount
 	}
 	s.AvgRate = totalPresent * 100 / (len(rows) * days)
 	return s
+}
+
+// formatEventStart renders an event's start date for the "Event dates" label,
+// omitting the year (events are expected to fall within a single year).
+func formatEventStart(s string) string {
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return ""
+	}
+	return t.Format("Jan 2")
+}
+
+// formatEventEnd renders an event's end date for the "Event dates" label,
+// including the year (e.g. "Apr 15, 2026").
+func formatEventEnd(s string) string {
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return ""
+	}
+	return t.Format("Jan 2, 2006")
+}
+
+// formatGridDate renders a matrix column header date compactly as "M/D/YY".
+func formatGridDate(s string) string {
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return ""
+	}
+	return t.Format("1/2/06")
 }
 
 // Event is a flat view of an events record for templates.

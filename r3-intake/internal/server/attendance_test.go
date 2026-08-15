@@ -30,16 +30,7 @@ func TestComputeSummary(t *testing.T) {
 				{PresentCount: 2, WalkInCount: 1, TotalDays: 5},
 			},
 			days: 5,
-			want: MatrixSummary{TotalCheckIns: 3, ActiveParticipants: 1, Stopped: 0, AvgRate: 40},
-		},
-		{
-			name: "dropout and average rounds down",
-			rows: []MatrixRow{
-				{PresentCount: 1},
-				{PresentCount: 0, IsDropout: true},
-			},
-			days: 4,
-			want: MatrixSummary{TotalCheckIns: 1, ActiveParticipants: 1, Stopped: 1, AvgRate: 12},
+			want: MatrixSummary{TotalCheckIns: 3, ActiveParticipants: 1, AvgRate: 40},
 		},
 		{
 			name: "walk-in is not an active participant",
@@ -47,7 +38,7 @@ func TestComputeSummary(t *testing.T) {
 				{WalkInCount: 1, PresentCount: 0},
 			},
 			days: 3,
-			want: MatrixSummary{TotalCheckIns: 1, ActiveParticipants: 0, Stopped: 0, AvgRate: 0},
+			want: MatrixSummary{TotalCheckIns: 1, ActiveParticipants: 0, AvgRate: 0},
 		},
 	}
 
@@ -98,7 +89,7 @@ func TestMatrixContentRender(t *testing.T) {
 		},
 		Sites:   []Site{{ID: "site1", Name: "Kona"}},
 		Events:  []Event{{ID: "ev1", Name: "Morning Program"}},
-		Summary: MatrixSummary{TotalCheckIns: 2, ActiveParticipants: 1, Stopped: 0, AvgRate: 25},
+		Summary: MatrixSummary{TotalCheckIns: 2, ActiveParticipants: 1, AvgRate: 25},
 		EventID: "ev1",
 	}
 
@@ -108,7 +99,7 @@ func TestMatrixContentRender(t *testing.T) {
 	}
 	out := buf.String()
 	for _, want := range []string{
-		"Total check-ins", "Active participants", "Stopped", "Avg attendance rate",
+		"Total check-ins", "Active participants", "Avg attendance rate",
 		"Morning Program", "Alice",
 		`>2</div><div class="stat-label">Total check-ins`, "25%",
 		"dot-disabled",
@@ -222,7 +213,7 @@ func TestMatrixContentRenderDefaultsToFirstEvent(t *testing.T) {
 		},
 		Sites:   []Site{{ID: "site1", Name: "Kona"}},
 		Events:  []Event{{ID: "ev1", Name: "Morning Program"}},
-		Summary: MatrixSummary{TotalCheckIns: 1, ActiveParticipants: 1, Stopped: 0, AvgRate: 50},
+		Summary: MatrixSummary{TotalCheckIns: 1, ActiveParticipants: 1, AvgRate: 50},
 		EventID: "ev1",
 	}
 
@@ -284,7 +275,7 @@ func TestMatrixContentRenderEventScopedFormDates(t *testing.T) {
 		},
 		Sites:   []Site{{ID: "site1", Name: "Kona"}},
 		Events:  []Event{{ID: "ev1", Name: "Morning Program"}},
-		Summary: MatrixSummary{TotalCheckIns: 1, ActiveParticipants: 1, Stopped: 0, AvgRate: 50},
+		Summary: MatrixSummary{TotalCheckIns: 1, ActiveParticipants: 1, AvgRate: 50},
 		EventID: "ev1",
 	}
 

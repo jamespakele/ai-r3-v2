@@ -1173,9 +1173,6 @@
       {{range .Events}}<option value="{{.ID}}" {{if eq $.EventID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
     </select>
     {{if not .IsAdmin}}<span class="muted">Site: {{.SiteName}}</span>{{end}}
-    <input type="date" class="field-input" name="from" value="{{.DateFrom}}">
-    <input type="date" class="field-input" name="to" value="{{.DateTo}}">
-    <button type="submit" class="btn btn-primary">Apply</button>
   </form>
 
   {{if .NoEvents}}
@@ -1214,8 +1211,8 @@
   <p class="muted">Location: {{.EventLocation}}</p>
   {{end}}
 
-  {{if and .EventStartDate .EventEndDate}}
-  <p class="muted">Event dates: {{slice .EventStartDate 5 7}}/{{slice .EventStartDate 8 10}} – {{slice .EventEndDate 5 7}}/{{slice .EventEndDate 8 10}}</p>
+  {{if and .EventStartLabel .EventEndLabel}}
+  <p class="muted">Event dates: {{.EventStartLabel}} – {{.EventEndLabel}}</p>
   {{end}}
 
   {{if .Rows}}
@@ -1224,16 +1221,15 @@
       <thead>
         <tr>
           <th class="matrix-name-col">Participant</th>
-          {{range .Dates}}<th class="matrix-date-col">{{slice . 5 7}}/{{slice . 8 10}}</th>{{end}}
+          {{range .DatesLabel}}<th class="matrix-date-col">{{.}}</th>{{end}}
           <th class="matrix-total-col">Total</th>
         </tr>
       </thead>
       <tbody>
         {{range .Rows}}
-        <tr class="{{if .IsDropout}}row-dropout {{end}}">
+        <tr>
           <td class="matrix-name-col">
             {{if .IntakeID}}<a href="/intake/{{.IntakeID}}" class="matrix-name-link"><span class="matrix-name">{{.Name}}</span></a>{{else}}<span class="matrix-name">{{.Name}}</span>{{end}}
-            {{if .IsDropout}}<span class="status-badge">STOPPED</span>{{end}}
           </td>
           {{range .Cells}}
           <td hx-on::after-request="htmx.ajax('GET', '/attendance/stats', {source: this.querySelector('form'), target: '#stat-cards', swap: 'outerHTML'})">
@@ -1258,7 +1254,6 @@
 <div id="stat-cards" class="stat-cards">
   <div class="stat-card"><div class="stat-number stat-green">{{.Summary.TotalCheckIns}}</div><div class="stat-label">Total check-ins</div></div>
   <div class="stat-card"><div class="stat-number stat-accent">{{.Summary.ActiveParticipants}}</div><div class="stat-label">Active participants</div></div>
-  <div class="stat-card"><div class="stat-number stat-red">{{.Summary.Stopped}}</div><div class="stat-label">Stopped</div></div>
   <div class="stat-card"><div class="stat-number stat-yellow">{{.Summary.AvgRate}}%</div><div class="stat-label">Avg attendance rate</div></div>
 </div>
 {{end}}
