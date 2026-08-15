@@ -119,8 +119,9 @@ func TestToggleNoLocation(t *testing.T) {
 	}
 }
 
-// TestToggleLocated proves a located participant's toggle still stores the
-// intake's site.
+// TestToggleLocated proves a located participant's toggle stores the event
+// and no longer writes a redundant site on the attendance row (location is
+// derived from the event).
 func TestToggleLocated(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedToggleData(t, srv.pb)
@@ -143,8 +144,8 @@ func TestToggleLocated(t *testing.T) {
 	if att == nil {
 		t.Fatalf("expected attendance record for located intake")
 	}
-	if att.GetString("site") != fx.site {
-		t.Errorf("site = %q, want %q", att.GetString("site"), fx.site)
+	if att.GetString("site") != "" {
+		t.Errorf("site = %q, want empty (location derived from event)", att.GetString("site"))
 	}
 	if att.GetString("event") != fx.ev {
 		t.Errorf("event = %q, want %q", att.GetString("event"), fx.ev)
@@ -402,4 +403,64 @@ func cloneValues(v url.Values) url.Values {
 		}
 	}
 	return out
+}
+
+// doWalkin POSTs the walk-in form to /attendance/walkin with CSRF and the
+// given form values. Unlike doToggle it does not set the HTMX request header.
+func doWalkin(srv *Server, cookie *http.Cookie, form url.Values) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/attendance/walkin", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	addCSRFToRequest(req)
+	if cookie != nil {
+		req.AddCookie(cookie)
+	}
+	rec := httptest.NewRecorder()
+	srv.Mux().ServeHTTP(rec, req)
+	return rec
+}
+
+// TestWalkinStoresNoSite proves the walk-in write path stores no site on the
+// attendance row (location is derived from the event) and that the export
+// resolves the location from the event's site.
+func TestWalkinStoresNoSite(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedToggleData(t, srv.pb)
+	admin := adminCookie(srv, fx.admin1)
+
+	today := time.Now().In(hst).Format("2006-01-02")
+
+	form := url.Values{
+		"site_id":   {fx.site},
+		"event_id":  {fx.ev},
+		"intake_id": {fx.iLocated},
+	}
+	rec := doWalkin(srv, admin, form)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+
+	att := findAttendance(t, srv, fx.iLocated, today)
+	if att == nil {
+		t.Fatalf("expected walk-in attendance record")
+	}
+	if att.GetString("site") != "" {
+		t.Errorf("site = %q, want empty (location derived from event)", att.GetString("site"))
+	}
+	if att.GetString("event") != fx.ev {
+		t.Errorf("event = %q, want %q", att.GetString("event"), fx.ev)
+	}
+	if att.GetString("status") != "walk_in" {
+		t.Errorf("status = %q, want walk_in", att.GetString("status"))
+	}
+
+	rows, err := srv.loadExportRows("", fx.ev, today, today)
+	if err != nil {
+		t.Fatalf("loadExportRows: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("export rows = %d, want 1", len(rows))
+	}
+	if rows[0].SiteName != "Kona" {
+		t.Errorf("SiteName = %q, want Kona (resolved from event's site)", rows[0].SiteName)
+	}
 }

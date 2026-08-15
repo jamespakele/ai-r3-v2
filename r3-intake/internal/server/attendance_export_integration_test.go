@@ -400,7 +400,7 @@ func TestExportCSVSiteFilter(t *testing.T) {
 	}
 
 	t.Run("site1 only", func(t *testing.T) {
-		// ev1 has only Kona records: att-1, att-2.
+		// ev1 is at Kona; its records att-1, att-2 resolve to Kona.
 		rows := rowsFor("?site=" + fx.site1 + "&event=" + fx.ev1)
 		m := allSites(rows)
 		if len(m) != 1 || !m["Kona"] {
@@ -412,24 +412,25 @@ func TestExportCSVSiteFilter(t *testing.T) {
 	})
 
 	t.Run("site2 only", func(t *testing.T) {
-		// ev2 has Waianae records att-3, att-4 (and one Kona record att-5).
+		// ev2 is at Waianae; all its records (att-3, att-4, att-5) resolve to
+		// Waianae even though att-5 stored a divergent Kona site.
 		rows := rowsFor("?site=" + fx.site2 + "&event=" + fx.ev2)
 		m := allSites(rows)
 		if len(m) != 1 || !m["Waianae"] {
 			t.Errorf("site2 filter sites = %v, want only Waianae", m)
 		}
-		if len(rows) != 4 { // header + 2 records + summary
-			t.Errorf("row count = %d, want 4", len(rows))
+		if len(rows) != 5 { // header + 3 records + summary
+			t.Errorf("row count = %d, want 5", len(rows))
 		}
 	})
 
-	t.Run("invalid site all locations", func(t *testing.T) {
-		// ev2 spans both sites (att-3/att-4 Waianae, att-5 Kona); an invalid
-		// site resolves to all locations.
-		rows := rowsFor("?site=does-not-exist&event=" + fx.ev2)
+	t.Run("event wins over site", func(t *testing.T) {
+		// When both site and event are given, the event determines the
+		// location: ev2 is at Waianae regardless of the site param.
+		rows := rowsFor("?site=" + fx.site1 + "&event=" + fx.ev2)
 		m := allSites(rows)
-		if !m["Kona"] || !m["Waianae"] {
-			t.Errorf("invalid site should return all locations, got %v", m)
+		if len(m) != 1 || !m["Waianae"] {
+			t.Errorf("event-wins sites = %v, want only Waianae", m)
 		}
 		if len(rows) != 5 { // header + 3 records + summary
 			t.Errorf("row count = %d, want 5", len(rows))
@@ -437,11 +438,11 @@ func TestExportCSVSiteFilter(t *testing.T) {
 	})
 
 	t.Run("no site param", func(t *testing.T) {
-		// ev2 spans both sites; omitting site returns all locations.
+		// ev2 is at Waianae; omitting site returns all ev2 records (Waianae).
 		rows := rowsFor("?event=" + fx.ev2)
 		m := allSites(rows)
-		if !m["Kona"] || !m["Waianae"] {
-			t.Errorf("no site param should return all locations, got %v", m)
+		if len(m) != 1 || !m["Waianae"] {
+			t.Errorf("no site param sites = %v, want only Waianae", m)
 		}
 		if len(rows) != 5 { // header + 3 records + summary
 			t.Errorf("row count = %d, want 5", len(rows))
@@ -644,5 +645,37 @@ func TestExportCSVNameResolution(t *testing.T) {
 	}
 	if first.CheckInTime != formatTime("2026-08-01 20:30:00") {
 		t.Errorf("check-in time = %q, want %q", first.CheckInTime, formatTime("2026-08-01 20:30:00"))
+	}
+}
+
+// TestExportSiteNoActiveEvents proves loadExportRows early-returns an empty
+// slice when the resolved event set is empty (a site with no active events),
+// while an unrestricted (all-sites) query still returns rows — confirming the
+// nil-vs-empty event-set distinction gates the early return.
+func TestExportSiteNoActiveEvents(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedRosterData(t, srv.pb)
+
+	// Seed attendance so the all-sites query has rows to return.
+	saveAttendance(t, srv.pb, fx.iInSite1, fx.site, fx.ev1, "2026-08-13", "present")
+	saveAttendance(t, srv.pb, fx.iInSite2, fx.site, fx.ev2, "2026-08-13", "present")
+	saveAttendance(t, srv.pb, fx.iOtherSite, fx.site2, fx.ev1, "2026-08-13", "walk_in")
+
+	// site2 (Hilo) has no active events -> empty event set -> early return.
+	rows, err := srv.loadExportRows(fx.site2, "", "2026-08-01", "2026-08-31")
+	if err != nil {
+		t.Fatalf("loadExportRows(site2): %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("site2 export rows = %d, want 0 (no active events)", len(rows))
+	}
+
+	// All-sites (nil event set) still returns the seeded rows.
+	allRows, err := srv.loadExportRows("", "", "2026-08-01", "2026-08-31")
+	if err != nil {
+		t.Fatalf("loadExportRows(all): %v", err)
+	}
+	if len(allRows) == 0 {
+		t.Errorf("all-sites export rows = 0, want > 0 (nil event set must not early-return)")
 	}
 }
