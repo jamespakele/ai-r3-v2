@@ -1099,7 +1099,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Attendance</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=5">
+<link rel="stylesheet" href="/static/app.css?v=6">
 <script src="/static/htmx.min.js" defer></script>
 <script>
 (function(){
@@ -1172,12 +1172,7 @@
     <select class="field-input" name="event">
       {{range .Events}}<option value="{{.ID}}" {{if eq $.EventID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
     </select>
-    {{if .IsAdmin}}
-    <input type="text" class="field-input event-location-box" value="{{.EventLocation}}" disabled
-           placeholder="Select an event to show its location">
-    {{else}}
-    <span class="muted">Site: {{.SiteName}}</span>
-    {{end}}
+    {{if not .IsAdmin}}<span class="muted">Site: {{.SiteName}}</span>{{end}}
     <input type="date" class="field-input" name="from" value="{{.DateFrom}}">
     <input type="date" class="field-input" name="to" value="{{.DateTo}}">
     <button type="submit" class="btn btn-primary">Apply</button>
@@ -1213,6 +1208,10 @@
       </form>
     </div>
   </div>
+  {{end}}
+
+  {{if and .IsAdmin .EventLocation}}
+  <p class="muted">Location: {{.EventLocation}}</p>
   {{end}}
 
   {{if .Rows}}
