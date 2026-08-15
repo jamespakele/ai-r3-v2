@@ -307,21 +307,6 @@ a:hover { color: #b5502e; }
 .matrix-name-link { color: inherit; text-decoration: none; cursor: pointer; }
 .matrix-name-link:hover { color: #b5502e; text-decoration: underline; }
 .matrix-name-link:focus-visible { outline: 2px solid #b5502e; outline-offset: 2px; }
-.walkin-panel { margin: 16px 0; }
-.walkin-search { margin-top: 10px; padding: 12px; background: #fffdfa; border: 1px solid #e4d9c8; border-radius: 10px; }
-.walkin-search.hidden { display: none; }
-.walkin-search .field-input { width: 100%; margin-bottom: 8px; }
-.walkin-results { margin-bottom: 8px; }
-.walkin-result { margin-bottom: 4px; }
-.walkin-result-form { margin: 0; }
-.walkin-result-btn {
-  display: block; width: 100%; text-align: left; padding: 8px 10px;
-  background: #f7f1e6; border: 1px solid #e4d9c8; border-radius: 6px;
-  font: 500 14px 'Public Sans', sans-serif; color: #2b2320; cursor: pointer;
-}
-.walkin-result-btn:hover { background: #efe6d4; border-color: #b5502e; }
-.walkin-create { display: flex; gap: 8px; }
-.walkin-create .field-input { flex: 1; margin-bottom: 0; }
 
 /* Stat cards */
 .stat-cards { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0 0; }

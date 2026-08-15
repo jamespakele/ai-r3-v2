@@ -23,8 +23,8 @@ func doMatrix(srv *Server, cookie *http.Cookie, query string) *httptest.Response
 
 // TestMatrixDefaultsToFirstEvent proves that loading /attendance without an
 // event query param selects the first active event in the dropdown and scopes
-// the matrix to it: the event option is marked selected, the placeholder is
-// gone, and the walk-in panel is available.
+// the matrix to it: the event option is marked selected and the placeholder
+// is gone.
 func TestMatrixDefaultsToFirstEvent(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedToggleData(t, srv.pb)
@@ -37,7 +37,6 @@ func TestMatrixDefaultsToFirstEvent(t *testing.T) {
 	body := rec.Body.String()
 	for _, want := range []string{
 		`<option value="` + fx.ev + `" selected>Morning Program</option>`,
-		"Add walk-in",
 		"Located Alice",
 		"NoSite Bob",
 	} {
@@ -56,8 +55,7 @@ func TestMatrixDefaultsToFirstEvent(t *testing.T) {
 }
 
 // TestMatrixNoEventsEmptyState proves that with zero active events the matrix
-// renders the create-an-event empty state linking to /admin and hides the
-// walk-in panel.
+// renders the create-an-event empty state linking to /admin.
 func TestMatrixNoEventsEmptyState(t *testing.T) {
 	srv := newTestServer(t)
 	admin := adminCookie(srv, "admin1")
@@ -76,8 +74,6 @@ func TestMatrixNoEventsEmptyState(t *testing.T) {
 		}
 	}
 	for _, forbid := range []string{
-		"Add walk-in",
-		"walkin-search",
 		"Select an event…",
 	} {
 		if strings.Contains(body, forbid) {

@@ -120,8 +120,7 @@ func TestMatrixContentRender(t *testing.T) {
 }
 
 // TestMatrixContentRenderEventRequired verifies that when no events exist,
-// the matrix renders the create-an-event empty state, hides the walk-in
-// panel, and disables every cell.
+// the matrix renders the create-an-event empty state and disables every cell.
 func TestMatrixContentRenderEventRequired(t *testing.T) {
 	html, err := assets.TemplateString()
 	if err != nil {
@@ -169,14 +168,6 @@ func TestMatrixContentRenderEventRequired(t *testing.T) {
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("matrix-content (event required) output missing %q", want)
-		}
-	}
-	for _, forbid := range []string{
-		"Add walk-in",
-		"walkin-search",
-	} {
-		if strings.Contains(out, forbid) {
-			t.Errorf("matrix-content (event required) output should not contain %q", forbid)
 		}
 	}
 }
@@ -240,9 +231,9 @@ func TestMatrixContentRenderDefaultsToFirstEvent(t *testing.T) {
 	}
 }
 
-// TestMatrixContentRenderEventScopedFormDates verifies that the walk-in
-// panel's hidden from/to inputs and the matrix-cell toggle forms' hidden
-// from/to inputs carry the event-scoped date range from the view model.
+// TestMatrixContentRenderEventScopedFormDates verifies that the matrix-cell
+// toggle forms' hidden from/to inputs carry the event-scoped date range from
+// the view model.
 func TestMatrixContentRenderEventScopedFormDates(t *testing.T) {
 	html, err := assets.TemplateString()
 	if err != nil {

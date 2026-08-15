@@ -29,7 +29,7 @@ type MatrixViewData struct {
 	Summary  MatrixSummary
 	EventID  string // optional event filter ("" = none)
 	// EventRequired reports that no event is selected, so the matrix must
-	// disable toggling and hide the walk-in panel.
+	// disable toggling.
 	EventRequired bool
 	// NoEvents reports that there are no active events, so the template can
 	// render the "Create an Event" empty state.
@@ -160,7 +160,7 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 // provide a valid from/to range and an event is in effect, the range
 // auto-scopes to that event's start_date -> end_date (full span, no cap).
 // The event filter is read from the query key "event" (matrix filter bar)
-// and falls back to "event_id" (toggle/walk-in forms).
+// and falls back to "event_id" (toggle forms).
 func (s *Server) parseMatrixFilters(r *http.Request, events []Event) (from, to, eventID string, dates []string) {
 	eventID = strings.TrimSpace(r.URL.Query().Get("event"))
 	if eventID == "" {
@@ -740,202 +740,6 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 		qs = append(qs, "to="+to)
 	}
 	if eventID != "" {
-		qs = append(qs, "event="+eventID)
-	}
-	url := "/attendance"
-	if len(qs) > 0 {
-		url += "?" + strings.Join(qs, "&")
-	}
-	http.Redirect(w, r, url, http.StatusSeeOther)
-}
-
-// walkinResult is one search result row for the matrix "Add walk-in" panel.
-type walkinResult struct {
-	ID      string
-	Name    string
-	SiteID  string
-	From    string
-	To      string
-	EventID string
-}
-
-// handleWalkinSearch returns an HTML fragment listing intake records whose
-// name matches the ?name= query, scoped to the target event (auth-only).
-// Min 2 chars, max 10 results. Used by the matrix "Add walk-in" panel.
-func (s *Server) handleWalkinSearch(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.NotFound(w, r)
-		return
-	}
-	q := strings.TrimSpace(r.URL.Query().Get("name"))
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if len(q) < 2 {
-		return // empty body — no results for short queries
-	}
-	col, err := s.intakeCollection()
-	if err != nil {
-		return
-	}
-	filter := fmt.Sprintf(`name ~ "%s"`, mcpmod.EscapeFilter(q))
-	// Scope to the walk-in's target event: intake.event replaced intake.site
-	// as the roster-scoping key (migration 016).
-	eventID := strings.TrimSpace(r.URL.Query().Get("event_id"))
-	if eventID != "" {
-		filter += fmt.Sprintf(" && event='%s'", mcpmod.EscapeFilter(eventID))
-	}
-	// The walk-in form still needs a site_id (the event's site) so the
-	// walk-in handler's location guard passes.
-	siteID := ""
-	if eventID != "" {
-		if eventsCol, err := s.eventsCollection(); err == nil {
-			if ev, err := s.pb.FindRecordById(eventsCol.Id, eventID); err == nil {
-				siteID = ev.GetString("site")
-			}
-		}
-	}
-	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "-created", 10, 0)
-	if err != nil {
-		return
-	}
-	from := strings.TrimSpace(r.URL.Query().Get("from"))
-	to := strings.TrimSpace(r.URL.Query().Get("to"))
-	results := make([]walkinResult, 0, len(recs))
-	for _, rec := range recs {
-		name := rec.GetString("name")
-		if name == "" {
-			name = "(unnamed)"
-		}
-		results = append(results, walkinResult{
-			ID:      rec.Id,
-			Name:    name,
-			SiteID:  siteID,
-			From:    from,
-			To:      to,
-			EventID: eventID,
-		})
-	}
-	_ = s.tpl.ExecuteTemplate(w, "walkin-results", results)
-}
-
-// handleWalkin records a walk-in attendance cell for today at the resolved
-// site. It accepts either an existing intake_id or a name to create a minimal
-// intake, and is idempotent per (intake, date). POST only.
-func (s *Server) handleWalkin(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	u := s.currentSession(r)
-
-	siteID, _ := s.resolveSite(u, strings.TrimSpace(r.FormValue("site_id")))
-	if siteID == "" {
-		http.Error(w, "no site resolved", http.StatusBadRequest)
-		return
-	}
-	eventID := strings.TrimSpace(r.FormValue("event_id"))
-	if !requireEventID(w, eventID) {
-		return
-	}
-	today := time.Now().In(hst).Format("2006-01-02")
-
-	intakeCol, err := s.intakeCollection()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Resolve the intake record.
-	intakeID := strings.TrimSpace(r.FormValue("intake_id"))
-	if intakeID == "" {
-		name := strings.TrimSpace(r.FormValue("name"))
-		if name == "" {
-			http.Error(w, "name required", http.StatusBadRequest)
-			return
-		}
-		rec := core.NewRecord(intakeCol)
-		rec.Set("name", name)
-		rec.Set("event", eventID)
-		rec.Set("created_by", u.ID)
-		rec.Set("status", "unassigned")
-		if err := s.pb.Save(rec); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		intakeID = rec.Id
-	} else {
-		if _, err := s.pb.FindRecordById(intakeCol.Id, intakeID); err != nil {
-			http.Error(w, "intake not found", http.StatusNotFound)
-			return
-		}
-	}
-
-	attCol, err := s.attendanceCollection()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Idempotent upsert for (event, intake, date).
-	filter := fmt.Sprintf("intake='%s' && event='%s' && date='%s'",
-		mcpmod.EscapeFilter(intakeID), mcpmod.EscapeFilter(eventID), mcpmod.EscapeFilter(today))
-	recs, err := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	now := time.Now().In(hst).Format("2006-01-02 15:04:05")
-	if len(recs) > 0 {
-		existing := recs[0]
-		existing.Set("status", "walk_in")
-		existing.Set("event", eventID)
-		existing.Set("recorded_by", u.ID)
-		existing.Set("check_in_time", now)
-		if err := s.pb.Save(existing); err != nil {
-			log.Printf("walk-in update failed: %v", err)
-			http.Error(w, "save failed", http.StatusInternalServerError)
-			return
-		}
-	} else {
-		rec := core.NewRecord(attCol)
-		rec.Set("intake", intakeID)
-		rec.Set("event", eventID)
-		rec.Set("date", today)
-		rec.Set("status", "walk_in")
-		rec.Set("recorded_by", u.ID)
-		rec.Set("check_in_time", now)
-		if err := s.pb.Save(rec); err != nil {
-			// Unique-index race: re-fetch and update.
-			recs, ferr := s.pb.FindRecordsByFilter(attCol.Id, filter, "", 1, 0)
-			if ferr == nil && len(recs) > 0 {
-				recs[0].Set("status", "walk_in")
-				recs[0].Set("event", eventID)
-				recs[0].Set("recorded_by", u.ID)
-				recs[0].Set("check_in_time", now)
-				if serr := s.pb.Save(recs[0]); serr != nil {
-					log.Printf("walk-in update-after-race failed: %v", serr)
-					http.Error(w, "save failed", http.StatusInternalServerError)
-					return
-				}
-			} else {
-				log.Printf("walk-in insert failed: %v", err)
-				http.Error(w, "save failed", http.StatusInternalServerError)
-				return
-			}
-		}
-	}
-
-	// 303 redirect back to the matrix with the same filters.
-	var qs []string
-	if siteID != "" {
-		qs = append(qs, "site="+siteID)
-	}
-	if from := strings.TrimSpace(r.FormValue("from")); from != "" {
-		qs = append(qs, "from="+from)
-	}
-	if to := strings.TrimSpace(r.FormValue("to")); to != "" {
-		qs = append(qs, "to="+to)
-	}
-	if eventID := strings.TrimSpace(r.FormValue("event_id")); eventID != "" {
 		qs = append(qs, "event="+eventID)
 	}
 	url := "/attendance"

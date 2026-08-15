@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
@@ -207,35 +206,6 @@ func TestToggleStoresEvent(t *testing.T) {
 	}
 }
 
-// TestWalkinRequiresEvent proves a walk-in without an event_id is rejected
-// with a 400 and writes no attendance record.
-func TestWalkinRequiresEvent(t *testing.T) {
-	srv := newTestServer(t)
-	fx := seedToggleData(t, srv.pb)
-	admin := adminCookie(srv, fx.admin1)
-
-	form := url.Values{
-		"intake_id": {fx.iLocated},
-		"site_id":   {fx.site},
-	}
-	req := httptest.NewRequest(http.MethodPost, "/attendance/walkin", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	addCSRFToRequest(req)
-	req.AddCookie(admin)
-	rec := httptest.NewRecorder()
-	srv.Mux().ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 (event required)", rec.Code)
-	}
-	if body := strings.TrimSpace(rec.Body.String()); body != "an event must be selected before recording attendance" {
-		t.Errorf("body = %q, want canonical message", body)
-	}
-	today := time.Now().In(hst).Format("2006-01-02")
-	if att := findAttendance(t, srv, fx.iLocated, today); att != nil {
-		t.Fatalf("expected NO walk-in record without an event, got one")
-	}
-}
-
 // TestToggleEventScoped proves uniqueness is keyed on (event, intake, date):
 // toggling the same full key twice updates the existing record (no duplicate),
 // while a different event for the same (intake, date) creates a separate
@@ -403,64 +373,4 @@ func cloneValues(v url.Values) url.Values {
 		}
 	}
 	return out
-}
-
-// doWalkin POSTs the walk-in form to /attendance/walkin with CSRF and the
-// given form values. Unlike doToggle it does not set the HTMX request header.
-func doWalkin(srv *Server, cookie *http.Cookie, form url.Values) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodPost, "/attendance/walkin", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	addCSRFToRequest(req)
-	if cookie != nil {
-		req.AddCookie(cookie)
-	}
-	rec := httptest.NewRecorder()
-	srv.Mux().ServeHTTP(rec, req)
-	return rec
-}
-
-// TestWalkinStoresNoSite proves the walk-in write path stores no site on the
-// attendance row (location is derived from the event) and that the export
-// resolves the location from the event's site.
-func TestWalkinStoresNoSite(t *testing.T) {
-	srv := newTestServer(t)
-	fx := seedToggleData(t, srv.pb)
-	admin := adminCookie(srv, fx.admin1)
-
-	today := time.Now().In(hst).Format("2006-01-02")
-
-	form := url.Values{
-		"site_id":   {fx.site},
-		"event_id":  {fx.ev},
-		"intake_id": {fx.iLocated},
-	}
-	rec := doWalkin(srv, admin, form)
-	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("status = %d, want 303", rec.Code)
-	}
-
-	att := findAttendance(t, srv, fx.iLocated, today)
-	if att == nil {
-		t.Fatalf("expected walk-in attendance record")
-	}
-	if att.GetString("site") != "" {
-		t.Errorf("site = %q, want empty (location derived from event)", att.GetString("site"))
-	}
-	if att.GetString("event") != fx.ev {
-		t.Errorf("event = %q, want %q", att.GetString("event"), fx.ev)
-	}
-	if att.GetString("status") != "walk_in" {
-		t.Errorf("status = %q, want walk_in", att.GetString("status"))
-	}
-
-	rows, err := srv.loadExportRows(fx.ev, today, today)
-	if err != nil {
-		t.Fatalf("loadExportRows: %v", err)
-	}
-	if len(rows) != 1 {
-		t.Fatalf("export rows = %d, want 1", len(rows))
-	}
-	if rows[0].SiteName != "Kona" {
-		t.Errorf("SiteName = %q, want Kona (resolved from event's site)", rows[0].SiteName)
-	}
 }

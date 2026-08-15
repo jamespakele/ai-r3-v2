@@ -144,8 +144,6 @@ func (s *Server) Mux() http.Handler {
 	mux.HandleFunc("GET /attendance/export", s.csrfMiddleware(s.requireRole("admin", s.handleExportCSV)))
 	mux.HandleFunc("GET /attendance/stats", s.csrfMiddleware(s.requireAuth(s.handleStats)))
 	mux.HandleFunc("/attendance/toggle", s.csrfMiddleware(s.requireAuth(s.handleToggle)))
-	mux.HandleFunc("/attendance/walkin-search", s.csrfMiddleware(s.requireAuth(s.handleWalkinSearch)))
-	mux.HandleFunc("/attendance/walkin", s.csrfMiddleware(s.requireAuth(s.handleWalkin)))
 
 	// PB admin UI + API proxy — only when --admin / R3_ADMIN=1. In production
 	// these are disabled; the Go server is the sole public entry point.

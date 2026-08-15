@@ -1,33 +1,29 @@
-# RESULT — Fix attendance matrix date handling and remove STOPPED heuristic
+# RESULT — Remove walk-in UI, handlers, routes, CSS, and tests
 
 ## What was built
-All four changes implemented in one coherent pass by omp (plan: docs/plans/omp-plan-attendance-matrix-date-fix.md):
+Pure removal of the "Add walk-in" feature from the attendance matrix. No new UI added (sibling card t_adfb1011 owns the Intake button + label standardization).
 
-1. **Removed from/to date filter boxes + Apply button** from the matrix filter form. The event dropdown is now the single source of truth for the date range.
-2. **Grid dates reflect the event's dates** — with the date inputs gone, `explicitRange` is always false and `parseMatrixFilters` auto-scopes to the effective event's start/end dates. Grid header, stat cards, and toggle/walk-in forms all use the event-scoped range.
-3. **Year shown in date labels** — event dates label renders `Mar 1 – Apr 15, 2026` (via `formatEventStart`/`formatEventEnd`); grid headers render compact `3/1/26` (via `formatGridDate` + new `DatesLabel []string`).
-4. **Removed the STOPPED dropout heuristic** — `IsDropout` field, the 13-day threshold block, `row.IsDropout` computation, `s.Stopped++` branch, `Stopped` summary field, `row-dropout` CSS rules, matrix-only `.status-badge` block, `.stat-red`, the STOPPED badge, and the Stopped stat card all removed. Matrix rows are uniform attendance ticks.
+## Changes (7 files, 367 deletions / 9 insertions — all insertions are comment rewrites)
+- `r3-intake/internal/assets/public/index.html` — removed the `{{if not .EventRequired}}` walkin-panel block (Add walk-in toggle button, walkin-search panel, search input, walkin-results div, walkin-create form) and the `walkin-results` define block.
+- `r3-intake/internal/assets/public/app.css` — removed 11 `.walkin-*` rules.
+- `r3-intake/internal/server/attendance.go` — removed `walkinResult` struct, `handleWalkinSearch`, `handleWalkin`; updated 2 comments.
+- `r3-intake/internal/server/server.go` — removed `/attendance/walkin-search` and `/attendance/walkin` routes.
+- `r3-intake/internal/server/attendance_toggle_integration_test.go` — removed `TestWalkinRequiresEvent`, `doWalkin`, `TestWalkinStoresNoSite`; dropped now-unused `time` import.
+- `r3-intake/internal/server/attendance_test.go` — removed trivially-true forbid entries; updated 2 doc comments.
+- `r3-intake/internal/server/attendance_matrix_default_integration_test.go` — removed "Add walk-in"/"walkin-search" assertions; updated 2 doc comments.
 
-## Files changed
-- r3-intake/internal/server/attendance.go
-- r3-intake/internal/assets/public/index.html
-- r3-intake/internal/assets/public/app.css
-- r3-intake/internal/server/attendance_test.go
-- r3-intake/internal/server/attendance_stats_integration_test.go
-- r3-intake/internal/server/attendance_roster_integration_test.go
+## Preserved (correctly kept)
+- `walk_in` STATUS concept: `statusLabel` case, `WalkInCount`, export check-in counting, person_attendance status options, and all walk_in status tests.
+- `EventRequired` field + person-attendance calendar reads (index.html L1405/L1416).
+- `event_id` fallback in `parseMatrixFilters` (toggle forms still POST it).
+- Roster test comment "an out-of-site walk-in under ev1" (tests a walk_in STATUS record).
 
 ## Verification
-- `go build ./... && go vet ./... && go test ./...` — all pass (server 16.9s).
-- Grep for `IsDropout|row-dropout|.Stopped|thresholdStr|EventStartDate|EventEndDate|stat-red|STOPPED` — zero hits.
-- Filter form shows only the event select (no date inputs, no Apply).
-- Event dates label uses `EventStartLabel – EventEndLabel` (year on end).
-- Grid header ranges `.DatesLabel` (M/D/YY).
-- Walk-in search/create and toggle/walk-in forms keep hidden event-scoped `from`/`to`.
-- Stat cards: Total check-ins, Active participants, Avg attendance rate only.
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+- `go test ./...` — PASS (server 16.4s, migrations 0.2s)
+- Grep: `walkin` → zero matches (only walk_in STATUS); `Add walk-in` → zero matches
+- Diff inspection: pure removal, no new buttons/panels/CSS/schema changes
 
-## Acceptance criteria
-- [x] Selecting an event shows the grid with exactly that event's date span, years visible.
-- [x] No date filter boxes or Apply button.
-- [x] No STOPPED red highlighting or stat card.
-- [x] Event is the single source of truth for the matrix date range.
-- [x] Toggle/walk-in forms still carry the correct event-scoped date range.
+## Artifacts
+- Working plan: `docs/plans/omp-plan-remove-walkin-ui.md`
