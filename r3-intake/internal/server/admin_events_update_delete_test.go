@@ -335,7 +335,7 @@ func TestLoadAllEventsExcludesDeleted(t *testing.T) {
 }
 
 // TestLoadEventsFiltering proves loadEvents returns only active, non-deleted
-// events, optionally scoped to a site.
+// events.
 func TestLoadEventsFiltering(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedToggleData(t, srv.pb)
@@ -358,31 +358,17 @@ func TestLoadEventsFiltering(t *testing.T) {
 	// Mark the active event deleted.
 	markEventDeleted(t, srv, "Morning Program")
 
-	// Site-scoped: only active, non-deleted events for that site.
-	scoped, err := srv.loadEvents(fx.site)
+	// loadEvents: only active, non-deleted events.
+	events, err := srv.loadEvents()
 	if err != nil {
-		t.Fatalf("loadEvents(site): %v", err)
+		t.Fatalf("loadEvents: %v", err)
 	}
-	for _, e := range scoped {
+	for _, e := range events {
 		if e.ID == fx.ev {
-			t.Errorf("deleted event %q present in site-scoped loadEvents", e.Name)
+			t.Errorf("deleted event %q present in loadEvents", e.Name)
 		}
 		if e.ID == completed.Id {
-			t.Errorf("completed event %q present in site-scoped loadEvents", e.Name)
-		}
-	}
-
-	// Unscoped: same exclusions.
-	all, err := srv.loadEvents("")
-	if err != nil {
-		t.Fatalf("loadEvents(\"\"): %v", err)
-	}
-	for _, e := range all {
-		if e.ID == fx.ev {
-			t.Errorf("deleted event %q present in unscoped loadEvents", e.Name)
-		}
-		if e.ID == completed.Id {
-			t.Errorf("completed event %q present in unscoped loadEvents", e.Name)
+			t.Errorf("completed event %q present in loadEvents", e.Name)
 		}
 	}
 }

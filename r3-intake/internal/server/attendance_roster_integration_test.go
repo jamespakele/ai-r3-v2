@@ -149,10 +149,11 @@ func cellStatus(rows []MatrixRow, intakeID, date string) string {
 	return ""
 }
 
-// TestMatrixRosterEventIndependent proves AC #1: loadMatrixRows returns the
-// identical ordered participant roster whether or not an event is selected.
-// The selected event only scopes the attendance map, never the roster.
-func TestMatrixRosterEventIndependent(t *testing.T) {
+// TestMatrixRosterEventScoped proves the roster is scoped by the selected
+// event's site: with ev1 (Kona) selected, only Kona intakes render; with no
+// event selected, an admin sees the full intake roster. The attendance map is
+// scoped to the selected event's records.
+func TestMatrixRosterEventScoped(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedRosterData(t, srv.pb)
 
@@ -168,16 +169,17 @@ func TestMatrixRosterEventIndependent(t *testing.T) {
 	admin := &sessionUser{ID: "admin1", Email: "admin@example.com", Name: "Admin One", Role: "admin"}
 	dates := []string{"2026-08-13"}
 
-	withEvent, err := srv.loadMatrixRows(admin, fx.site, dates, fx.ev1, "2026-08-13")
+	withEvent, err := srv.loadMatrixRows(admin, dates, fx.ev1, "2026-08-13")
 	if err != nil {
 		t.Fatalf("loadMatrixRows(ev1): %v", err)
 	}
-	noEvent, err := srv.loadMatrixRows(admin, fx.site, dates, "", "2026-08-13")
+	noEvent, err := srv.loadMatrixRows(admin, dates, "", "2026-08-13")
 	if err != nil {
 		t.Fatalf("loadMatrixRows(no event): %v", err)
 	}
 
-	// Roster identity: identical ordered IntakeIDs (full site-scoped roster).
+	// Roster scoping: ev1 is at Kona, so only Kona intakes render; with no
+	// event, an admin sees every intake.
 	idsOf := func(rows []MatrixRow) []string {
 		out := make([]string, 0, len(rows))
 		for _, r := range rows {
@@ -185,15 +187,17 @@ func TestMatrixRosterEventIndependent(t *testing.T) {
 		}
 		return out
 	}
-	want := []string{fx.iInSite1, fx.iInSite2, fx.iAssignedCM} // Alice, Bob, Dana
-	if got := idsOf(withEvent); !equalStrings(got, want) {
-		t.Errorf("roster with event = %v, want %v", got, want)
+	wantWithEvent := []string{fx.iInSite1, fx.iInSite2, fx.iAssignedCM} // Alice, Bob, Dana
+	if got := idsOf(withEvent); !equalStrings(got, wantWithEvent) {
+		t.Errorf("roster with event = %v, want %v", got, wantWithEvent)
 	}
-	if got := idsOf(noEvent); !equalStrings(got, want) {
-		t.Errorf("roster without event = %v, want %v", got, want)
+	wantNoEvent := []string{fx.iInSite1, fx.iInSite2, fx.iOtherSite, fx.iAssignedCM} // Alice, Bob, Carol, Dana
+	if got := idsOf(noEvent); !equalStrings(got, wantNoEvent) {
+		t.Errorf("roster without event = %v, want %v", got, wantNoEvent)
 	}
 
-	// Out-of-site walk-in is recorded but never rendered as a matrix row.
+	// Out-of-site walk-in is recorded but never rendered as a row when the
+	// event's site scopes the roster.
 	for _, r := range withEvent {
 		if r.IntakeID == fx.iOtherSite {
 			t.Errorf("out-of-site walk-in intake rendered as a row")
@@ -229,53 +233,56 @@ func equalStrings(a, b []string) bool {
 	return true
 }
 
-// TestMatrixSitedFilteringAllEvents proves that a site-scoped matrix with no
-// selected event resolves the site's active event set and excludes attendance
-// recorded under events at other sites, while still surfacing same-site
-// records across all of that site's events.
-func TestMatrixSitedFilteringAllEvents(t *testing.T) {
+// TestMatrixNoEventAdminAllIntakes proves that with no event selected, an
+// admin's matrix renders the full intake roster and surfaces all in-range
+// attendance regardless of which event it was recorded under.
+func TestMatrixNoEventAdminAllIntakes(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedExportData(t, srv.pb)
 
 	admin := &sessionUser{ID: "admin1", Email: "admin@example.com", Name: "Admin One", Role: "admin"}
 	dates := []string{"2026-08-01", "2026-08-02", "2026-08-10"}
 
-	rows, err := srv.loadMatrixRows(admin, fx.site1, dates, "", "2026-08-10")
+	rows, err := srv.loadMatrixRows(admin, dates, "", "2026-08-10")
 	if err != nil {
 		t.Fatalf("loadMatrixRows: %v", err)
 	}
 
-	// Same-site records under ev1 (Kona) surface in the site-scoped matrix.
+	// Both intakes render: i1 (Kona) and i2 (Waianae).
+	found := map[string]bool{}
+	for _, r := range rows {
+		found[r.IntakeID] = true
+	}
+	if !found[fx.i1] || !found[fx.i2] {
+		t.Errorf("roster = %v, want both i1 and i2 (admin, no event)", found)
+	}
+
+	// All in-range records surface regardless of event: att-1/att-2 (ev1) and
+	// att-5 (ev2) for i1; att-3 (ev2) for i2.
 	if got := cellStatus(rows, fx.i1, "2026-08-01"); got != "present" {
 		t.Errorf("i1 08-01 status = %q, want present (att-1 via ev1)", got)
 	}
 	if got := cellStatus(rows, fx.i1, "2026-08-02"); got != "walk_in" {
 		t.Errorf("i1 08-02 status = %q, want walk_in (att-2 via ev1)", got)
 	}
-	// att-5 is i1 attending ev2 (Waianae); it must NOT surface in the Kona
-	// site-scoped matrix.
-	if got := cellStatus(rows, fx.i1, "2026-08-10"); got != "" {
-		t.Errorf("i1 08-10 status = %q, want \"\" (att-5 is under ev2/Waianae, excluded)", got)
+	if got := cellStatus(rows, fx.i1, "2026-08-10"); got != "present" {
+		t.Errorf("i1 08-10 status = %q, want present (att-5 via ev2)", got)
 	}
-	// i2 is a Waianae intake; excluded from the Kona roster entirely.
-	for _, r := range rows {
-		if r.IntakeID == fx.i2 {
-			t.Errorf("Waianae intake i2 rendered as a row in the Kona matrix")
-		}
+	if got := cellStatus(rows, fx.i2, "2026-08-02"); got != "absent" {
+		t.Errorf("i2 08-02 status = %q, want absent (att-3 via ev2)", got)
 	}
 }
 
-// TestMatrixSiteNoActiveEvents proves a site with no active events still
-// renders its full roster, but the empty resolved event set skips the
-// attendance query so no cells are filled.
-func TestMatrixSiteNoActiveEvents(t *testing.T) {
+// TestMatrixNoEventEmptyCells proves that with no event selected and no
+// attendance records, the full roster still renders with empty cells.
+func TestMatrixNoEventEmptyCells(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedRosterData(t, srv.pb)
 
 	admin := &sessionUser{ID: "admin1", Email: "admin@example.com", Name: "Admin One", Role: "admin"}
 	dates := []string{"2026-08-13"}
 
-	rows, err := srv.loadMatrixRows(admin, fx.site2, dates, "", "2026-08-13")
+	rows, err := srv.loadMatrixRows(admin, dates, "", "2026-08-13")
 	if err != nil {
 		t.Fatalf("loadMatrixRows: %v", err)
 	}
@@ -287,10 +294,10 @@ func TestMatrixSiteNoActiveEvents(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("site2 roster missing iOtherSite (roster must still render with no active events)")
+		t.Fatalf("roster missing iOtherSite (full roster must render with no event selected)")
 	}
 	if got := cellStatus(rows, fx.iOtherSite, "2026-08-13"); got != "" {
-		t.Errorf("iOtherSite status = %q, want \"\" (empty event set skips attendance query)", got)
+		t.Errorf("iOtherSite status = %q, want \"\" (no attendance records)", got)
 	}
 }
 

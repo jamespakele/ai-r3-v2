@@ -81,21 +81,15 @@ func (s *Server) attendanceCollection() (*core.Collection, error) {
 func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 	u := s.currentSession(r)
 
-	from, to, eventID, siteID, siteName, dates := s.parseMatrixFilters(r, u)
+	from, to, eventID, dates := s.parseMatrixFilters(r)
 
-	rows, err := s.loadMatrixRows(u, siteID, dates, eventID, to)
+	rows, err := s.loadMatrixRows(u, dates, eventID, to)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	sites, err := s.loadSites(false)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	events, err := s.loadEvents(siteID)
+	events, err := s.loadEvents()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -113,13 +107,10 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		UserName:      u.Name,
 		Role:          u.Role,
 		IsAdmin:       u.Role == "admin",
-		SiteID:        siteID,
-		SiteName:      siteName,
 		DateFrom:      from,
 		DateTo:        to,
 		Dates:         dates,
 		Rows:          rows,
-		Sites:         sites,
 		Events:        events,
 		Summary:       computeSummary(rows, len(dates)),
 		EventID:       eventID,
@@ -135,12 +126,12 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseMatrixFilters derives the effective attendance filters from the
-// request query and the session user, applying the same defaults and
-// validation used by the matrix: a 14-day window (today and the prior 13
-// days), inverted ranges swapped, and ranges capped at 30 days. The event
-// filter is read from the query key "event" (matrix filter bar) and falls
-// back to "event_id" (toggle/walk-in forms).
-func (s *Server) parseMatrixFilters(r *http.Request, u *sessionUser) (from, to, eventID, siteID, siteName string, dates []string) {
+// request query, applying the same defaults and validation used by the
+// matrix: a 14-day window (today and the prior 13 days), inverted ranges
+// swapped, and ranges capped at 30 days. The event filter is read from the
+// query key "event" (matrix filter bar) and falls back to "event_id"
+// (toggle/walk-in forms).
+func (s *Server) parseMatrixFilters(r *http.Request) (from, to, eventID string, dates []string) {
 	// Parse and validate from/to.
 	now := time.Now().In(hst)
 	defTo := now.Format("2006-01-02")
@@ -170,10 +161,8 @@ func (s *Server) parseMatrixFilters(r *http.Request, u *sessionUser) (from, to, 
 		eventID = strings.TrimSpace(r.URL.Query().Get("event_id"))
 	}
 
-	siteID, siteName = s.resolveSite(u, strings.TrimSpace(r.URL.Query().Get("site")))
-
 	dates = buildDateRange(from, to)
-	return from, to, eventID, siteID, siteName, dates
+	return from, to, eventID, dates
 }
 
 // handleStats renders only the stat-cards fragment for the current filters.
@@ -182,9 +171,9 @@ func (s *Server) parseMatrixFilters(r *http.Request, u *sessionUser) (from, to, 
 // guarantee the cards always match the matrix.
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	u := s.currentSession(r)
-	_, to, eventID, siteID, _, dates := s.parseMatrixFilters(r, u)
+	_, to, eventID, dates := s.parseMatrixFilters(r)
 
-	rows, err := s.loadMatrixRows(u, siteID, dates, eventID, to)
+	rows, err := s.loadMatrixRows(u, dates, eventID, to)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -268,7 +257,7 @@ func (s *Server) resolveSite(u *sessionUser, param string) (string, string) {
 }
 
 // loadMatrixRows builds the participant rows and fills cells from attendance.
-func (s *Server) loadMatrixRows(u *sessionUser, siteID string, dates []string, eventID, to string) ([]MatrixRow, error) {
+func (s *Server) loadMatrixRows(u *sessionUser, dates []string, eventID, to string) ([]MatrixRow, error) {
 	intakeCol, err := s.intakeCollection()
 	if err != nil {
 		return nil, err
@@ -278,15 +267,25 @@ func (s *Server) loadMatrixRows(u *sessionUser, siteID string, dates []string, e
 		return nil, err
 	}
 
-	// Participants: ALWAYS the full site/role-scoped roster, independent of
-	// the selected event (AC #1). The event only scopes the attendance map
-	// below; it must never change which participants are listed.
+	// Roster scope: the selected event's site when an event is selected;
+	// otherwise the role-based default (case_manager: assigned intakes;
+	// admin: all intakes).
+	eventSite := ""
+	if eventID != "" {
+		eventsCol, err := s.eventsCollection()
+		if err != nil {
+			return nil, err
+		}
+		if eventRec, err := s.pb.FindRecordById(eventsCol.Id, eventID); err == nil {
+			eventSite = eventRec.GetString("site")
+		}
+	}
 	var intakeFilter string
 	switch {
+	case eventSite != "":
+		intakeFilter = fmt.Sprintf("site='%s'", mcpmod.EscapeFilter(eventSite))
 	case u.Role == "case_manager":
 		intakeFilter = fmt.Sprintf("assigned_to='%s'", mcpmod.EscapeFilter(u.ID))
-	case siteID != "":
-		intakeFilter = fmt.Sprintf("site='%s'", mcpmod.EscapeFilter(siteID))
 	default:
 		intakeFilter = "1=1"
 	}
@@ -299,7 +298,7 @@ func (s *Server) loadMatrixRows(u *sessionUser, siteID string, dates []string, e
 	// event's site, so the attendance query filters by event set, never by site.
 	from := dates[0]
 	toDate := dates[len(dates)-1]
-	eventIDs, err := s.resolveEventIDs(eventID, siteID)
+	eventIDs, err := s.resolveEventIDs(eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +333,7 @@ func (s *Server) loadMatrixRows(u *sessionUser, siteID string, dates []string, e
 	rows := make([]MatrixRow, 0, len(intakeRecs))
 	for _, rec := range intakeRecs {
 		iid := rec.Id
-		cellSiteID := siteID
+		cellSiteID := eventSite
 		if cellSiteID == "" {
 			cellSiteID = rec.GetString("site")
 		}
@@ -419,17 +418,13 @@ func (s *Server) eventsCollection() (*core.Collection, error) {
 	return s.pb.FindCollectionByNameOrId("events")
 }
 
-// loadEvents returns active, non-deleted events, optionally scoped to a single
-// site. When siteID is "", all active events are returned (admin view).
-func (s *Server) loadEvents(siteID string) ([]Event, error) {
+// loadEvents returns all active, non-deleted events.
+func (s *Server) loadEvents() ([]Event, error) {
 	col, err := s.eventsCollection()
 	if err != nil {
 		return nil, err
 	}
 	filter := "status='active' && deleted=false"
-	if siteID != "" {
-		filter += fmt.Sprintf(" && site='%s'", mcpmod.EscapeFilter(siteID))
-	}
 	recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "start_date,name", 1000, 0)
 	if err != nil {
 		return nil, err
@@ -449,25 +444,13 @@ func (s *Server) loadEvents(siteID string) ([]Event, error) {
 }
 
 // resolveEventIDs returns the set of event IDs to include in an attendance
-// query. A specific eventID wins; otherwise the set is the active events at
-// siteID (empty slice when the site has no active events); nil means no event
-// restriction (admin, all locations).
-func (s *Server) resolveEventIDs(eventID, siteID string) ([]string, error) {
+// query. A specific eventID wins; otherwise nil means no event restriction
+// (all active events).
+func (s *Server) resolveEventIDs(eventID string) ([]string, error) {
 	if eventID != "" {
 		return []string{eventID}, nil
 	}
-	if siteID == "" {
-		return nil, nil
-	}
-	events, err := s.loadEvents(siteID)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]string, 0, len(events))
-	for _, e := range events {
-		ids = append(ids, e.ID)
-	}
-	return ids, nil
+	return nil, nil
 }
 
 // requireEventID returns a 400 if eventID is empty. Attendance is now
@@ -871,10 +854,8 @@ type ExportRow struct {
 }
 
 // handleExportCSV streams attendance records as a CSV download.
-// It is wrapped with requireRole("admin"), so u is non-nil here.
+// It is wrapped with requireRole("admin").
 func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
-	u := s.currentSession(r)
-
 	now := time.Now().In(hst)
 	defTo := now.Format("2006-01-02")
 	defFrom := now.AddDate(0, 0, -13).Format("2006-01-02")
@@ -901,9 +882,8 @@ func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
 	if !requireEventID(w, eventID) {
 		return
 	}
-	siteID, _ := s.resolveSite(u, strings.TrimSpace(r.URL.Query().Get("site")))
 
-	rows, err := s.loadExportRows(siteID, eventID, from, to)
+	rows, err := s.loadExportRows(eventID, from, to)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -931,7 +911,7 @@ func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
 
 // loadExportRows fetches raw attendance records matching the filters and
 // resolves participant/site/event/recorder names for display.
-func (s *Server) loadExportRows(siteID, eventID, from, to string) ([]ExportRow, error) {
+func (s *Server) loadExportRows(eventID, from, to string) ([]ExportRow, error) {
 	attCol, err := s.attendanceCollection()
 	if err != nil {
 		return nil, err
@@ -940,12 +920,9 @@ func (s *Server) loadExportRows(siteID, eventID, from, to string) ([]ExportRow, 
 	if err != nil {
 		return nil, err
 	}
-	eventIDs, err := s.resolveEventIDs(eventID, siteID)
+	eventIDs, err := s.resolveEventIDs(eventID)
 	if err != nil {
 		return nil, err
-	}
-	if eventIDs != nil && len(eventIDs) == 0 {
-		return []ExportRow{}, nil
 	}
 	filter := fmt.Sprintf("date>='%s' && date<='%s'",
 		mcpmod.EscapeFilter(from), mcpmod.EscapeFilter(to))

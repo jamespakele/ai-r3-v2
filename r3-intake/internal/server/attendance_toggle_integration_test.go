@@ -453,7 +453,7 @@ func TestWalkinStoresNoSite(t *testing.T) {
 		t.Errorf("status = %q, want walk_in", att.GetString("status"))
 	}
 
-	rows, err := srv.loadExportRows("", fx.ev, today, today)
+	rows, err := srv.loadExportRows(fx.ev, today, today)
 	if err != nil {
 		t.Fatalf("loadExportRows: %v", err)
 	}
