@@ -149,10 +149,9 @@ func cellStatus(rows []MatrixRow, intakeID, date string) string {
 	return ""
 }
 
-// TestMatrixRosterEventScoped proves the roster is scoped by the selected
-// event's site: with ev1 (Kona) selected, only Kona intakes render; with no
-// event selected, an admin sees the full intake roster. The attendance map is
-// scoped to the selected event's records.
+// TestMatrixRosterEventScoped proves the roster is always the full
+// site/role-scoped list, regardless of selected event. Only the attendance map
+// is scoped to the selected event's records.
 func TestMatrixRosterEventScoped(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedRosterData(t, srv.pb)
@@ -187,21 +186,13 @@ func TestMatrixRosterEventScoped(t *testing.T) {
 		}
 		return out
 	}
-	wantWithEvent := []string{fx.iInSite1, fx.iInSite2, fx.iAssignedCM} // Alice, Bob, Dana
+	wantWithEvent := []string{fx.iInSite1, fx.iInSite2, fx.iOtherSite, fx.iAssignedCM} // Alice, Bob, Carol, Dana
 	if got := idsOf(withEvent); !equalStrings(got, wantWithEvent) {
 		t.Errorf("roster with event = %v, want %v", got, wantWithEvent)
 	}
 	wantNoEvent := []string{fx.iInSite1, fx.iInSite2, fx.iOtherSite, fx.iAssignedCM} // Alice, Bob, Carol, Dana
 	if got := idsOf(noEvent); !equalStrings(got, wantNoEvent) {
 		t.Errorf("roster without event = %v, want %v", got, wantNoEvent)
-	}
-
-	// Out-of-site walk-in is recorded but never rendered as a row when the
-	// event's site scopes the roster.
-	for _, r := range withEvent {
-		if r.IntakeID == fx.iOtherSite {
-			t.Errorf("out-of-site walk-in intake rendered as a row")
-		}
 	}
 
 	// Attendance map scoping: ev1 call populates only ev1 records; "" call
