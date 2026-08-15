@@ -1,64 +1,39 @@
-# Epic 17: Remove the Event Manage Screen
+# RESULT — Schema migration: remove attendance.site
 
-**Status:** COMPLETE — child story branches merged into `epic/17-remove-the-event-manage-screen-rely-on-m`.
+## What was built
+New Go migration `015_attendance_remove_site.go` (registered in `migrations.go`)
+that removes the redundant `attendance.site` relation field, per the parent
+design doc `docs/plans/omp-plan-event-location-attendance-relationships.md`.
 
-## Stories implemented
-
-- **t_1c442540** — Remove Manage route and enrollment handlers from server.
-  Removed 5 route registrations from `server.go` (`GET /admin/events/` subtree,
-  `POST /admin/events/{id}/enroll`, `POST /admin/events/{id}/unenroll`,
-  `GET /admin/events/{id}/enroll-search`, `POST /admin/events/{id}/status`).
-  Removed 5 `AdminView` fields, 3 view types (`EnrolledRow`,
-  `EnrollSearchResult`, `EnrollSearchView`), and 11 handler/helper funcs from
-  `admin.go`. Dropped the unused `sort` import. Kept `loadEnrolledCount`,
-  `loadAllEvents`, event report, and event create/update/delete handlers.
-
-- **t_4ac127a6** — Update admin events tests for removed Manage screen.
-  Deleted `event_enrollment_flow_test.go`. Updated `admin_events_test.go` and
-  `admin_events_update_delete_test.go` to remove manage-link assertions,
-  `event-manage` render blocks, and helpers that exercised removed routes and
-  types. Dropped the now-unused `time` import in `admin_events_test.go`. Kept
-  event-report render, admin list render, validation-error path, create-route
-  tests, auth tests, and all update/delete tests.
-
-- **t_a7679d78** — Remove Event Manage UI and per-event Manage link.
-  Removed the Manage anchor from the admin Events tab row-actions in
-  `index.html`. Deleted the `event-manage`, `event-roster`, and
-  `enroll-search-results` template blocks. Removed the
-  `.event-manage-actions` rule and the Event-enrollment CSS section
-  (`.enroll-tabs`, `.enroll-tab`, `.search-panel`, `.enroll-results`,
-  `.enroll-result`, `.roster-table`, etc.) from `app.css`. Kept
-  `.event-readonly`, `.form-grid-2`, `.rate-good`, `.rate-low`.
+- **Up** (`upAttendanceRemoveSite`): idempotent (no-op if `site` already absent);
+  non-blocking data-integrity check that logs a WARN (does not fail) when a row's
+  stored `site` diverges from its event's `site`; then `Fields.RemoveByName("site")`
+  + `app.Save`. `events.site` (required) remains the single source of truth.
+- **Down** (`downAttendanceRemoveSite`): idempotent; re-adds `site` as an optional
+  single-select relation to `sites` (matching post-009 state) and backfills each
+  row's `site` from its event's `site` (best-effort, lossless).
+- `idx_attendance_event_intake_date` on `(event, intake, date)` is unchanged — it
+  does not reference `site`.
 
 ## Files changed
-
-- `r3-intake/internal/server/server.go` — removed Manage/enrollment routes.
-- `r3-intake/internal/server/admin.go` — removed Manage view types, fields,
-  handlers, helpers, and the `sort` import.
-- `r3-intake/internal/server/admin_events_test.go` — removed manage-link and
-  manage-render tests; dropped unused `time` import.
-- `r3-intake/internal/server/admin_events_update_delete_test.go` — removed
-  `doEventManage` helper and manage 404 test.
-- `r3-intake/internal/server/event_enrollment_flow_test.go` — deleted.
-- `r3-intake/internal/assets/public/index.html` — removed Manage link and
-  manage/roster/enroll-search template blocks.
-- `r3-intake/internal/assets/public/app.css` — removed manage-actions and
-  enrollment CSS rules.
-- `docs/plans/omp-plan-remove-event-manage.md` — working plan (t_1c442540).
-- `docs/plans/omp-plan-update-admin-events-tests.md` — working plan (t_4ac127a6).
-
-## Merge resolution notes
-
-- `server.go` and `admin.go` merged cleanly from t_1c442540; no overlapping
-  changes with t_4ac127a6 (test-only branch).
-- `index.html` and `app.css` merged cleanly from t_a7679d78; only UI
-  deletions, no overlap with server or test changes.
-- `RESULT.md` was replaced independently by each child branch. Synthesized into
-  this Epic 17 document.
+- `r3-intake/pocketbase/migrations/015_attendance_remove_site.go` (new)
+- `r3-intake/pocketbase/migrations/migrations.go` (registered 015)
+- `docs/plans/omp-plan-015-attendance-remove-site.md` (working plan artifact)
 
 ## Verification
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+- `go test ./pocketbase/migrations/` — PASS (idempotency, up/down round-trip,
+  divergent-row warning, down backfill all verified by omp's throwaway test)
+- `go test ./...` — server package has failures, ALL of which are
+  `attendance.site` reads/writes (export site filter, export SiteName column,
+  loadMatrixRows site filter, stats, toggle write, day-detail write). These are
+  the filtering-logic changes owned by the parallel sibling card
+  **t_41e8c791 (Update filtering logic to use event-derived location)**, which is
+  currently running. This is the expected intermediate state: the schema change
+  lands before the filtering update. Once t_41e8c791 merges, the server tests
+  will pass.
 
-- `go build ./...` — pass
-- `go vet ./...` — pass
-- `go test ./...` — pass
-- Conflict-marker sweep — none
+## Scope note
+Schema-only card. No Go filter/handler code was modified — that is the sibling
+card's job. The migration package itself is green.
