@@ -1,43 +1,30 @@
-# RESULT — Modify Records event filter to join attendance
+# RESULT — Epic 28: Records event filter joins attendance + tests + docs
 
 ## What was built
-The Records screen (`handleList` in `r3-intake/internal/server/admin.go`) event filter
-now joins the `attendance` collection. Filtering by an event surfaces intakes that
-**attended** that event (per attendance records), not just those whose `intake.event`
-(home event) matches.
 
-**Semantics (union):** an intake matches the event filter if its home event equals the
-selected event **OR** it has an attendance record for that event
-(`attendance.intake == intake.id`). All attendance statuses count. This satisfies the
-verification scenario (people with attendance for R3 - Sprng 2027 appear even though
-their intake.event is R3 - Fall 2026) while avoiding an empty-screen regression for
-events with zero attendance records (home-event fallback).
+The Records screen event filter (`handleList` in `r3-intake/internal/server/admin.go`) now returns a union: an intake matches a selected event if its home event (`intake.event`) equals that event **OR** it has an attendance record for that event (`attendance.intake == intake.id`). All attendance statuses count.
 
 ## Files changed
-- `r3-intake/internal/server/admin.go` — event filter block replaced with the
-  attendance-join union. Queries `attendance` for `event='<id>'`, collects distinct
-  non-empty `intake` IDs, builds `(event='<id>' || id='<id1>' || id='<id2>' || ...)`,
-  falls back to `event='<id>'` on attendance query error / no records. Composes with
-  `?status=`/`?q=` via the existing ` && ` join. `view.EventFilter` unchanged.
-- `r3-intake/internal/server/records_list_integration_test.go` (new) —
-  `TestListEventFilterJoinsAttendance`, 4 subtests covering: cross-home-event attendance
-  join, home-event match, union ∩ status filter, and zero-attendance fallback.
 
-## Deviation from plan
-Plan proposed `id in ('...')`; PocketBase v0.39 filter syntax has no `in` operator, so
-omp used OR-joined `id='<id>'` clauses — consistent with the codebase's own precedent
-(`attendance.go` OR-joins `event='<id>'`). Union semantics unchanged.
+- `r3-intake/internal/server/admin.go` — event filter block replaced with the attendance-join union.
+- `r3-intake/internal/server/records_list_integration_test.go` (new) — 4 subtests covering cross-home-event attendance join, home-event-only match, union ∩ status filter, and zero-attendance fallback.
+- `r3-intake/internal/server/records_list_attendance_join_integration_test.go` (new) — 6 tests covering deduplication, multiple attendees, search/status composition, cross-event distinctness, and unfiltered regression guard.
+- `r3-intake/README.md` — added "Records event filter is a union" bullet under Notes / inferences.
+- `WORKING_PLAN_join_attendance_event_filter.md`, `omp-plan-records-event-filter-join-attendance.md`, `WORKING_PLAN_records_filter_attendance.md`, `omp-plan-records-filter-attendance-tests.md` — plan artifacts from child branches.
+
+## Implementation notes
+
+- PocketBase v0.39 has no `in` operator, so the union is built as OR-joined `(event='<id>' || id='<id1>' || id='<id2>' || ...)` clauses, composing with `?status=`/`?q=` via the existing ` && ` join.
+- Falls back to home-event-only matching if the attendance query fails or returns no records, avoiding an empty-screen regression.
 
 ## Verification
+
+- `make vendor` — fetched missing `htmx.min.js`/`alpine.min.js` so `go:embed` resolves.
 - `go build ./...` — PASS
 - `go vet ./...` — PASS
-- `go test ./...` — PASS (server 16.0s, migrations ok; export/roster/person-attendance
-  tests unaffected)
-- `TestListEventFilterJoinsAttendance` — 4/4 subtests PASS
-- Template (`index.html`) untouched; select/Clear/empty-state/count driven by unchanged
-  `EventFilter`/`Total`.
+- `go test ./...` — PASS (server package and migrations; no regressions)
+- `grep -E '^[<>=]{7}' RESULT.md` — no output (no conflict markers)
 
 ## Note
-The real-data scenario (`?event=lu9ohnxysl9pccf` → 4 people) can't run in this
-worktree (no real PB data dir), but the integration test reproduces that exact data
-shape (home event ≠ attended event) and proves the union behavior.
+
+Live-browser smoke test not run; the template-render and integration tests cover the new behavior. No `cmd/` changes.
