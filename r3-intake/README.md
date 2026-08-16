@@ -248,6 +248,16 @@ Use the skill helpers:
 - **Unassigned → claimed flow** is the only status transition implemented
   (`unassigned` → `claimed` → `completed`). Case managers see only their
   created + claimed records; admins see all.
+- **Records event filter is a union** (`handleList` in `internal/server/admin.go`):
+  filtering the Records list by an event surfaces intakes whose home event
+  (`intake.event`) equals the selected event **OR** that have an attendance record
+  for that event (`attendance.intake == intake.id`). All attendance statuses count
+  (present/absent/excused/walk_in). The union is built as OR-joined
+  `(event='<id>' || id='<id1>' || id='<id2>' || ...)` clauses (PocketBase v0.39 has
+  no `in` operator) and composes with the `?status=`/`?q=` filters via ` && `. An
+  event with no attendance records falls back to home-event-only matching, so a
+  freshly-created event never renders an empty screen. The Event column still shows
+  each intake's home event for context.
 - **PocketBase is embedded as a Go library** (`github.com/pocketbase/pocketbase`)
   so the app is a single binary plus the `pocketbase/migrations/` directory.
   Go migrations (`002_encryption.go`, `011_encrypt_existing_data.go`, etc.) are
