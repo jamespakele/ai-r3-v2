@@ -1,43 +1,43 @@
-# RESULT — Collapse Create Event form behind toggle button
+# RESULT — Modify Records event filter to join attendance
 
 ## What was built
-On the Admin > Events tab, the Create Event form (name, location, start/end
-dates, description) is now hidden by default and only appears when the
-"Create Event" button is clicked. Clicking again (now labeled "Cancel") hides
-it. The form renders below the button.
+The Records screen (`handleList` in `r3-intake/internal/server/admin.go`) event filter
+now joins the `attendance` collection. Filtering by an event surfaces intakes that
+**attended** that event (per attendance records), not just those whose `intake.event`
+(home event) matches.
+
+**Semantics (union):** an intake matches the event filter if its home event equals the
+selected event **OR** it has an attendance record for that event
+(`attendance.intake == intake.id`). All attendance statuses count. This satisfies the
+verification scenario (people with attendance for R3 - Sprng 2027 appear even though
+their intake.event is R3 - Fall 2026) while avoiding an empty-screen regression for
+events with zero attendance records (home-event fallback).
 
 ## Files changed
-- `r3-intake/internal/assets/public/index.html` (11 insertions, 1 deletion)
+- `r3-intake/internal/server/admin.go` — event filter block replaced with the
+  attendance-join union. Queries `attendance` for `event='<id>'`, collects distinct
+  non-empty `intake` IDs, builds `(event='<id>' || id='<id1>' || id='<id2>' || ...)`,
+  falls back to `event='<id>'` on attendance query error / no records. Composes with
+  `?status=`/`?q=` via the existing ` && ` join. `view.EventFilter` unchanged.
+- `r3-intake/internal/server/records_list_integration_test.go` (new) —
+  `TestListEventFilterJoinsAttendance`, 4 subtests covering: cross-home-event attendance
+  join, home-event match, union ∩ status filter, and zero-attendance fallback.
 
-## Changes
-1. Added a `type="button"` toggle button (`id="create-event-toggle"`, class
-` btn btn-primary btn-auto`) above the form, wired to
-`toggleCreateForm('create-event-form', this)`. Its label is
-`{{if .EventError}}Cancel{{else}}Create Event{{end}}`.
-2. Gave the form `id="create-event-form"` and a conditional
-`style="display:block"` (on validation error) / `style="display:none"`
-(default). POST target, class, and all field bindings unchanged.
-3. Added `window.toggleCreateForm` next to `toggleEditRow`, toggling
-`style.display` between `'none'`/`'block"` and swapping the button label.
-
-## Logical consequences handled
-- Submit button stays `type="submit"` inside the form, label "Create Event",
-  unchanged — only reachable once the form is shown.
-- On validation error (`.EventError` set), the form auto-shows and the toggle
-  button reads "Cancel", so the error is actionable with pre-filled values.
-- `.btn-auto` reused on the toggle button (already defined in app.css L75).
-- CSS cache-buster `?v=` NOT bumped — that is the sibling card's scope.
+## Deviation from plan
+Plan proposed `id in ('...')`; PocketBase v0.39 filter syntax has no `in` operator, so
+omp used OR-joined `id='<id>'` clauses — consistent with the codebase's own precedent
+(`attendance.go` OR-joins `event='<id>'`). Union semantics unchanged.
 
 ## Verification
-- `go build ...` — PASS
-- `go vet ...` — PASS
-- `go test ...` — PASS (internal/server 17.1s, migrations 0.225s)
-- `TestAdminEventsRender` covers both toggle states (default hidden + error
-  path shown) and asserts `action="/admin/events"` and `Create Event`.
+- `go build ./...` — PASS
+- `go vet ./...` — PASS
+- `go test ./...` — PASS (server 16.0s, migrations ok; export/roster/person-attendance
+  tests unaffected)
+- `TestListEventFilterJoinsAttendance` — 4/4 subtests PASS
+- Template (`index.html`) untouched; select/Clear/empty-state/count driven by unchanged
+  `EventFilter`/`Total`.
 
 ## Note
-Live-browser smoke test not run: this worktree has no `cmd/` package / `func
-main`, so the binary cannot be built here (pre-existing repo state). The
-template-render test covers both toggle states' server-side output; the
-client-side click behavior is the standard `style.display` swap already proven
-by the identical `toggleEditRow` pattern.
+The real-data scenario (`?event=lu9ohnxysl9pccf` → 4 people) can't run in this
+worktree (no real PB data dir), but the integration test reproduces that exact data
+shape (home event ≠ attended event) and proves the union behavior.
