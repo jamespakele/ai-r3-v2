@@ -731,8 +731,11 @@
           </tbody>
         </table>
 
+        <button type="button" id="create-event-toggle" class="btn btn-primary btn-auto"
+                onclick="toggleCreateForm('create-event-form', this)">{{if .EventError}}Cancel{{else}}Create Event{{end}}</button>
         {{if .EventError}}<div class="form-error">{{.EventError}}</div>{{end}}
-        <form method="post" action="/admin/events" class="form-grid-2">
+        <form id="create-event-form" method="post" action="/admin/events" class="form-grid-2"
+              {{if .EventError}}style="display:block"{{else}}style="display:none"{{end}}>
           <input type="text" name="name" placeholder="Event name" required class="field-input grid-full" value="{{.EventName}}">
           <select name="site" class="field-input grid-full" required>
             <option value="">Select a location</option>
@@ -883,6 +886,13 @@
     var showing = row.style.display === 'table-row';
     row.style.display = showing ? 'none' : 'table-row';
     btn.textContent = showing ? 'Edit' : 'Cancel';
+  };
+  window.toggleCreateForm = function (formId, btn) {
+    var f = document.getElementById(formId);
+    if (!f) return;
+    var showing = f.style.display === 'block';
+    f.style.display = showing ? 'none' : 'block';
+    btn.textContent = showing ? 'Create Event' : 'Cancel';
   };
 })();
 </script>
