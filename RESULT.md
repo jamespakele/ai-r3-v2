@@ -1,30 +1,31 @@
-# RESULT — Epic 28: Records event filter joins attendance + tests + docs
+# RESULT: Remove unused EventName resolution from IntakeRow
 
 ## What was built
-
-The Records screen event filter (`handleList` in `r3-intake/internal/server/admin.go`) now returns a union: an intake matches a selected event if its home event (`intake.event`) equals that event **OR** it has an attendance record for that event (`attendance.intake == intake.id`). All attendance statuses count.
+Removed the dead `IntakeRow.EventName` field and its population in `handleList`
+(admin.go), and removed the now-orphaned Event column from the Records participant
+list table (index.html header + cell + empty-state colspan 8→7 / 7→6). Updated the
+README note that referenced the removed column.
 
 ## Files changed
+- `r3-intake/internal/server/admin.go` — removed `EventName` field from `IntakeRow`
+  struct and the `row.EventName = s.nameFor("events", ...)` population block.
+- `r3-intake/internal/assets/public/index.html` — removed `<th>Event</th>` header,
+  `<td>{{.EventName}}</td>` cell, and adjusted empty-state colspan.
+- `r3-intake/README.md` — corrected the now-false "Event column still shows..." note.
 
-- `r3-intake/internal/server/admin.go` — event filter block replaced with the attendance-join union.
-- `r3-intake/internal/server/records_list_integration_test.go` (new) — 4 subtests covering cross-home-event attendance join, home-event-only match, union ∩ status filter, and zero-attendance fallback.
-- `r3-intake/internal/server/records_list_attendance_join_integration_test.go` (new) — 6 tests covering deduplication, multiple attendees, search/status composition, cross-event distinctness, and unfiltered regression guard.
-- `r3-intake/README.md` — added "Records event filter is a union" bullet under Notes / inferences.
-- `WORKING_PLAN_join_attendance_event_filter.md`, `omp-plan-records-event-filter-join-attendance.md`, `WORKING_PLAN_records_filter_attendance.md`, `omp-plan-records-filter-attendance-tests.md` — plan artifacts from child branches.
-
-## Implementation notes
-
-- PocketBase v0.39 has no `in` operator, so the union is built as OR-joined `(event='<id>' || id='<id1>' || id='<id2>' || ...)` clauses, composing with `?status=`/`?q=` via the existing ` && ` join.
-- Falls back to home-event-only matching if the attendance query fails or returns no records, avoiding an empty-screen regression.
+## Logical consequences honored
+- `nameFor` helper: KEPT (used by attendance.go, person_attendance.go, tests).
+- Event filter dropdown: KEPT (single way to scope list to an event).
+- `AdminView.EventName` (create-event form, tab activation): KEPT.
+- Report/Attendance view `.EventName` usages (index.html 1317, 1388): KEPT.
 
 ## Verification
+- `go build ./...` PASS
+- `go vet ./...` PASS
+- `go test ./internal/server/ -run 'TestList' -count=1` PASS (renders modified template)
+- `go test ./... -count=1` — only failure is `TestExportCSVEventFilter/ev1_only`,
+  confirmed PRE-EXISTING on clean HEAD (reproduced in a temp worktree at 7b3c152);
+  exercises the CSV export path (`AttendanceExportRow.EventName`), untouched here.
 
-- `make vendor` — fetched missing `htmx.min.js`/`alpine.min.js` so `go:embed` resolves.
-- `go build ./...` — PASS
-- `go vet ./...` — PASS
-- `go test ./...` — PASS (server package and migrations; no regressions)
-- `grep -E '^[<>=]{7}' RESULT.md` — no output (no conflict markers)
-
-## Note
-
-Live-browser smoke test not run; the template-render and integration tests cover the new behavior. No `cmd/` changes.
+## Plan
+`docs/plans/omp-plan-remove-unused-eventname.md`

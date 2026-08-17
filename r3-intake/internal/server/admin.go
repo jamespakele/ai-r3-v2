@@ -20,7 +20,6 @@ type IntakeRow struct {
 	ID           string
 	Name         string
 	SSNMasked    string
-	EventName    string
 	Status       string
 	AssignedName string
 	Created      string
@@ -158,10 +157,6 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 					Created:      rec.GetString("created"),
 					CreatedByID:  rec.GetString("created_by"),
 					AssignedToID: rec.GetString("assigned_to"),
-				}
-				row.EventName = s.nameFor("events", rec.GetString("event"))
-				if row.EventName == "" {
-					row.EventName = "—"
 				}
 				row.AssignedName = userMap[row.AssignedToID]
 				if row.AssignedName == "" {
