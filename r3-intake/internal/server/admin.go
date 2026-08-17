@@ -102,32 +102,43 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 			view.StatusFilter = statusFilter
 		}
 		// Event filter from ?event= (value is an event record ID).
-		// Union: an intake matches if its home event equals the selected
-		// event OR it has an attendance record for that event
-		// (attendance.intake == intake.id). All attendance statuses count.
+		// Strict attendance-only: an intake matches only if it has an
+		// attendance record for the selected event whose date falls within
+		// the event's start_date -> end_date range. Home-event matching does
+		// not contribute. All attendance statuses count.
 		eventFilter := strings.TrimSpace(r.URL.Query().Get("event"))
 		if eventFilter != "" {
 			escapedEvent := mcpmod.EscapeFilter(eventFilter)
-			part := fmt.Sprintf("event='%s'", escapedEvent)
-			if attCol, aerr := s.attendanceCollection(); aerr == nil {
-				attRecs, aerr := s.pb.FindRecordsByFilter(attCol.Id, fmt.Sprintf("event='%s'", escapedEvent), "intake", 5000, 0)
-				if aerr == nil {
-					seen := map[string]bool{}
-					ids := []string{}
-					for _, att := range attRecs {
-						iid := att.GetString("intake")
-						if iid != "" && !seen[iid] {
-							seen[iid] = true
-							ids = append(ids, iid)
+			part := "id=''"
+			evRec, err := s.pb.FindRecordById("events", eventFilter)
+			if err == nil {
+				start := evRec.GetString("start_date")
+				end := evRec.GetString("end_date")
+				attFilter := fmt.Sprintf("event='%s'", escapedEvent)
+				startT, errStart := time.Parse("2006-01-02", start)
+				endT, errEnd := time.Parse("2006-01-02", end)
+				if start != "" && end != "" && errStart == nil && errEnd == nil && !startT.After(endT) {
+					attFilter += fmt.Sprintf(" && date>='%s' && date<='%s'", start, end)
+				}
+				if attCol, aerr := s.attendanceCollection(); aerr == nil {
+					attRecs, aerr := s.pb.FindRecordsByFilter(attCol.Id, attFilter, "intake", 5000, 0)
+					if aerr == nil {
+						seen := map[string]bool{}
+						ids := []string{}
+						for _, att := range attRecs {
+							iid := att.GetString("intake")
+							if iid != "" && !seen[iid] {
+								seen[iid] = true
+								ids = append(ids, iid)
+							}
 						}
-					}
-					if len(ids) > 0 {
-						ors := make([]string, 0, len(ids)+1)
-						ors = append(ors, fmt.Sprintf("event='%s'", escapedEvent))
-						for _, id := range ids {
-							ors = append(ors, fmt.Sprintf("id='%s'", id))
+						if len(ids) > 0 {
+							ors := make([]string, 0, len(ids))
+							for _, id := range ids {
+								ors = append(ors, fmt.Sprintf("id='%s'", id))
+							}
+							part = "(" + strings.Join(ors, " || ") + ")"
 						}
-						part = "(" + strings.Join(ors, " || ") + ")"
 					}
 				}
 			}

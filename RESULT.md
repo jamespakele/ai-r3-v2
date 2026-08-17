@@ -1,30 +1,39 @@
-# RESULT — Epic 28: Records event filter joins attendance + tests + docs
+# RESULT — Replace union filter with strict attendance-based filter in admin.go
 
 ## What was built
+Replaced the union event filter in `handleList` (r3-intake/internal/server/admin.go)
+with a strict attendance-only filter:
 
-The Records screen event filter (`handleList` in `r3-intake/internal/server/admin.go`) now returns a union: an intake matches a selected event if its home event (`intake.event`) equals that event **OR** it has an attendance record for that event (`attendance.intake == intake.id`). All attendance statuses count.
+- When `?event=<id>` is set, the filter part is now ONLY the attendance-derived
+  intake IDs: `(id='<id1>' || id='<id2>' || ...)`. The `event='<id>'` home-event
+  branch was removed — an intake's home event no longer contributes.
+- The attendance query now constrains `date` to the selected event's
+  `start_date`..`end_date` range (mirrors the matrix's auto-scoping in
+  `parseMatrixFilters`). The event record is loaded via
+  `s.pb.FindRecordById("events", eventFilter)`; if the event can't be loaded or
+  dates are invalid, the filter degrades to `id=''` (no matches).
+- If no in-range attendance records exist, the filter returns no intakes
+  (no home-event fallback).
 
 ## Files changed
-
-- `r3-intake/internal/server/admin.go` — event filter block replaced with the attendance-join union.
-- `r3-intake/internal/server/records_list_integration_test.go` (new) — 4 subtests covering cross-home-event attendance join, home-event-only match, union ∩ status filter, and zero-attendance fallback.
-- `r3-intake/internal/server/records_list_attendance_join_integration_test.go` (new) — 6 tests covering deduplication, multiple attendees, search/status composition, cross-event distinctness, and unfiltered regression guard.
-- `r3-intake/README.md` — added "Records event filter is a union" bullet under Notes / inferences.
-- `WORKING_PLAN_join_attendance_event_filter.md`, `omp-plan-records-event-filter-join-attendance.md`, `WORKING_PLAN_records_filter_attendance.md`, `omp-plan-records-filter-attendance-tests.md` — plan artifacts from child branches.
-
-## Implementation notes
-
-- PocketBase v0.39 has no `in` operator, so the union is built as OR-joined `(event='<id>' || id='<id1>' || id='<id2>' || ...)` clauses, composing with `?status=`/`?q=` via the existing ` && ` join.
-- Falls back to home-event-only matching if the attendance query fails or returns no records, avoiding an empty-screen regression.
+- r3-intake/internal/server/admin.go — strict attendance-only filter + date-range scoping
+- r3-intake/internal/server/records_list_attendance_join_integration_test.go — updated
+  expectations to strict semantics; added TestListEventFilterConstrainsByDateRange
+- r3-intake/internal/server/records_list_integration_test.go — updated subtests to
+  strict semantics (no home-event fallback)
+- r3-intake/README.md — updated Records event-filter docs to strict attendance-only
+- docs/plans/omp-plan-strict-attendance-filter.md — working plan artifact
 
 ## Verification
+- go build ./... — PASS
+- go vet ./... — PASS
+- go test ./internal/server/ -run 'TestListEventFilter|TestListNoEventFilter' -count=1 — PASS (8 tests, incl. new date-range test)
+- go test ./... -count=1 — PASS except TestExportCSVEventFilter/ev1_only, which
+  fails IDENTICALLY at baseline HEAD (verified via git stash): pre-existing
+  time-dependent failure (subtest omits from/to, so the default 14-day export
+  window excludes ev1's seed dates). Not a regression from this change.
 
-- `make vendor` — fetched missing `htmx.min.js`/`alpine.min.js` so `go:embed` resolves.
-- `go build ./...` — PASS
-- `go vet ./...` — PASS
-- `go test ./...` — PASS (server package and migrations; no regressions)
-- `grep -E '^[<>=]{7}' RESULT.md` — no output (no conflict markers)
-
-## Note
-
-Live-browser smoke test not run; the template-render and integration tests cover the new behavior. No `cmd/` changes.
+## Acceptance criteria
+- Filtering by an event returns only intakes with in-range attendance records.
+- Attendance is the source of truth; home-event matching removed.
+- Date-range scoping mirrors the matrix auto-scoping.

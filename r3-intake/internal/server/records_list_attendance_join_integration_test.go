@@ -19,10 +19,10 @@ type attJoinFixtures struct {
 }
 
 // seedAttJoinFixtures creates one site, two events, one admin user, and three
-// intakes with attendance records covering the event-filter union edge cases:
+// intakes with attendance records covering the event-filter edge cases:
 //   - intakeA: home ev1, attended ev2 (cross-event; surfaces via attendance).
-//   - intakeB: home ev2, attended ev2 (home-event AND attendance both match).
-//   - intakeC: home ev1, attended ev1 (home-event AND attendance both match).
+//   - intakeB: home ev2, attended ev2 (attendance match).
+//   - intakeC: home ev1, attended ev1 (attendance match).
 //
 // Distinct names (Alice/Bob/Charlie) and statuses (claimed/unassigned/completed)
 // let tests assert search and status composition.
@@ -197,20 +197,21 @@ func containsString(xs []string, want string) bool {
 	return false
 }
 
-// TestListEventFilterDedupsHomeAndAttendance proves an intake matching the
-// selected event via BOTH its home event and an attendance record is returned
-// exactly once (the union must not duplicate rows).
-func TestListEventFilterDedupsHomeAndAttendance(t *testing.T) {
+// TestListEventFilterAttendanceOnly proves the event filter is strict
+// attendance-only: an intake surfaces only when it has an attendance record
+// for the selected event. Home-event matching contributes nothing, so an
+// intake whose home event matches but has no attendance does not appear.
+func TestListEventFilterAttendanceOnly(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedAttJoinFixtures(t, srv.pb)
 	cookie := adminCookie(srv, fx.admin1)
 
-	// ev2: intakeB matches via home event AND attendance; must appear once.
+	// ev2: Alice and Bob both have ev2 attendance records.
 	rec := doAttJoinList(srv, cookie, "?event="+fx.ev2)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	got := attJoinRowNames(t, rec, "Bob")
+	got := attJoinRowNames(t, rec, "Alice", "Bob")
 	if len(got) != 2 {
 		t.Fatalf("ev2 rows = %v, want exactly [Alice Bob]", got)
 	}
@@ -218,23 +219,23 @@ func TestListEventFilterDedupsHomeAndAttendance(t *testing.T) {
 		t.Errorf("ev2 count = %q, want %q", count, "Showing 2 records")
 	}
 
-	// ev1: intakeC matches via home event AND attendance; must appear once.
+	// ev1: only Charlie has an ev1 attendance record; Alice's home event is
+	// ev1 but she has no ev1 attendance, so she must not surface.
 	rec = doAttJoinList(srv, cookie, "?event="+fx.ev1)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 	got = attJoinRowNames(t, rec, "Charlie")
-	if len(got) != 2 {
-		t.Fatalf("ev1 rows = %v, want exactly [Alice Charlie]", got)
+	if len(got) != 1 {
+		t.Fatalf("ev1 rows = %v, want exactly [Charlie]", got)
 	}
-	if count := attJoinCount(t, rec); count != "Showing 2 records" {
-		t.Errorf("ev1 count = %q, want %q", count, "Showing 2 records")
+	if count := attJoinCount(t, rec); count != "Showing 1 record" {
+		t.Errorf("ev1 count = %q, want %q", count, "Showing 1 record")
 	}
 }
 
-// TestListEventFilterSurfacesMultipleAttendees proves the union scales to N
-// attendees: both intakes with ev2 attendance surface, and intakeB's home-event
-// match does not duplicate it.
+// TestListEventFilterSurfacesMultipleAttendees proves the attendance filter
+// scales to N attendees: both intakes with ev2 attendance surface exactly once.
 func TestListEventFilterSurfacesMultipleAttendees(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedAttJoinFixtures(t, srv.pb)
@@ -334,5 +335,80 @@ func TestListNoEventFilterReturnsAll(t *testing.T) {
 	}
 	if count := attJoinCount(t, rec); count != "Showing 3 records" {
 		t.Errorf("count = %q, want %q", count, "Showing 3 records")
+	}
+}
+
+// TestListEventFilterConstrainsByDateRange proves the event filter only
+// surfaces intakes whose attendance date falls within the event's
+// start_date -> end_date range: an attendance record dated after the event
+// ends must not surface the intake.
+func TestListEventFilterConstrainsByDateRange(t *testing.T) {
+	srv := newTestServer(t)
+	save := func(name string, rec *core.Record) string {
+		t.Helper()
+		if err := srv.pb.Save(rec); err != nil {
+			t.Fatalf("save %s: %v", name, err)
+		}
+		return rec.Id
+	}
+	rec := func(name string) *core.Record {
+		col, err := srv.pb.FindCollectionByNameOrId(name)
+		if err != nil {
+			t.Fatalf("collection %s: %v", name, err)
+		}
+		return core.NewRecord(col)
+	}
+
+	site1 := save("site1", func() *core.Record {
+		r := rec("sites")
+		r.Set("name", "Kona")
+		r.Set("active", true)
+		return r
+	}())
+	ev1 := save("ev1", func() *core.Record {
+		r := rec("events")
+		r.Set("site", site1)
+		r.Set("name", "Morning Program")
+		r.Set("start_date", "2026-08-01")
+		r.Set("end_date", "2026-08-31")
+		r.Set("status", "active")
+		return r
+	}())
+	admin1 := save("admin1", func() *core.Record {
+		r := rec("users")
+		r.SetEmail("admin@example.com")
+		r.SetPassword("admin-password")
+		r.Set("name", "Admin One")
+		r.Set("role", "admin")
+		return r
+	}())
+	intakeA := save("intakeA", func() *core.Record {
+		r := rec("intake")
+		r.Set("name", "Alice")
+		r.Set("event", ev1)
+		r.Set("status", "claimed")
+		return r
+	}())
+	// Attendance dated after ev1's end_date (2026-08-31): must not surface.
+	save("attA-ev1-late", func() *core.Record {
+		r := rec("attendance")
+		r.Set("event", ev1)
+		r.Set("intake", intakeA)
+		r.Set("date", "2026-09-01")
+		r.Set("status", "present")
+		return r
+	}())
+
+	cookie := adminCookie(srv, admin1)
+	rec2 := doAttJoinList(srv, cookie, "?event="+ev1)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec2.Code)
+	}
+	got := attJoinRowNames(t, rec2)
+	if len(got) != 0 {
+		t.Fatalf("rows = %v, want exactly []", got)
+	}
+	if count := attJoinCount(t, rec2); count != "Showing 0 records" {
+		t.Errorf("count = %q, want %q", count, "Showing 0 records")
 	}
 }
