@@ -772,6 +772,7 @@ func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
 	to := strings.TrimSpace(r.URL.Query().Get("to"))
 	fromT, errFrom := time.Parse("2006-01-02", from)
 	toT, errTo := time.Parse("2006-01-02", to)
+	explicitRange := errFrom == nil && errTo == nil
 	if errFrom != nil || errTo != nil {
 		from, to = defFrom, defTo
 		fromT, _ = time.Parse("2006-01-02", from)
@@ -789,6 +790,23 @@ func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
 	eventID := strings.TrimSpace(r.URL.Query().Get("event"))
 	if !requireEventID(w, eventID) {
 		return
+	}
+
+	// Auto-scope to the selected event's dates when the caller did not
+	// provide an explicit valid from/to range. The event span is
+	// authoritative: no 30-day cap applies.
+	if !explicitRange {
+		eventsCol, err := s.eventsCollection()
+		if err == nil {
+			if evRec, err := s.pb.FindRecordById(eventsCol.Id, eventID); err == nil {
+				start, errStart := time.Parse("2006-01-02", evRec.GetString("start_date"))
+				end, errEnd := time.Parse("2006-01-02", evRec.GetString("end_date"))
+				if errStart == nil && errEnd == nil && !start.After(end) {
+					from = evRec.GetString("start_date")
+					to = evRec.GetString("end_date")
+				}
+			}
+		}
 	}
 
 	rows, err := s.loadExportRows(eventID, from, to)
