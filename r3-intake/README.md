@@ -256,8 +256,9 @@ Use the skill helpers:
   `(event='<id>' || id='<id1>' || id='<id2>' || ...)` clauses (PocketBase v0.39 has
   no `in` operator) and composes with the `?status=`/`?q=` filters via ` && `. An
   event with no attendance records falls back to home-event-only matching, so a
-  freshly-created event never renders an empty screen. The Event column still shows
-  each intake's home event for context.
+  freshly-created event never renders an empty screen. The list no longer shows
+  a per-row Event column; the event filter dropdown is the way to scope the
+  list to an event.
 - **PocketBase is embedded as a Go library** (`github.com/pocketbase/pocketbase`)
   so the app is a single binary plus the `pocketbase/migrations/` directory.
   Go migrations (`002_encryption.go`, `011_encrypt_existing_data.go`, etc.) are
