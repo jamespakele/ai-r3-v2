@@ -141,11 +141,11 @@ func listCount(t *testing.T, rec *httptest.ResponseRecorder) string {
 	return rest[:end]
 }
 
-// TestListEventFilterJoinsAttendance proves the Records event filter is a
-// union: an intake matches when its home event equals the selected event OR
-// it has an attendance record for that event (attendance.intake == intake.id).
-// It also verifies the union composes with the status filter and that the
-// rendered total matches the returned rows.
+// TestListEventFilterJoinsAttendance proves the Records event filter is
+// strict attendance-only: an intake matches only when it has an attendance
+// record for the selected event (attendance.intake == intake.id). It also
+// verifies the filter composes with the status filter and that the rendered
+// total matches the returned rows.
 func TestListEventFilterJoinsAttendance(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedListFixtures(t, srv.pb)
@@ -157,13 +157,13 @@ func TestListEventFilterJoinsAttendance(t *testing.T) {
 			t.Fatalf("status = %d, want 200", rec.Code)
 		}
 		// Alice (home ev1, attended ev2) surfaces via the attendance join;
-		// Bob (home ev2) surfaces via the home-event branch.
+		// Bob (home ev2, no ev2 attendance) must not surface.
 		got := listRowNames(t, rec, "Alice", "Bob")
-		if len(got) != 2 {
-			t.Fatalf("rows = %v, want [Alice Bob]", got)
+		if len(got) != 1 || got[0] != "Alice" {
+			t.Fatalf("rows = %v, want [Alice]", got)
 		}
-		if count := listCount(t, rec); !strings.Contains(count, "Showing 2 records") {
-			t.Errorf("count = %q, want %q", count, "Showing 2 records")
+		if count := listCount(t, rec); !strings.Contains(count, "Showing 1 record") {
+			t.Errorf("count = %q, want %q", count, "Showing 1 record")
 		}
 	})
 
@@ -172,13 +172,13 @@ func TestListEventFilterJoinsAttendance(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", rec.Code)
 		}
-		// Alice's home event is ev1; Bob has no attendance for ev1.
+		// Neither Alice (home ev1) nor Bob has an ev1 attendance record.
 		got := listRowNames(t, rec, "Alice", "Bob")
-		if len(got) != 1 || got[0] != "Alice" {
-			t.Fatalf("rows = %v, want [Alice]", got)
+		if len(got) != 0 {
+			t.Fatalf("rows = %v, want []", got)
 		}
-		if count := listCount(t, rec); !strings.Contains(count, "Showing 1 record") {
-			t.Errorf("count = %q, want %q", count, "Showing 1 record")
+		if count := listCount(t, rec); !strings.Contains(count, "Showing 0 records") {
+			t.Errorf("count = %q, want %q", count, "Showing 0 records")
 		}
 	})
 
@@ -197,16 +197,16 @@ func TestListEventFilterJoinsAttendance(t *testing.T) {
 		}
 	})
 
-	t.Run("event with no attendance falls back to home event", func(t *testing.T) {
-		// ev1 has no attendance records at all; the filter must still return
-		// intakes whose home event matches (no empty-screen regression).
+	t.Run("event with no attendance returns empty", func(t *testing.T) {
+		// ev1 has no attendance records at all; the strict filter must return
+		// no intakes (no home-event fallback).
 		rec := doList(srv, cookie, "?event="+fx.ev1)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", rec.Code)
 		}
 		got := listRowNames(t, rec, "Alice", "Bob")
-		if len(got) != 1 || got[0] != "Alice" {
-			t.Fatalf("rows = %v, want [Alice]", got)
+		if len(got) != 0 {
+			t.Fatalf("rows = %v, want []", got)
 		}
 	})
 }
