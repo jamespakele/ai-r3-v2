@@ -1,30 +1,43 @@
-# RESULT — Epic 28: Records event filter joins attendance + tests + docs
+# RESULT — Fix event filter logic in loadExportRows (TestExportCSVEventFilter)
 
 ## What was built
 
-The Records screen event filter (`handleList` in `r3-intake/internal/server/admin.go`) now returns a union: an intake matches a selected event if its home event (`intake.event`) equals that event **OR** it has an attendance record for that event (`attendance.intake == intake.id`). All attendance statuses count.
+Fixed `handleExportCSV` in `r3-intake/internal/server/attendance.go` so the CSV export
+auto-scopes its date range to the selected event's `start_date` -> `end_date` when the
+caller supplies an event filter but no explicit valid `from`/`to` dates. This makes
+`TestExportCSVEventFilter` (specifically the `ev1_only` subtest) pass.
 
-## Files changed
+## Root cause
 
-- `r3-intake/internal/server/admin.go` — event filter block replaced with the attendance-join union.
-- `r3-intake/internal/server/records_list_integration_test.go` (new) — 4 subtests covering cross-home-event attendance join, home-event-only match, union ∩ status filter, and zero-attendance fallback.
-- `r3-intake/internal/server/records_list_attendance_join_integration_test.go` (new) — 6 tests covering deduplication, multiple attendees, search/status composition, cross-event distinctness, and unfiltered regression guard.
-- `r3-intake/README.md` — added "Records event filter is a union" bullet under Notes / inferences.
-- `WORKING_PLAN_join_attendance_event_filter.md`, `omp-plan-records-event-filter-join-attendance.md`, `WORKING_PLAN_records_filter_attendance.md`, `omp-plan-records-filter-attendance-tests.md` — plan artifacts from child branches.
+`TestExportCSVEventFilter/ev1_only` calls `doExport(srv, admin, "?event="+fx.ev1)` with no
+explicit dates. `handleExportCSV` fell back to the default 14-day window `[today-13, today]`
+= `[2026-08-04, 2026-08-17]` when run on 2026-08-17. The seeded ev1 attendance records
+(2026-08-01, 2026-08-02) fall outside that window, so `loadExportRows`'s
+`date>='from' && date<='to'` filter excluded all ev1 rows before the event filter was
+considered. `ev2_only` passed only because ev2's records (08-02, 08-05, 08-10) happened to
+fall inside the default window.
 
-## Implementation notes
+## Change (only handleExportCSV in attendance.go)
 
-- PocketBase v0.39 has no `in` operator, so the union is built as OR-joined `(event='<id>' || id='<id1>' || id='<id2>' || ...)` clauses, composing with `?status=`/`?q=` via the existing ` && ` join.
-- Falls back to home-event-only matching if the attendance query fails or returns no records, avoiding an empty-screen regression.
+1. Added `explicitRange := errFrom == nil && errTo == nil` immediately after the two
+   `time.Parse` calls, before the default fallback block.
+2. Added an auto-scope block after `requireEventID` and before `s.loadExportRows`: when
+   `!explicitRange`, reads the event record via `s.eventsCollection()` +
+   `s.pb.FindRecordById`, and if `start_date`/`end_date` parse and `start <= end`, overrides
+   `from`/`to` with the event span (no 30-day cap). Mirrors `parseMatrixFilters` behavior.
+
+`loadExportRows`, `parseMatrixFilters`, templates, and all tests are unchanged.
 
 ## Verification
 
-- `make vendor` — fetched missing `htmx.min.js`/`alpine.min.js` so `go:embed` resolves.
+- `go test ./internal/server/ -run TestExportCSVEventFilter -v` — PASS (ev1_only, ev2_only)
+- `go test ./internal/server/ -run 'TestExportCSV' -v` — all 13 tests PASS
 - `go build ./...` — PASS
 - `go vet ./...` — PASS
-- `go test ./...` — PASS (server package and migrations; no regressions)
-- `grep -E '^[<>=]{7}' RESULT.md` — no output (no conflict markers)
+- `go test ./...` — PASS (server + migrations, no regressions)
+- `grep -rE '^[<>=]{7}' attendance.go` — no conflict markers
 
-## Note
+## Files changed
 
-Live-browser smoke test not run; the template-render and integration tests cover the new behavior. No `cmd/` changes.
+- `r3-intake/internal/server/attendance.go` — handleExportCSV auto-scoping (18 insertions)
+- `docs/plans/omp-plan-fix-export-event-filter.md` — working plan artifact
