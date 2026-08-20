@@ -411,6 +411,12 @@ func (s *Server) handleSection(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login?next="+r.URL.RequestURI(), http.StatusSeeOther)
 		return
 	}
+	if section == "01" {
+		if errs := validateNameFields(r); errs != nil {
+			writeValidationErrors(w, errs)
+			return
+		}
+	}
 	if err := s.applySection(rec, r, section); err != nil {
 		http.Error(w, "section apply failed: "+err.Error(), http.StatusBadRequest)
 		return
@@ -535,7 +541,13 @@ func (s *Server) applySection(rec *core.Record, r *http.Request, section string)
 	switch section {
 	case "01":
 		rec.Set("event", r.FormValue("event"))
-		rec.Set("name", r.FormValue("name"))
+		first := strings.TrimSpace(r.FormValue("first_name"))
+		last := strings.TrimSpace(r.FormValue("last_name"))
+		if first != "" || last != "" {
+			rec.Set("name", strings.TrimSpace(first+" "+last))
+		} else {
+			rec.Set("name", r.FormValue("name"))
+		}
 		rec.Set("dob", normalizeDob(r.FormValue("dob")))
 		rec.Set("ssn", ssnLast4(r.FormValue("ssn")))
 		rec.Set("contact", fmtPhone(r.FormValue("contact")))
@@ -761,6 +773,44 @@ func ssnLast4(s string) string {
 		return d
 	}
 	return d[len(d)-4:]
+}
+
+// validateNameFields checks the first_name/last_name form fields. If both keys
+// are absent it falls back to the legacy single `name` field. Returns nil when
+// valid, otherwise a map of field name -> message.
+func validateNameFields(r *http.Request) map[string]string {
+	first := strings.TrimSpace(r.FormValue("first_name"))
+	last := strings.TrimSpace(r.FormValue("last_name"))
+	hasFirst := r.Form.Has("first_name")
+	hasLast := r.Form.Has("last_name")
+
+	// Legacy single-name path (no first/last inputs submitted).
+	if !hasFirst && !hasLast {
+		if strings.TrimSpace(r.FormValue("name")) != "" {
+			return nil
+		}
+		return map[string]string{"name": "Name is required"}
+	}
+
+	errs := map[string]string{}
+	if first == "" {
+		errs["first_name"] = "First name is required"
+	}
+	if last == "" {
+		errs["last_name"] = "Last name is required"
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	return errs
+}
+
+// writeValidationErrors writes a 400 with the JSON body the frontend expects:
+// {"errors":{"field":"message"}}.
+func writeValidationErrors(w http.ResponseWriter, errs map[string]string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusBadRequest)
+	_ = json.NewEncoder(w).Encode(map[string]any{"errors": errs})
 }
 
 // --- form helpers ----------------------------------------------------------
