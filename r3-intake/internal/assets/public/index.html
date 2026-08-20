@@ -10,7 +10,22 @@
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/alpine.min.js" defer></script>
 <script>document.documentElement.classList.add('js')</script>
-<script>window.R3F={digits:function(v){return (v||'').replace(/\D/g,'').slice(0,4)},phone:function(v){var d=(v||'').replace(/\D/g,'').slice(0,10);if(!d)return '';if(d.length<3)return '('+d;if(d.length<6)return '('+d.slice(0,3)+') '+d.slice(3);if(d.length<10)return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6);return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6,10)},dob:function(v){var d=(v||'').replace(/\D/g,'').slice(0,8);if(d.length>4)return d.slice(0,2)+'/'+d.slice(2,4)+'/'+d.slice(4);if(d.length>2)return d.slice(0,2)+'/'+d.slice(2);return d}};</script>
+<script>window.R3F={digits:function(v){return (v||'').replace(/\D/g,'').slice(0,4)},phone:function(v){var d=(v||'').replace(/\D/g,'').slice(0,10);if(!d)return '';if(d.length<3)return '('+d;if(d.length<6)return '('+d.slice(0,3)+') '+d.slice(3);if(d.length<10)return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6);return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6,10)},dob:function(v){var d=(v||'').replace(/\D/g,'').slice(0,8);if(d.length>4)return d.slice(0,2)+'/'+d.slice(2,4)+'/'+d.slice(4);if(d.length>2)return d.slice(0,2)+'/'+d.slice(2);return d},splitNameIntoFields:function(form){if(!form)return;var fn=form.querySelector('[name=first_name]'),ln=form.querySelector('[name=last_name]');if(!fn||!ln)return;if(fn.value.trim()||ln.value.trim())return;var full=(form.getAttribute('data-fullname')||'').trim();if(!full)return;var i=full.indexOf(' ');if(i<0){fn.value=full}else{fn.value=full.slice(0,i);ln.value=full.slice(i+1)}},setFieldErr:function(id,msg){var inp=document.getElementById(id),group=document.getElementById(id.replace('-input','-group')),err=document.getElementById(id.replace('-input','-error'));if(inp&&inp.classList)inp.classList.toggle('has-error',!!msg);if(group&&group.classList)group.classList.toggle('has-error',!!msg);if(err)err.textContent=msg||''},clearFieldErr:function(id){R3F.setFieldErr(id,'')},validateSection01:function(evt){var f=document.getElementById('sec-01');if(!f)return true;var cfg=evt.detail.requestConfig;if(!cfg||cfg.verb!=='post'||cfg.path.indexOf('/section/01')<0)return true;var fn=document.getElementById('fn-input'),ln=document.getElementById('ln-input');var fnErr=!fn.value.trim(),lnErr=!ln.value.trim();R3F.setFieldErr('fn-input',fnErr?'First name is required.':'');R3F.setFieldErr('ln-input',lnErr?'Last name is required.':'');if(fnErr||lnErr){evt.preventDefault();if(fnErr&&fn)fn.focus();return false}return true}};</script>
+<script>
+document.addEventListener('DOMContentLoaded', function(){ R3F.splitNameIntoFields(document.getElementById('sec-01')); });
+document.addEventListener('htmx:afterProcessNode', function(e){ if(e.detail && e.detail.el && e.detail.el.getAttribute('id')==='sec-01') R3F.splitNameIntoFields(e.detail.el); });
+document.addEventListener('htmx:beforeRequest', function(e){ R3F.validateSection01(e); });
+document.addEventListener('htmx:beforeSwap', function(e){
+  var el=e.detail.elt; if(!el || el.getAttribute('id')!=='sec-01') return;
+  var xhr=e.detail.xhr; if(!xhr || xhr.status!==400) return;
+  if((xhr.getResponseHeader('Content-Type')||'').indexOf('application/json')<0) return;
+  e.preventDefault();
+  var data={}; try{ data=JSON.parse(xhr.responseText); }catch(_){}
+  var errs=(data&&data.errors)||{};
+  R3F.setFieldErr('fn-input', errs.first_name||'');
+  R3F.setFieldErr('ln-input', errs.last_name||'');
+});
+</script>
 <script>
 (function(){
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
@@ -70,15 +85,15 @@
       <div class="progress-labels"><span>Form progress</span><span>{{.Progress}}%</span></div>
       <div class="progress-track"><div class="progress-bar" style="width:{{.Progress}}%"></div></div>
     </div>
-    <div class="topbar-saved">Saves automatically</div>
+    <div class="topbar-saved">Use the Save button to save each section</div>
   </div>
 
   <div class="container">
 
     <p class="intro">
       This intake form gathers the information R3 case managers use to build a Personal Profile and Service Plan.
-      Fill it out together with a participant, or have a participant complete it themselves — everything saves
-      automatically as you go.
+      Fill it out together with a participant, or have a participant complete it themselves — use the Save button
+      at the bottom of each section to save your progress as you go.
     </p>
 
     {{template "section-01" .}}
@@ -110,8 +125,8 @@
 {{end}}
 
 {{define "section-01"}}
-<form id="sec-01" class="r3-card"
-      hx-post="/section/01" hx-target="#sec-01" hx-swap="none" hx-trigger="change delay:300ms, submit"
+<form id="sec-01" class="r3-card" data-fullname="{{.Name}}"
+      hx-post="/section/01" hx-target="#sec-01" hx-swap="none" hx-trigger="submit"
       x-data="{ served:'{{.ServedMilitary}}', pets:'{{.HasPets}}', emp:'{{.Employment}}', interested:'{{.InterestedEmployed}}', living:'{{.LivingWith}}', household: JSON.parse($el.dataset.household) }"
       data-household='{{.HouseholdJSON}}'>
   <input type="hidden" name="id" value="{{.ID}}">
@@ -130,13 +145,17 @@
   </div>
 
   <div class="grid-2">
-    <div class="field-group grid-full {{if .Errors.name}}has-error{{end}}">
-      <label class="field-label">Name <span class="field-required">*</span></label>
-      <input type="text" name="name" value="{{.Name}}" placeholder="Full name" class="field-input {{if .Errors.name}}has-error{{end}}"
-             {{if .IsAuthed}}hx-get="/search/duplicates" hx-trigger="keyup changed delay:500ms" hx-target="#dup-results" hx-swap="innerHTML"{{end}}>
-      {{if .Errors.name}}<div class="field-error">Name is required.</div>{{end}}
-      {{if .IsAuthed}}<div id="dup-results" class="dup-results"></div>{{end}}
+    <div class="field-group {{if .Errors.first_name}}has-error{{end}}" id="fn-group">
+      <label class="field-label">First Name <span class="field-required">*</span></label>
+      <input type="text" name="first_name" value="" placeholder="First name" class="field-input {{if .Errors.first_name}}has-error{{end}}" id="fn-input" @input="R3F.clearFieldErr('fn-input')">
+      <div class="field-error" id="fn-error">{{if .Errors.first_name}}First name is required.{{end}}</div>
     </div>
+    <div class="field-group {{if .Errors.last_name}}has-error{{end}}" id="ln-group">
+      <label class="field-label">Last Name <span class="field-required">*</span></label>
+      <input type="text" name="last_name" value="" placeholder="Last name" class="field-input {{if .Errors.last_name}}has-error{{end}}" id="ln-input" @input="R3F.clearFieldErr('ln-input')" {{if .IsAuthed}}hx-get="/search/duplicates" hx-trigger="keyup changed delay:500ms" hx-target="#dup-results" hx-swap="innerHTML" hx-vals='js:{"name": (document.getElementById("fn-input").value.trim()+" "+document.getElementById("ln-input").value.trim()).trim()}'{{end}}>
+      <div class="field-error" id="ln-error">{{if .Errors.last_name}}Last name is required.{{end}}</div>
+    </div>
+    {{if .IsAuthed}}<div id="dup-results" class="dup-results grid-full"></div>{{end}}
     <div class="field-group {{if .Errors.dob}}has-error{{end}}">
       <label class="field-label">Date of Birth <span class="field-required">*</span></label>
       <input type="text" name="dob" value="{{fmtDob .DOB}}" inputmode="numeric" maxlength="10" placeholder="MM/DD/YYYY" class="field-input {{if .Errors.dob}}has-error{{end}}" @input="$el.value=R3F.dob($el.value)">
@@ -285,12 +304,12 @@
     {{if .Errors.employment}}<div class="field-error">Please select one.</div>{{end}}
   </div>
 
-  <button type="submit" class="section-save-btn noscript-only" data-no-print>Save section 01</button>
+  <button type="submit" class="section-save-btn" data-no-print>Save section 01</button>
 </form>
 {{end}}
 
 {{define "section-02"}}
-<form id="sec-02" class="r3-card" hx-post="/section/02" hx-target="#sec-02" hx-swap="none" hx-trigger="change delay:300ms, submit">
+<form id="sec-02" class="r3-card" hx-post="/section/02" hx-target="#sec-02" hx-swap="none" hx-trigger="submit">
   <input type="hidden" name="id" value="{{.ID}}">
   <div class="section-eyebrow">02 — Medical History</div>
   <h2 class="section-title">Health &amp; safety</h2>
@@ -330,12 +349,12 @@
     <textarea name="homelessFactors" rows="3" class="field-input textarea">{{.HomelessFactors}}</textarea>
   </div>
 
-  <button type="submit" class="section-save-btn noscript-only" data-no-print>Save section 02</button>
+  <button type="submit" class="section-save-btn" data-no-print>Save section 02</button>
 </form>
 {{end}}
 
 {{define "section-03"}}
-<form id="sec-03" class="r3-card" hx-post="/section/03" hx-target="#sec-03" hx-swap="none" hx-trigger="change delay:300ms, submit"
+<form id="sec-03" class="r3-card" hx-post="/section/03" hx-target="#sec-03" hx-swap="none" hx-trigger="submit"
       x-data="{ hmis: {{.HMIS}} }">
   <input type="hidden" name="id" value="{{.ID}}">
   <div class="section-eyebrow">03 — Homeless Verification</div>
@@ -383,12 +402,12 @@
     </div>
   </div>
 
-  <button type="submit" class="section-save-btn noscript-only" data-no-print>Save section 03</button>
+  <button type="submit" class="section-save-btn" data-no-print>Save section 03</button>
 </form>
 {{end}}
 
 {{define "section-04"}}
-<form id="sec-04" class="r3-card" hx-post="/section/04" hx-target="#sec-04" hx-swap="none" hx-trigger="change delay:300ms, submit">
+<form id="sec-04" class="r3-card" hx-post="/section/04" hx-target="#sec-04" hx-swap="none" hx-trigger="submit">
   <input type="hidden" name="id" value="{{.ID}}">
   <div class="section-eyebrow">04 — Personal</div>
   <h2 class="section-title">In their own words</h2>
@@ -402,12 +421,12 @@
     {{end}}
   </div>
 
-  <button type="submit" class="section-save-btn noscript-only" data-no-print>Save section 04</button>
+  <button type="submit" class="section-save-btn" data-no-print>Save section 04</button>
 </form>
 {{end}}
 
 {{define "section-05"}}
-<form id="sec-05" class="r3-card" hx-post="/section/05" hx-target="#sec-05" hx-swap="none" hx-trigger="change delay:300ms, submit">
+<form id="sec-05" class="r3-card" hx-post="/section/05" hx-target="#sec-05" hx-swap="none" hx-trigger="submit">
   <input type="hidden" name="id" value="{{.ID}}">
   <div class="section-eyebrow">05 — Service Plan</div>
   <h2 class="section-title">Next steps</h2>
@@ -421,7 +440,7 @@
     {{end}}
   </div>
 
-  <button type="submit" class="section-save-btn noscript-only" data-no-print>Save section 05</button>
+  <button type="submit" class="section-save-btn" data-no-print>Save section 05</button>
 </form>
 {{end}}
 

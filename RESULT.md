@@ -1,92 +1,68 @@
-# RESULT — Epic 29: Records event filter shows only attendees + Event column removal + CSV export fix
+# RESULT — Replace intake form autosave with validated Save button (t_0c5c0ad3)
 
 ## Goal
 
-The Records screen event filter must show only intakes that actually attended
-the selected event (attendance is the source of truth), the participant list
-must no longer show a misleading per-row Event column, and the CSV export must
-auto-scope to the selected event's dates. All five child stories merged into
-this epic branch with no feature dropped.
+Frontend story: remove autosave from the R3 intake form, add an explicit Save
+button, split the Name field into First/Last, and gate saves on First + Last
+Name being non-empty (client-side) with server-side 400 errors rendered inline.
+Template-only change (go:embed rebuild required).
 
 ## What was built
 
-### 1. Strict attendance-only Records event filter (t_85d4bc7b)
-`handleList` in `r3-intake/internal/server/admin.go` now returns ONLY intakes
-with an attendance record for the selected event whose `date` falls within the
-event's `start_date` -> `end_date` range. Home-event matching
-(`intake.event = selected event`) was removed entirely; no home-event fallback.
-The filter is built as OR-joined `(id='<id1>' || id='<id2>' || ...)` clauses
-(PocketBase v0.39 has no `in` operator) and composes with the
-`?status=`/`?q=` filters via ` && `. If the event record can't be loaded or no
-in-range attendance records exist, the filter degrades to `id=''` (no matches).
+All changes are confined to `r3-intake/internal/assets/public/index.html`
+(no Go server code touched — the sibling card t_67747531 owns handlers.go).
 
-### 2. Event column removed from participant list (t_16d5e06d / t_4eecdb6e)
-- `IntakeRow.EventName` field and its population in `handleList` removed.
-- "Event" column removed from the Records participant list table
-  (`<th>Event</th>` header + `<td>{{.EventName}}</td>` cell); empty-state
-  colspan updated 8→7 (admin) / 7→6 (non-admin).
-- Remaining `EventName` references belong to other view models (AdminView,
-  EventRow, report/attendance views) and are correctly preserved.
-- `nameFor` helper kept (still used by attendance.go, person_attendance.go,
-  admin.go).
+1. **Autosave removed** — all five section forms' `hx-trigger="change delay:300ms, submit"`
+   → `hx-trigger="submit"`. No section autosaves anymore (AC1).
+2. **Save buttons visible** — dropped `noscript-only` from all five
+   `section-save-btn`; they stay `type="submit"` and serve both the htmx and
+   no-JS paths (AC2).
+3. **Name split** — single `name="name"` input → `first_name`/`last_name`
+   field groups (`#fn-group`/`#ln-group`, `#fn-error`/`#ln-error`); inputs
+   start empty. Authed duplicate search moved to the last_name input with
+   `hx-vals` sending the combined first+last as the existing `?name=` param.
+4. **Prefill** — `data-fullname="{{.Name}}"` on the form;
+   `R3F.splitNameIntoFields` splits at first space on DOMContentLoaded /
+   afterProcessNode, never clobbering typed values. (FormState has no
+   FirstName/LastName fields, so inputs start empty and are prefilled by JS.)
+5. **Client-side validation** — `R3F.validateSection01` + `htmx:beforeRequest`
+   blocks the section-01 POST when either name is empty, shows inline errors,
+   focuses the first empty field (AC3).
+6. **Server-side 400 inline** — `htmx:beforeSwap` parses the
+   `{"errors":{"first_name":..,"last_name":..}}` JSON contract from
+   `/section/01` and populates the inline error divs (AC5).
+7. **Copy fixed** — topbar "Saves automatically" and intro "everything saves
+   automatically" updated to reference the Save button.
 
-### 3. CSV export auto-scopes to event dates (t_b0e9ba0f)
-`handleExportCSV` in `r3-intake/internal/server/attendance.go` now sets
-`explicitRange := errFrom == nil && errTo == nil` after parsing `from`/`to`,
-and when the caller supplies an event filter but no explicit valid range,
-auto-scopes `from`/`to` to the selected event's `start_date` -> `end_date`
-(full span, no 30-day cap), mirroring `parseMatrixFilters`. This fixes
-`TestExportCSVEventFilter/ev1_only`, which previously failed because the
-default 14-day window excluded the seeded ev1 attendance dates.
+## Bugs found & fixed during omp verification
 
-### 4. Data model and end-to-end verification (t_daf94842)
-- `intake.event` = home/primary event; `attendance` = per-event attendance
-  (unique index `idx_attendance_event_intake_date`); `events` carries
-  `start_date`/`end_date` for date-range scoping. Attendance is the source of
-  truth for who attended an event.
-- Applied the strict filter + date-range scoping to real test data; counts
-  match the card's expectations:
+- `form.id` shadowed by the hidden `input[name=id]` (Chromium named-control
+  property): guards now use `getAttribute('id')`.
+- `hx-vals='js:(...)'` outer parens caused a JS `SyntaxError` at request time
+  (htmx requires the `js:` payload to start with `{`): fixed to `js:{...}`.
 
-| Event | Expected | Verified (in-range attendance) |
-|---|---|---|
-| R3 - Sprng 2027 | 4 people | Cancel Screenshot Gamma, James Pakele, John, John Doe ✓ |
-| R3 - Fall 2026 | 3 people | James Pakele, John, John Doe ✓ |
-| R3 - Fall 2026 Waianae | 4 people | James Pakele, John, John Doe, John Smith ✓ |
-
-## Files changed
-
-- `r3-intake/internal/server/admin.go` — strict attendance-only event filter
-  with date-range scoping; removed `IntakeRow.EventName` + population.
-- `r3-intake/internal/server/attendance.go` — `handleExportCSV` auto-scopes
-  to event dates when no explicit range is given.
-- `r3-intake/internal/assets/public/index.html` — removed Event column
-  (header + cell), empty-state colspan 8→7 / 7→6.
-- `r3-intake/internal/server/records_list_integration_test.go` — updated to
-  strict attendance-only expectations.
-- `r3-intake/internal/server/records_list_attendance_join_integration_test.go`
-  — updated to strict expectations; added `TestListEventFilterConstrainsByDateRange`.
-- `r3-intake/README.md` — Records event filter documented as strict
-  attendance-only; Event column removal noted.
-- `docs/plans/omp-plan-remove-event-column.md`,
-  `docs/plans/omp-plan-remove-unused-eventname.md`,
-  `docs/plans/omp-plan-strict-attendance-filter.md`,
-  `docs/plans/omp-plan-fix-export-event-filter.md` — child plan artifacts.
-
-## Verification
+## Verification (independent)
 
 - `go build ./...` — PASS
 - `go vet ./...` — PASS
-- `go test ./internal/server/ -run 'TestListEventFilter|TestListNoEventFilter|TestListEventFilterConstrainsByDateRange' -count=1` — PASS (8 tests)
-- `go test ./internal/server/ -run TestExportCSVEventFilter -count=1` — PASS
-  (both `ev1_only` and `ev2_only`; no longer a pre-existing failure)
-- `go test ./...` — PASS
-- `grep -rE '^[<>=]{7}' r3-intake/ RESULT.md docs/plans/` — no output
-  (no conflict markers)
-- `git diff --check` — clean
+- `go test ./...` — PASS (server 18.1s, migrations 0.2s)
+- No conflict markers; `grep 'change delay:300ms, submit'` → 0 matches;
+  `grep 'hx-trigger="submit"'` → 6 (5 sections + finish form);
+  `grep 'noscript-only'` → 0.
+- omp's own live-server verification: no autosave (change+700ms → 0 requests),
+  missing names blocked (XHR opened but nothing sent), filled names → 202 +
+  HX-Redirect + persisted, server 400 renders inline, no-JS native submit works,
+  duplicate search returns combined-name matches.
 
-## Conclusion
+## Acceptance criteria
 
-All five child stories merged into the epic branch with every feature set
-intact: strict attendance-only Records filter with date-range scoping, Event
-column / `IntakeRow.EventName` removal, CSV export event-date auto-scoping,
-and data-model verification. Build, vet, and full test suite pass.
+1. No autosave occurs — VERIFIED (trigger removed, live check)
+2. Save button present — VERIFIED (all 5 visible, type=submit)
+3. Missing names → inline errors, no submit — VERIFIED
+4. Names filled → save succeeds — VERIFIED
+5. Server-side validation errors displayed inline — VERIFIED
+
+## Plan artifact
+
+`docs/plans/omp-plan-replace-intake-autosave-with-save-button.md`
+(contains the 7-step second-order review / Logical Consequences table).
