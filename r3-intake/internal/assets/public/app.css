@@ -81,12 +81,6 @@ a:hover { color: #b5502e; }
   border: 1px dashed #c9bba5; background: none; color: #8a3c20; cursor: pointer;
   font: 600 13px 'Public Sans', sans-serif; padding: 6px 12px; border-radius: 7px;
 }
-.section-save-btn {
-  margin-top: 18px; background: #fffdfa; color: #2b2320; border: 1px solid #ddd2c4;
-  padding: 9px 18px; border-radius: 8px; font: 600 13px 'Public Sans', sans-serif; cursor: pointer;
-}
-.section-save-btn:hover { border-color: #b5502e; color: #b5502e; }
-
 .js .noscript-only { display: none !important; }
 
 /* ---------- cards / sections ---------- */
@@ -177,7 +171,8 @@ a:hover { color: #b5502e; }
 
 /* ---------- finish / alerts ---------- */
 .finish-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 8px; justify-content: flex-end; }
-.finish-actions .btn-primary { padding: 13px 26px; font-size: 15px; }
+.finish-actions .btn-primary,
+.finish-actions .btn-ghost { box-sizing: border-box; padding: 13px 26px; font-size: 15px; line-height: 1; }
 .alert { margin-top: 16px; padding: 14px 18px; border-radius: 10px; font: 600 14px 'Public Sans', sans-serif; }
 .alert-success { background: #eef3ea; border: 1px solid #cfe0c6; color: #3f6b34; }
 .alert-incomplete { background: #fbeeec; border: 1px solid #f0c9c4; color: #8f3a2e; }

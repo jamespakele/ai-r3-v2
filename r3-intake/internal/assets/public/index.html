@@ -6,11 +6,11 @@
 <title>R3 Intake Form — Personal Profile / Service Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=8">
+<link rel="stylesheet" href="/static/app.css?v=9">
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/alpine.min.js" defer></script>
 <script>document.documentElement.classList.add('js')</script>
-<script>window.R3F={digits:function(v){return (v||'').replace(/\D/g,'').slice(0,4)},phone:function(v){var d=(v||'').replace(/\D/g,'').slice(0,10);if(!d)return '';if(d.length<3)return '('+d;if(d.length<6)return '('+d.slice(0,3)+') '+d.slice(3);if(d.length<10)return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6);return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6,10)},dob:function(v){var d=(v||'').replace(/\D/g,'').slice(0,8);if(d.length>4)return d.slice(0,2)+'/'+d.slice(2,4)+'/'+d.slice(4);if(d.length>2)return d.slice(0,2)+'/'+d.slice(2);return d},splitNameIntoFields:function(form){if(!form)return;var fn=form.querySelector('[name=first_name]'),ln=form.querySelector('[name=last_name]');if(!fn||!ln)return;if(fn.value.trim()||ln.value.trim())return;var full=(form.getAttribute('data-fullname')||'').trim();if(!full)return;var i=full.indexOf(' ');if(i<0){fn.value=full}else{fn.value=full.slice(0,i);ln.value=full.slice(i+1)}},setFieldErr:function(id,msg){var inp=document.getElementById(id),group=document.getElementById(id.replace('-input','-group')),err=document.getElementById(id.replace('-input','-error'));if(inp&&inp.classList)inp.classList.toggle('has-error',!!msg);if(group&&group.classList)group.classList.toggle('has-error',!!msg);if(err)err.textContent=msg||''},clearFieldErr:function(id){R3F.setFieldErr(id,'')},validateSection01:function(evt){var f=document.getElementById('sec-01');if(!f)return true;var cfg=evt.detail.requestConfig;if(!cfg||cfg.verb!=='post'||cfg.path.indexOf('/section/01')<0)return true;var fn=document.getElementById('fn-input'),ln=document.getElementById('ln-input');var fnErr=!fn.value.trim(),lnErr=!ln.value.trim();R3F.setFieldErr('fn-input',fnErr?'First name is required.':'');R3F.setFieldErr('ln-input',lnErr?'Last name is required.':'');if(fnErr||lnErr){evt.preventDefault();if(fnErr&&fn)fn.focus();return false}return true}};</script>
+<script>window.R3F={digits:function(v){return (v||'').replace(/\D/g,'').slice(0,4)},phone:function(v){var d=(v||'').replace(/\D/g,'').slice(0,10);if(!d)return '';if(d.length<3)return '('+d;if(d.length<6)return '('+d.slice(0,3)+') '+d.slice(3);if(d.length<10)return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6);return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6,10)},dob:function(v){var d=(v||'').replace(/\D/g,'').slice(0,8);if(d.length>4)return d.slice(0,2)+'/'+d.slice(2,4)+'/'+d.slice(4);if(d.length>2)return d.slice(0,2)+'/'+d.slice(2);return d},splitNameIntoFields:function(form){if(!form)return;var fn=form.querySelector('[name=first_name]'),ln=form.querySelector('[name=last_name]');if(!fn||!ln)return;if(fn.value.trim()||ln.value.trim())return;var full=(form.getAttribute('data-fullname')||'').trim();if(!full)return;var i=full.indexOf(' ');if(i<0){fn.value=full}else{fn.value=full.slice(0,i);ln.value=full.slice(i+1)}},setFieldErr:function(id,msg){var inp=document.getElementById(id),group=document.getElementById(id.replace('-input','-group')),err=document.getElementById(id.replace('-input','-error'));if(inp&&inp.classList)inp.classList.toggle('has-error',!!msg);if(group&&group.classList)group.classList.toggle('has-error',!!msg);if(err)err.textContent=msg||''},clearFieldErr:function(id){R3F.setFieldErr(id,'')},validateSection01:function(evt){var f=document.getElementById('sec-01');if(!f)return true;var cfg=evt.detail.requestConfig;if(!cfg||cfg.verb!=='post'||cfg.path.indexOf('/section/01')<0)return true;var fn=document.getElementById('fn-input'),ln=document.getElementById('ln-input');var fnErr=!fn.value.trim(),lnErr=!ln.value.trim();R3F.setFieldErr('fn-input',fnErr?'First name is required.':'');R3F.setFieldErr('ln-input',lnErr?'Last name is required.':'');if(fnErr||lnErr){evt.preventDefault();if(fnErr&&fn)fn.focus();return false}return true},saveAll:async function(){var ids=['sec-01','sec-02','sec-03','sec-04','sec-05'];var tkn=(document.cookie.match('(?:^|; )r3_csrf=([^;]*)')||[])[1]||'';for(var i=0;i<ids.length;i++){var f=document.getElementById(ids[i]);if(!f)continue;if(ids[i]==='sec-01'){var fn=document.getElementById('fn-input'),ln=document.getElementById('ln-input');var fnErr=!fn.value.trim(),lnErr=!ln.value.trim();R3F.setFieldErr('fn-input',fnErr?'First name is required.':'');R3F.setFieldErr('ln-input',lnErr?'Last name is required.':'');if(fnErr||lnErr){if(fnErr)fn.focus();return}}var resp=await fetch('/section/'+ids[i].slice(4),{method:'POST',headers:{'X-CSRF-Token':tkn,'HX-Request':'true'},body:new FormData(f),redirect:'manual'});if(resp.status===202){var loc=resp.headers.get('HX-Redirect');if(loc)R3F.patchRecordId(loc);continue}if(resp.status===400){try{var data=await resp.json();var errs=(data&&data.errors)||{};R3F.setFieldErr('fn-input',errs.first_name||'');R3F.setFieldErr('ln-input',errs.last_name||'');}catch(_){}}if(resp.status!==200&&resp.status!==204&&resp.status!==202)return}},patchRecordId:function(url){var m=url.match(/(?:[?&]id=|\/intake\/)([^/?&]+)/);var id=m?m[1]:'';if(!id)return;var forms=['sec-01','sec-02','sec-03','sec-04','sec-05','finish-form'];for(var i=0;i<forms.length;i++){var f=document.getElementById(forms[i]);if(!f)continue;var inp=f.querySelector('input[name=id]');if(inp)inp.value=id}}};</script>
 <script>
 document.addEventListener('DOMContentLoaded', function(){ R3F.splitNameIntoFields(document.getElementById('sec-01')); });
 document.addEventListener('htmx:afterProcessNode', function(e){ if(e.detail && e.detail.el && e.detail.el.getAttribute('id')==='sec-01') R3F.splitNameIntoFields(e.detail.el); });
@@ -74,7 +74,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
         </div>
       </div>
       <div class="topbar-actions">
-        <button type="button" onclick="htmx.trigger(document.getElementById('sec-01'),'submit')" class="btn btn-primary">Save</button>
+        <button type="button" onclick="R3F.saveAll()" class="btn btn-primary">Save</button>
         <button type="button" onclick="window.print()" class="btn btn-ghost">Print / Save PDF</button>
         {{if and .HasRecord .IsAuthed}}<a href="/notes/{{.ID}}" class="btn btn-ghost">Notes</a>{{end}}
         {{if .IsAuthed}}<a href="/" class="btn btn-ghost">List</a>{{else}}<a href="/login" class="btn btn-ghost">Sign in</a>{{end}}
@@ -85,7 +85,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
       <div class="progress-labels"><span>Form progress</span><span>{{.Progress}}%</span></div>
       <div class="progress-track"><div class="progress-bar" style="width:{{.Progress}}%"></div></div>
     </div>
-    <div class="topbar-saved">Use the Save button to save each section</div>
+    <div class="topbar-saved">Use Save to save your progress</div>
   </div>
 
   <div class="container">
@@ -93,7 +93,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
     <p class="intro">
       This intake form gathers the information R3 case managers use to build a Personal Profile and Service Plan.
       Fill it out together with a participant, or have a participant complete it themselves — use the Save button
-      at the bottom of each section to save your progress as you go.
+      to save your progress as you go.
     </p>
 
     {{template "section-01" .}}
@@ -104,7 +104,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 
     <form id="finish-form" class="finish-actions" data-no-print action="/intake/{{if .HasRecord}}{{.ID}}{{else}}new{{end}}/finish" method="post">
       <input type="hidden" name="id" value="{{.ID}}">
-      <button type="button" onclick="htmx.trigger(document.getElementById('sec-01'),'submit')" class="btn btn-primary">Save</button>
+      <button type="button" onclick="R3F.saveAll()" class="btn btn-primary">Save</button>
       {{if .HasRecord}}<a href="/" class="btn btn-ghost">New</a>{{end}}
     </form>
     {{if .HasRecord}}<form id="cancel-form" method="post" action="/intake/{{.ID}}/cancel"></form>{{end}}
@@ -304,7 +304,6 @@ document.addEventListener('htmx:beforeSwap', function(e){
     {{if .Errors.employment}}<div class="field-error">Please select one.</div>{{end}}
   </div>
 
-  <button type="submit" class="section-save-btn" data-no-print>Save section 01</button>
 </form>
 {{end}}
 
@@ -348,8 +347,6 @@ document.addEventListener('htmx:beforeSwap', function(e){
     <label class="field-label">What are the primary factors that led you to become homeless (this time)?</label>
     <textarea name="homelessFactors" rows="3" class="field-input textarea">{{.HomelessFactors}}</textarea>
   </div>
-
-  <button type="submit" class="section-save-btn" data-no-print>Save section 02</button>
 </form>
 {{end}}
 
@@ -401,8 +398,6 @@ document.addEventListener('htmx:beforeSwap', function(e){
       </div>
     </div>
   </div>
-
-  <button type="submit" class="section-save-btn" data-no-print>Save section 03</button>
 </form>
 {{end}}
 
@@ -420,8 +415,6 @@ document.addEventListener('htmx:beforeSwap', function(e){
     </div>
     {{end}}
   </div>
-
-  <button type="submit" class="section-save-btn" data-no-print>Save section 04</button>
 </form>
 {{end}}
 
@@ -439,8 +432,6 @@ document.addEventListener('htmx:beforeSwap', function(e){
     </div>
     {{end}}
   </div>
-
-  <button type="submit" class="section-save-btn" data-no-print>Save section 05</button>
 </form>
 {{end}}
 
@@ -451,7 +442,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Sign in</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=8">
+<link rel="stylesheet" href="/static/app.css?v=9">
 <script>
 (function(){
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
@@ -526,7 +517,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Records</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=8">
+<link rel="stylesheet" href="/static/app.css?v=9">
 <script src="/static/htmx.min.js" defer></script>
 <script>
 (function(){
@@ -645,7 +636,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Admin Settings</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=8">
+<link rel="stylesheet" href="/static/app.css?v=9">
 <script>
 (function(){
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
@@ -924,7 +915,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Notes</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0;500;0,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=8">
+<link rel="stylesheet" href="/static/app.css?v=9">
 <script>
 (function(){
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
@@ -1036,7 +1027,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Note History</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0;500;0,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=8">
+<link rel="stylesheet" href="/static/app.css?v=9">
 <script>
 (function(){
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
@@ -1127,7 +1118,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Attendance</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=8">
+<link rel="stylesheet" href="/static/app.css?v=9">
 <script src="/static/htmx.min.js" defer></script>
 <script>
 (function(){
@@ -1281,7 +1272,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Event Report</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=8">
+<link rel="stylesheet" href="/static/app.css?v=9">
 <script>
 (function(){
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
@@ -1349,7 +1340,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <title>R3 Intake — Attendance — {{.IntakeName}}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=8">
+<link rel="stylesheet" href="/static/app.css?v=9">
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/alpine.min.js" defer></script>
 <script>
