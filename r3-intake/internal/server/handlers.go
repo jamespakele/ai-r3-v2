@@ -489,10 +489,25 @@ func (s *Server) handleIntakeCmd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user := s.currentSession(r)
-	rec, err := s.findIntake(parts[0])
-	if err != nil {
-		http.NotFound(w, r)
-		return
+	var rec *core.Record
+	var err error
+	if parts[0] == "new" {
+		// Brand-new form: no record exists yet. The "Save Form" button on a
+		// fresh form posts to /intake/new/finish — create the record first
+		// (reads the hidden empty id → new intake), then validate/render it
+		// just like a saved record. Without this, a fresh form's Save Form
+		// button 404s because findIntake("new") finds nothing.
+		rec, err = s.getOrCreateIntake(r, user)
+		if err != nil {
+			http.Error(w, "intake load/create failed: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	} else {
+		rec, err = s.findIntake(parts[0])
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
 	}
 
 	switch parts[1] {
