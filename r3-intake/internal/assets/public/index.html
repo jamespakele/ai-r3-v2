@@ -6,11 +6,11 @@
 <title>R3 Intake Form — Personal Profile / Service Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=9">
+<link rel="stylesheet" href="/static/app.css?v=10">
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/alpine.min.js" defer></script>
 <script>document.documentElement.classList.add('js')</script>
-<script>window.R3F={digits:function(v){return (v||'').replace(/\D/g,'').slice(0,4)},phone:function(v){var d=(v||'').replace(/\D/g,'').slice(0,10);if(!d)return '';if(d.length<3)return '('+d;if(d.length<6)return '('+d.slice(0,3)+') '+d.slice(3);if(d.length<10)return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6);return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6,10)},dob:function(v){var d=(v||'').replace(/\D/g,'').slice(0,8);if(d.length>4)return d.slice(0,2)+'/'+d.slice(2,4)+'/'+d.slice(4);if(d.length>2)return d.slice(0,2)+'/'+d.slice(2);return d},splitNameIntoFields:function(form){if(!form)return;var fn=form.querySelector('[name=first_name]'),ln=form.querySelector('[name=last_name]');if(!fn||!ln)return;if(fn.value.trim()||ln.value.trim())return;var full=(form.getAttribute('data-fullname')||'').trim();if(!full)return;var i=full.indexOf(' ');if(i<0){fn.value=full}else{fn.value=full.slice(0,i);ln.value=full.slice(i+1)}},setFieldErr:function(id,msg){var inp=document.getElementById(id),group=document.getElementById(id.replace('-input','-group')),err=document.getElementById(id.replace('-input','-error'));if(inp&&inp.classList)inp.classList.toggle('has-error',!!msg);if(group&&group.classList)group.classList.toggle('has-error',!!msg);if(err)err.textContent=msg||''},clearFieldErr:function(id){R3F.setFieldErr(id,'')},validateSection01:function(evt){var f=document.getElementById('sec-01');if(!f)return true;var cfg=evt.detail.requestConfig;if(!cfg||cfg.verb!=='post'||cfg.path.indexOf('/section/01')<0)return true;var fn=document.getElementById('fn-input'),ln=document.getElementById('ln-input');var fnErr=!fn.value.trim(),lnErr=!ln.value.trim();R3F.setFieldErr('fn-input',fnErr?'First name is required.':'');R3F.setFieldErr('ln-input',lnErr?'Last name is required.':'');if(fnErr||lnErr){evt.preventDefault();if(fnErr&&fn)fn.focus();return false}return true},saveAll:async function(){var ids=['sec-01','sec-02','sec-03','sec-04','sec-05'];var tkn=(document.cookie.match('(?:^|; )r3_csrf=([^;]*)')||[])[1]||'';for(var i=0;i<ids.length;i++){var f=document.getElementById(ids[i]);if(!f)continue;if(ids[i]==='sec-01'){var fn=document.getElementById('fn-input'),ln=document.getElementById('ln-input');var fnErr=!fn.value.trim(),lnErr=!ln.value.trim();R3F.setFieldErr('fn-input',fnErr?'First name is required.':'');R3F.setFieldErr('ln-input',lnErr?'Last name is required.':'');if(fnErr||lnErr){if(fnErr)fn.focus();return}}var resp=await fetch('/section/'+ids[i].slice(4),{method:'POST',headers:{'X-CSRF-Token':tkn,'HX-Request':'true'},body:new FormData(f),redirect:'manual'});if(resp.status===202){var loc=resp.headers.get('HX-Redirect');if(loc)R3F.patchRecordId(loc);continue}if(resp.status===400){try{var data=await resp.json();var errs=(data&&data.errors)||{};R3F.setFieldErr('fn-input',errs.first_name||'');R3F.setFieldErr('ln-input',errs.last_name||'');}catch(_){}}if(resp.status!==200&&resp.status!==204&&resp.status!==202)return}},patchRecordId:function(url){var m=url.match(/(?:[?&]id=|\/intake\/)([^/?&]+)/);var id=m?m[1]:'';if(!id)return;var forms=['sec-01','sec-02','sec-03','sec-04','sec-05','finish-form'];for(var i=0;i<forms.length;i++){var f=document.getElementById(forms[i]);if(!f)continue;var inp=f.querySelector('input[name=id]');if(inp)inp.value=id}}};</script>
+<script>window.R3F={digits:function(v){return (v||'').replace(/\D/g,'').slice(0,4)},phone:function(v){var d=(v||'').replace(/\D/g,'').slice(0,10);if(!d)return '';if(d.length<3)return '('+d;if(d.length<6)return '('+d.slice(0,3)+') '+d.slice(3);if(d.length<10)return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6);return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6,10)},dob:function(v){var d=(v||'').replace(/\D/g,'').slice(0,8);if(d.length>4)return d.slice(0,2)+'/'+d.slice(2,4)+'/'+d.slice(4);if(d.length>2)return d.slice(0,2)+'/'+d.slice(2);return d},splitNameIntoFields:function(form){if(!form)return;var fn=form.querySelector('[name=first_name]'),ln=form.querySelector('[name=last_name]');if(!fn||!ln)return;if(fn.value.trim()||ln.value.trim())return;var full=(form.getAttribute('data-fullname')||'').trim();if(!full)return;var i=full.indexOf(' ');if(i<0){fn.value=full}else{fn.value=full.slice(0,i);ln.value=full.slice(i+1)}},setFieldErr:function(id,msg){var inp=document.getElementById(id),group=document.getElementById(id.replace('-input','-group')),err=document.getElementById(id.replace('-input','-error'));if(inp&&inp.classList)inp.classList.toggle('has-error',!!msg);if(group&&group.classList)group.classList.toggle('has-error',!!msg);if(err)err.textContent=msg||''},clearFieldErr:function(id){R3F.setFieldErr(id,'')},validateSection01:function(evt){var f=document.getElementById('sec-01');if(!f)return true;var cfg=evt.detail.requestConfig;if(!cfg||cfg.verb!=='post'||cfg.path.indexOf('/section/01')<0)return true;var fn=document.getElementById('fn-input'),ln=document.getElementById('ln-input');var fnErr=!fn.value.trim(),lnErr=!ln.value.trim();R3F.setFieldErr('fn-input',fnErr?'First name is required.':'');R3F.setFieldErr('ln-input',lnErr?'Last name is required.':'');if(fnErr||lnErr){evt.preventDefault();if(fnErr&&fn)fn.focus();return false}return true},setGroupErr:function(groupId,msg){var g=document.getElementById(groupId);if(!g)return;g.classList.toggle('has-error',!!msg);var els=g.querySelectorAll('input,select,textarea');for(var i=0;i<els.length;i++){if(els[i].classList)els[i].classList.toggle('has-error',!!msg)}var err=document.getElementById(groupId.replace('-group','')+'-error');if(err)err.textContent=msg||''},clearGroupErr:function(groupId){R3F.setGroupErr(groupId,'')},validateAll:function(){var firstGroup=null,hasErr=false;function mark(groupId,msg){R3F.setGroupErr(groupId,msg);if(msg){hasErr=true;if(!firstGroup)firstGroup=groupId}}function radio(groupId,sel){var c=document.querySelector(sel+':checked');if(!c)mark(groupId,'Please select one.')}var ev=document.querySelector('#sec-01 select[name=event]');if(!ev||ev.value==='')mark('event-group','Please select an event.');var fn=document.getElementById('fn-input');if(!fn.value.trim())mark('fn-group','First name is required.');var ln=document.getElementById('ln-input');if(!ln.value.trim())mark('ln-group','Last name is required.');var dob=document.querySelector('#sec-01 input[name=dob]');if(!dob.value.trim())mark('dob-group','Date of birth is required.');var ct=document.querySelector('#sec-01 input[name=contact]');if(ct.value.replace(/\D/g,'').length<10)mark('contact-group','Contact number is required.');var race=document.querySelectorAll('#sec-01 input[name=race]:checked');if(race.length===0)mark('race-group','Please select at least one.');radio('sexAtBirth-group','#sec-01 input[name=sexAtBirth]');radio('servedMilitary-group','#sec-01 input[name=servedMilitary]');radio('hasPets-group','#sec-01 input[name=hasPets]');radio('employment-group','#sec-01 input[name=employment]');radio('mentalHealth-group','#sec-02 input[name=mentalHealth]');radio('substanceUse-group','#sec-02 input[name=substanceUse]');radio('fleeingViolence-group','#sec-02 input[name=fleeingViolence]');if(hasErr){var g=document.getElementById(firstGroup);if(g){g.scrollIntoView({block:'center'});var fl=g.querySelector('input,select');if(fl)fl.focus()}return false}return true}};</script>
 <script>
 document.addEventListener('DOMContentLoaded', function(){ R3F.splitNameIntoFields(document.getElementById('sec-01')); });
 document.addEventListener('htmx:afterProcessNode', function(e){ if(e.detail && e.detail.el && e.detail.el.getAttribute('id')==='sec-01') R3F.splitNameIntoFields(e.detail.el); });
@@ -24,6 +24,17 @@ document.addEventListener('htmx:beforeSwap', function(e){
   var errs=(data&&data.errors)||{};
   R3F.setFieldErr('fn-input', errs.first_name||'');
   R3F.setFieldErr('ln-input', errs.last_name||'');
+  R3F.setGroupErr('event-group', errs.event||'');
+  R3F.setGroupErr('dob-group', errs.dob||'');
+  R3F.setGroupErr('contact-group', errs.contact||'');
+  R3F.setGroupErr('race-group', errs.race||'');
+  R3F.setGroupErr('sexAtBirth-group', errs.sexAtBirth||'');
+  R3F.setGroupErr('servedMilitary-group', errs.servedMilitary||'');
+  R3F.setGroupErr('hasPets-group', errs.hasPets||'');
+  R3F.setGroupErr('employment-group', errs.employment||'');
+  R3F.setGroupErr('mentalHealth-group', errs.mentalHealth||'');
+  R3F.setGroupErr('substanceUse-group', errs.substanceUse||'');
+  R3F.setGroupErr('fleeingViolence-group', errs.fleeingViolence||'');
 });
 </script>
 <script>
@@ -74,7 +85,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
         </div>
       </div>
       <div class="topbar-actions">
-        <button type="button" onclick="R3F.saveAll()" class="btn btn-primary">Save</button>
+        <button type="button" onclick="if(R3F.validateAll()){htmx.trigger(document.getElementById('sec-01'),'submit')}" class="btn btn-primary">Save</button>
         <button type="button" onclick="window.print()" class="btn btn-ghost">Print / Save PDF</button>
         {{if and .HasRecord .IsAuthed}}<a href="/notes/{{.ID}}" class="btn btn-ghost">Notes</a>{{end}}
         {{if .IsAuthed}}<a href="/" class="btn btn-ghost">List</a>{{else}}<a href="/login" class="btn btn-ghost">Sign in</a>{{end}}
@@ -104,7 +115,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 
     <form id="finish-form" class="finish-actions" data-no-print action="/intake/{{if .HasRecord}}{{.ID}}{{else}}new{{end}}/finish" method="post">
       <input type="hidden" name="id" value="{{.ID}}">
-      <button type="button" onclick="R3F.saveAll()" class="btn btn-primary">Save</button>
+      <button type="button" onclick="if(R3F.validateAll()){htmx.trigger(document.getElementById('sec-01'),'submit')}" class="btn btn-primary">Save</button>
       {{if .HasRecord}}<a href="/" class="btn btn-ghost">New</a>{{end}}
     </form>
     {{if .HasRecord}}<form id="cancel-form" method="post" action="/intake/{{.ID}}/cancel"></form>{{end}}
@@ -138,10 +149,10 @@ document.addEventListener('htmx:beforeSwap', function(e){
   <div class="section-eyebrow">01 — Personal Profile</div>
   <h2 class="section-title">Who we're meeting</h2>
 
-  <div class="field-group {{if .Errors.event}}has-error{{end}}">
+  <div class="field-group {{if .Errors.event}}has-error{{end}}" id="event-group">
     <label class="field-label">R3 Event <span class="field-required">*</span></label>
     {{template "event-fragment" .}}
-    {{if .Errors.event}}<div class="field-error">Please select an event.</div>{{end}}
+    <div class="field-error" id="event-error">{{if .Errors.event}}Please select an event.{{end}}</div>
   </div>
 
   <div class="grid-2">
@@ -156,19 +167,19 @@ document.addEventListener('htmx:beforeSwap', function(e){
       <div class="field-error" id="ln-error">{{if .Errors.last_name}}Last name is required.{{end}}</div>
     </div>
     {{if .IsAuthed}}<div id="dup-results" class="dup-results grid-full"></div>{{end}}
-    <div class="field-group {{if .Errors.dob}}has-error{{end}}">
+    <div class="field-group {{if .Errors.dob}}has-error{{end}}" id="dob-group">
       <label class="field-label">Date of Birth <span class="field-required">*</span></label>
-      <input type="text" name="dob" value="{{fmtDob .DOB}}" inputmode="numeric" maxlength="10" placeholder="MM/DD/YYYY" class="field-input {{if .Errors.dob}}has-error{{end}}" @input="$el.value=R3F.dob($el.value)">
-      {{if .Errors.dob}}<div class="field-error">Date of birth is required.</div>{{end}}
+      <input type="text" name="dob" value="{{fmtDob .DOB}}" inputmode="numeric" maxlength="10" placeholder="MM/DD/YYYY" class="field-input {{if .Errors.dob}}has-error{{end}}" @input="$el.value=R3F.dob($el.value); R3F.clearGroupErr('dob-group')">
+      <div class="field-error" id="dob-error">{{if .Errors.dob}}Date of birth is required.{{end}}</div>
     </div>
     <div class="field-group">
       <label class="field-label">SSN (last 4)</label>
       <input type="text" name="ssn" value="{{ssnLast4 .SSN}}" inputmode="numeric" maxlength="4" placeholder="Last 4 digits" class="field-input" @input="$el.value=R3F.digits($el.value)">
     </div>
-    <div class="field-group {{if .Errors.contact}}has-error{{end}}">
+    <div class="field-group {{if .Errors.contact}}has-error{{end}}" id="contact-group">
       <label class="field-label">Contact # <span class="field-required">*</span></label>
-      <input type="tel" name="contact" value="{{fmtPhone .Contact}}" placeholder="(808) 555-0100" class="field-input {{if .Errors.contact}}has-error{{end}}" @input="$el.value=R3F.phone($el.value)">
-      {{if .Errors.contact}}<div class="field-error">Contact number is required.</div>{{end}}
+      <input type="tel" name="contact" value="{{fmtPhone .Contact}}" placeholder="(808) 555-0100" class="field-input {{if .Errors.contact}}has-error{{end}}" @input="$el.value=R3F.phone($el.value); R3F.clearGroupErr('contact-group')">
+      <div class="field-error" id="contact-error">{{if .Errors.contact}}Contact number is required.{{end}}</div>
     </div>
     <div class="field-group">
       <label class="field-label">Email</label>
@@ -214,41 +225,41 @@ document.addEventListener('htmx:beforeSwap', function(e){
     <input type="text" name="sleptWhere" value="{{.SleptWhere}}" class="field-input">
   </div>
 
-  <div class="field-group {{if .Errors.race}}has-error{{end}}">
+  <div class="field-group {{if .Errors.race}}has-error{{end}}" id="race-group">
     <label class="field-label">What is your race? You can select more than one. <span class="field-required">*</span></label>
     <div class="checkbox-grid">
       {{range raceList}}
-      <label class="checkbox-item"><input type="checkbox" name="race" value="{{index . 0}}" {{if index $.Race (index . 0)}}checked{{end}} class="checkbox-input">{{index . 1}}</label>
+      <label class="checkbox-item"><input type="checkbox" name="race" value="{{index . 0}}" {{if index $.Race (index . 0)}}checked{{end}} class="checkbox-input" @change="R3F.clearGroupErr('race-group')">{{index . 1}}</label>
       {{end}}
     </div>
     <input type="text" name="raceOther" value="{{.RaceOther}}" placeholder="If Other, please specify" class="field-input field-input-other">
-    {{if .Errors.race}}<div class="field-error">Please select at least one.</div>{{end}}
+    <div class="field-error" id="race-error">{{if .Errors.race}}Please select at least one.{{end}}</div>
   </div>
 
-  <div class="field-group {{if .Errors.sexAtBirth}}has-error{{end}}">
+  <div class="field-group {{if .Errors.sexAtBirth}}has-error{{end}}" id="sexAtBirth-group">
     <label class="field-label">What was your sex assigned at birth? <span class="field-required">*</span></label>
     <div class="radio-row">
-      <label class="radio-item"><input type="radio" name="sexAtBirth" value="male" {{if eq .SexAtBirth "male"}}checked{{end}} class="radio-input">Male</label>
-      <label class="radio-item"><input type="radio" name="sexAtBirth" value="female" {{if eq .SexAtBirth "female"}}checked{{end}} class="radio-input">Female</label>
+      <label class="radio-item"><input type="radio" name="sexAtBirth" value="male" {{if eq .SexAtBirth "male"}}checked{{end}} class="radio-input" @change="R3F.clearGroupErr('sexAtBirth-group')">Male</label>
+      <label class="radio-item"><input type="radio" name="sexAtBirth" value="female" {{if eq .SexAtBirth "female"}}checked{{end}} class="radio-input" @change="R3F.clearGroupErr('sexAtBirth-group')">Female</label>
     </div>
-    {{if .Errors.sexAtBirth}}<div class="field-error">Please select one.</div>{{end}}
+    <div class="field-error" id="sexAtBirth-error">{{if .Errors.sexAtBirth}}Please select one.{{end}}</div>
   </div>
 
-  <div class="field-group {{if .Errors.servedMilitary}}has-error{{end}}">
+  <div class="field-group {{if .Errors.servedMilitary}}has-error{{end}}" id="servedMilitary-group">
     <label class="field-label">Have you ever served in the U.S. Armed Forces? <span class="field-required">*</span></label>
     <div class="radio-row radio-row-wrap">
-      <label class="radio-item"><input type="radio" name="servedMilitary" value="yes" x-model="served" class="radio-input">Yes</label>
+      <label class="radio-item"><input type="radio" name="servedMilitary" value="yes" x-model="served" class="radio-input" @change="R3F.clearGroupErr('servedMilitary-group')">Yes</label>
       <input type="text" name="militaryDetail" value="{{.MilitaryDetail}}" placeholder="DOD# or branch" class="field-input field-input-inline" x-show="served === 'yes'">
-      <label class="radio-item"><input type="radio" name="servedMilitary" value="no" x-model="served" class="radio-input">No</label>
+      <label class="radio-item"><input type="radio" name="servedMilitary" value="no" x-model="served" class="radio-input" @change="R3F.clearGroupErr('servedMilitary-group')">No</label>
     </div>
-    {{if .Errors.servedMilitary}}<div class="field-error">Please select one.</div>{{end}}
+    <div class="field-error" id="servedMilitary-error">{{if .Errors.servedMilitary}}Please select one.{{end}}</div>
   </div>
 
-  <div class="field-group {{if .Errors.hasPets}}has-error{{end}}">
+  <div class="field-group {{if .Errors.hasPets}}has-error{{end}}" id="hasPets-group">
     <label class="field-label">Do you have any pets? <span class="field-required">*</span></label>
     <div class="radio-row">
-      <label class="radio-item"><input type="radio" name="hasPets" value="yes" x-model="pets" class="radio-input">Yes</label>
-      <label class="radio-item"><input type="radio" name="hasPets" value="no" x-model="pets" class="radio-input">No</label>
+      <label class="radio-item"><input type="radio" name="hasPets" value="yes" x-model="pets" class="radio-input" @change="R3F.clearGroupErr('hasPets-group')">Yes</label>
+      <label class="radio-item"><input type="radio" name="hasPets" value="no" x-model="pets" class="radio-input" @change="R3F.clearGroupErr('hasPets-group')">No</label>
     </div>
     <div class="sub-panel sub-panel-stack" x-show="pets === 'yes'">
       <div>
@@ -268,16 +279,16 @@ document.addEventListener('htmx:beforeSwap', function(e){
         </div>
       </div>
     </div>
-    {{if .Errors.hasPets}}<div class="field-error">Please select one.</div>{{end}}
+    <div class="field-error" id="hasPets-error">{{if .Errors.hasPets}}Please select one.{{end}}</div>
   </div>
 
-  <div class="field-group {{if .Errors.employment}}has-error{{end}}">
+  <div class="field-group {{if .Errors.employment}}has-error{{end}}" id="employment-group">
     <label class="field-label">Are you currently? <span class="field-required">*</span></label>
     <div class="radio-row radio-row-wrap">
-      <label class="radio-item"><input type="radio" name="employment" value="employed" x-model="emp" class="radio-input">Employed</label>
-      <label class="radio-item"><input type="radio" name="employment" value="unemployed" x-model="emp" class="radio-input">Unemployed</label>
-      <label class="radio-item"><input type="radio" name="employment" value="retired" x-model="emp" class="radio-input">Retired</label>
-      <label class="radio-item"><input type="radio" name="employment" value="student" x-model="emp" class="radio-input">Student</label>
+      <label class="radio-item"><input type="radio" name="employment" value="employed" x-model="emp" class="radio-input" @change="R3F.clearGroupErr('employment-group')">Employed</label>
+      <label class="radio-item"><input type="radio" name="employment" value="unemployed" x-model="emp" class="radio-input" @change="R3F.clearGroupErr('employment-group')">Unemployed</label>
+      <label class="radio-item"><input type="radio" name="employment" value="retired" x-model="emp" class="radio-input" @change="R3F.clearGroupErr('employment-group')">Retired</label>
+      <label class="radio-item"><input type="radio" name="employment" value="student" x-model="emp" class="radio-input" @change="R3F.clearGroupErr('employment-group')">Student</label>
     </div>
     <div class="sub-panel sub-panel-divider" x-show="emp === 'unemployed'">
       <div>
@@ -301,46 +312,46 @@ document.addEventListener('htmx:beforeSwap', function(e){
         <input type="text" name="jobTypes" value="{{.JobTypes}}" class="field-input">
       </div>
     </div>
-    {{if .Errors.employment}}<div class="field-error">Please select one.</div>{{end}}
+    <div class="field-error" id="employment-error">{{if .Errors.employment}}Please select one.{{end}}</div>
   </div>
 
 </form>
 {{end}}
 
 {{define "section-02"}}
-<form id="sec-02" class="r3-card" hx-post="/section/02" hx-target="#sec-02" hx-swap="none" hx-trigger="submit">
+<form id="sec-02" class="r3-card" hx-post="/section/02" hx-target="#sec-02" hx-swap="none" hx-trigger="submit" x-data="{}">
   <input type="hidden" name="id" value="{{.ID}}">
   <div class="section-eyebrow">02 — Medical History</div>
   <h2 class="section-title">Health &amp; safety</h2>
 
-  <div class="field-group {{if .Errors.mentalHealth}}has-error{{end}}">
+  <div class="field-group {{if .Errors.mentalHealth}}has-error{{end}}" id="mentalHealth-group">
     <label class="field-label">Do you have a mental health disability that limits your ability to work or perform activities of daily life? <span class="field-required">*</span></label>
     <div class="radio-row">
-      <label class="radio-item"><input type="radio" name="mentalHealth" value="yes" {{if eq .MentalHealth "yes"}}checked{{end}} class="radio-input">Yes</label>
-      <label class="radio-item"><input type="radio" name="mentalHealth" value="no" {{if eq .MentalHealth "no"}}checked{{end}} class="radio-input">No</label>
-      <label class="radio-item"><input type="radio" name="mentalHealth" value="unknown" {{if eq .MentalHealth "unknown"}}checked{{end}} class="radio-input">Unknown</label>
+      <label class="radio-item"><input type="radio" name="mentalHealth" value="yes" {{if eq .MentalHealth "yes"}}checked{{end}} class="radio-input" @change="R3F.clearGroupErr('mentalHealth-group')">Yes</label>
+      <label class="radio-item"><input type="radio" name="mentalHealth" value="no" {{if eq .MentalHealth "no"}}checked{{end}} class="radio-input" @change="R3F.clearGroupErr('mentalHealth-group')">No</label>
+      <label class="radio-item"><input type="radio" name="mentalHealth" value="unknown" {{if eq .MentalHealth "unknown"}}checked{{end}} class="radio-input" @change="R3F.clearGroupErr('mentalHealth-group')">Unknown</label>
     </div>
-    {{if .Errors.mentalHealth}}<div class="field-error">Please select one.</div>{{end}}
+    <div class="field-error" id="mentalHealth-error">{{if .Errors.mentalHealth}}Please select one.{{end}}</div>
   </div>
 
-  <div class="field-group {{if .Errors.substanceUse}}has-error{{end}}">
+  <div class="field-group {{if .Errors.substanceUse}}has-error{{end}}" id="substanceUse-group">
     <label class="field-label">Does alcohol or drug use limit your ability to work or perform activities of daily life? <span class="field-required">*</span></label>
     <div class="radio-row">
-      <label class="radio-item"><input type="radio" name="substanceUse" value="yes" {{if eq .SubstanceUse "yes"}}checked{{end}} class="radio-input">Yes</label>
-      <label class="radio-item"><input type="radio" name="substanceUse" value="no" {{if eq .SubstanceUse "no"}}checked{{end}} class="radio-input">No</label>
-      <label class="radio-item"><input type="radio" name="substanceUse" value="unknown" {{if eq .SubstanceUse "unknown"}}checked{{end}} class="radio-input">Unknown</label>
+      <label class="radio-item"><input type="radio" name="substanceUse" value="yes" {{if eq .SubstanceUse "yes"}}checked{{end}} class="radio-input" @change="R3F.clearGroupErr('substanceUse-group')">Yes</label>
+      <label class="radio-item"><input type="radio" name="substanceUse" value="no" {{if eq .SubstanceUse "no"}}checked{{end}} class="radio-input" @change="R3F.clearGroupErr('substanceUse-group')">No</label>
+      <label class="radio-item"><input type="radio" name="substanceUse" value="unknown" {{if eq .SubstanceUse "unknown"}}checked{{end}} class="radio-input" @change="R3F.clearGroupErr('substanceUse-group')">Unknown</label>
     </div>
-    {{if .Errors.substanceUse}}<div class="field-error">Please select one.</div>{{end}}
+    <div class="field-error" id="substanceUse-error">{{if .Errors.substanceUse}}Please select one.{{end}}</div>
   </div>
 
-  <div class="field-group {{if .Errors.fleeingViolence}}has-error{{end}}">
+  <div class="field-group {{if .Errors.fleeingViolence}}has-error{{end}}" id="fleeingViolence-group">
     <label class="field-label">Are you experiencing homelessness because you are currently fleeing domestic violence, dating violence, sexual assault, or stalking? <span class="field-required">*</span></label>
     <div class="radio-row">
-      <label class="radio-item"><input type="radio" name="fleeingViolence" value="yes" {{if eq .FleeingViolence "yes"}}checked{{end}} class="radio-input">Yes</label>
-      <label class="radio-item"><input type="radio" name="fleeingViolence" value="no" {{if eq .FleeingViolence "no"}}checked{{end}} class="radio-input">No</label>
-      <label class="radio-item"><input type="radio" name="fleeingViolence" value="unknown" {{if eq .FleeingViolence "unknown"}}checked{{end}} class="radio-input">Unknown</label>
+      <label class="radio-item"><input type="radio" name="fleeingViolence" value="yes" {{if eq .FleeingViolence "yes"}}checked{{end}} class="radio-input" @change="R3F.clearGroupErr('fleeingViolence-group')">Yes</label>
+      <label class="radio-item"><input type="radio" name="fleeingViolence" value="no" {{if eq .FleeingViolence "no"}}checked{{end}} class="radio-input" @change="R3F.clearGroupErr('fleeingViolence-group')">No</label>
+      <label class="radio-item"><input type="radio" name="fleeingViolence" value="unknown" {{if eq .FleeingViolence "unknown"}}checked{{end}} class="radio-input" @change="R3F.clearGroupErr('fleeingViolence-group')">Unknown</label>
     </div>
-    {{if .Errors.fleeingViolence}}<div class="field-error">Please select one.</div>{{end}}
+    <div class="field-error" id="fleeingViolence-error">{{if .Errors.fleeingViolence}}Please select one.{{end}}</div>
   </div>
 
   <div class="field-group">
@@ -442,7 +453,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Sign in</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=9">
+<link rel="stylesheet" href="/static/app.css?v=10">
 <script>
 (function(){
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
@@ -517,7 +528,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Records</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=9">
+<link rel="stylesheet" href="/static/app.css?v=10">
 <script src="/static/htmx.min.js" defer></script>
 <script>
 (function(){
@@ -636,7 +647,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Admin Settings</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=9">
+<link rel="stylesheet" href="/static/app.css?v=10">
 <script>
 (function(){
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
@@ -915,7 +926,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Notes</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0;500;0,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=9">
+<link rel="stylesheet" href="/static/app.css?v=10">
 <script>
 (function(){
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
@@ -1027,7 +1038,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Note History</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0;500;0,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=9">
+<link rel="stylesheet" href="/static/app.css?v=10">
 <script>
 (function(){
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
@@ -1118,7 +1129,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Attendance</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=9">
+<link rel="stylesheet" href="/static/app.css?v=10">
 <script src="/static/htmx.min.js" defer></script>
 <script>
 (function(){
@@ -1272,7 +1283,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R3 Intake — Event Report</title>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=9">
+<link rel="stylesheet" href="/static/app.css?v=10">
 <script>
 (function(){
   function getCookie(n){var v=document.cookie.match('(?:^|; )'+n+'=([^;]*)');return v?v[1]:'';}
@@ -1340,7 +1351,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 <title>R3 Intake — Attendance — {{.IntakeName}}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Lora:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/app.css?v=9">
+<link rel="stylesheet" href="/static/app.css?v=10">
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/alpine.min.js" defer></script>
 <script>
@@ -1524,7 +1535,7 @@ document.addEventListener('htmx:beforeSwap', function(e){
 {{end}}
 
 {{define "event-fragment"}}
-<select name="event" class="field-input">
+<select name="event" class="field-input" @change="R3F.clearGroupErr('event-group')">
   <option value="">Select an event</option>
   {{range .Events}}<option value="{{.ID}}" {{if eq .ID $.EventSel}}selected{{end}}>{{.Name}}</option>{{end}}
 </select>
