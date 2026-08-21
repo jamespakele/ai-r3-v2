@@ -411,15 +411,16 @@ func (s *Server) handleSection(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login?next="+r.URL.RequestURI(), http.StatusSeeOther)
 		return
 	}
-	if section == "01" {
-		if errs := validateNameFields(r); errs != nil {
-			writeValidationErrors(w, errs)
-			return
-		}
-	}
 	if err := s.applySection(rec, r, section); err != nil {
 		http.Error(w, "section apply failed: "+err.Error(), http.StatusBadRequest)
 		return
+	}
+	if section == "01" {
+		missing := s.validateRecord(rec)
+		if len(missing) > 0 {
+			writeValidationErrors(w, requiredFieldMessages(missing))
+			return
+		}
 	}
 	if err := s.saveIntake(rec); err != nil {
 		http.Error(w, "save failed: "+err.Error(), http.StatusInternalServerError)
@@ -818,6 +819,46 @@ func validateNameFields(r *http.Request) map[string]string {
 		return nil
 	}
 	return errs
+}
+
+// requiredFieldMessages translates validateRecord's missing-field keys into
+// the map[string]string the frontend expects. The form edits name as
+// first_name + last_name, so the "name" requirement is surfaced as both
+// keys. Messages mirror the per-field error text in index.html.
+func requiredFieldMessages(missing map[string]bool) map[string]string {
+	if len(missing) == 0 {
+		return nil
+	}
+	msgs := map[string]string{}
+	for k := range missing {
+		if k == "name" {
+			msgs["first_name"] = "First name is required."
+			msgs["last_name"] = "Last name is required."
+			continue
+		}
+		msgs[k] = requiredFieldMessage(k)
+	}
+	return msgs
+}
+
+// requiredFieldMessage returns the human-readable message for a required
+// field, matching the error text already rendered by index.html.
+func requiredFieldMessage(k string) string {
+	switch k {
+	case "event":
+		return "Please select an event."
+	case "race":
+		return "Please select at least one."
+	case "dob":
+		return "Date of birth is required."
+	case "contact":
+		return "Contact number is required."
+	case "sexAtBirth", "servedMilitary", "hasPets", "employment",
+		"mentalHealth", "substanceUse", "fleeingViolence":
+		return "Please select one."
+	default:
+		return "This field is required."
+	}
 }
 
 // writeValidationErrors writes a 400 with the JSON body the frontend expects:
