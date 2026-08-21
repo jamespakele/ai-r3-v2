@@ -207,6 +207,16 @@ func (s *Server) loadCaseManagers() []UserOption {
 	return out
 }
 
+// firstEventID returns the first active event's ID, or "" when there are no
+// active events. Used to default the intake's home event on both new and
+// edited forms.
+func firstEventID(events []Event) string {
+	if len(events) == 0 {
+		return ""
+	}
+	return events[0].ID
+}
+
 // blankState builds a fresh, unsaved FormState.
 func (s *Server) blankState(user *sessionUser) *FormState {
 	sites := must(s.loadSites(false))
@@ -229,9 +239,7 @@ func (s *Server) blankState(user *sessionUser) *FormState {
 	// Default the intake's home event to the first active event. There is no
 	// "default event" concept (unlike the old default site), so pick the
 	// first active, non-deleted event.
-	if len(events) > 0 {
-		st.EventSel = events[0].ID
-	}
+	st.EventSel = firstEventID(events)
 	if user != nil {
 		st.IsAuthed = true
 		st.Role = user.Role
@@ -299,6 +307,11 @@ func (s *Server) stateFromRecord(rec *core.Record, user *sessionUser, errors map
 	}
 	if st.Income == nil {
 		st.Income = map[string]bool{}
+	}
+	// Records without a stored event render the same default as a new form:
+	// the first active event. Display-only; the stored record is untouched.
+	if st.EventSel == "" {
+		st.EventSel = firstEventID(st.Events)
 	}
 	if user != nil {
 		st.IsAuthed = true
