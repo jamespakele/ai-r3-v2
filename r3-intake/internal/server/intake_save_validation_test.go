@@ -195,12 +195,9 @@ func seedCompleteRecord(t *testing.T, srv *Server, cookie *http.Cookie, fx secti
 }
 
 // TestSection01MissingEachFieldRejected verifies that a section-01 save
-// missing any one of the 12 required fields returns 400 with the JSON error
-// key for that field and persists no record. For the three sec-02 radio
-// fields, "missing" means the record has no saved sec-02 values (a fresh
-// record whose sec-02 never autosaved) — that is the server-consistent edge
-// the plan documents: the sec-01 POST does not carry sec-02 fields, so a
-// new record can only pass the gate once sec-02 has been saved.
+// missing any one of the sec-01-own required fields returns 400 with the
+// JSON error key for that field and persists no record. The sec-02-05 radio
+// fields are not part of a sec-01 POST and are not checked by this gate.
 func TestSection01MissingEachFieldRejected(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -216,9 +213,6 @@ func TestSection01MissingEachFieldRejected(t *testing.T) {
 		{"servedMilitary", map[string][]string{"servedMilitary": {}}, "servedMilitary"},
 		{"hasPets", map[string][]string{"hasPets": {}}, "hasPets"},
 		{"employment", map[string][]string{"employment": {}}, "employment"},
-		{"mentalHealth", map[string][]string{"mentalHealth": {}}, "mentalHealth"},
-		{"substanceUse", map[string][]string{"substanceUse": {}}, "substanceUse"},
-		{"fleeingViolence", map[string][]string{"fleeingViolence": {}}, "fleeingViolence"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -270,7 +264,6 @@ func TestSection01MultipleMissingReturnsAllErrors(t *testing.T) {
 	for _, want := range []string{
 		"first_name", "last_name", "dob", "contact", "race",
 		"sexAtBirth", "servedMilitary", "hasPets", "employment",
-		"mentalHealth", "substanceUse", "fleeingViolence",
 	} {
 		if _, ok := errs[want]; !ok {
 			t.Errorf("errors = %v, want key %q present", errs, want)
@@ -316,6 +309,131 @@ func TestSection01AllFieldsPresentSucceeds(t *testing.T) {
 	}
 	if got := saved.GetString("event"); got != fx.event {
 		t.Fatalf("event = %q, want %q", got, fx.event)
+	}
+}
+
+// TestSection01FirstSaveSucceedsWithoutSec02 verifies the primary bug fix: a
+// brand-new intake form's first POST /section/01 persists even though the
+// sec-02-05 radio fields are empty (they are not part of the sec-01 form).
+func TestSection01FirstSaveSucceedsWithoutSec02(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedActiveEvent(t, srv.pb)
+	admin := adminCookie(srv, fx.admin)
+
+	rec := doSection01Post(t, srv, admin, true, validSection01Form(fx, nil))
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202", rec.Code)
+	}
+	if loc := rec.Header().Get("HX-Redirect"); !strings.HasPrefix(loc, "/intake/") {
+		t.Fatalf("HX-Redirect = %q, want prefix /intake/", loc)
+	}
+	if n := countIntakeRecords(t, srv); n != 1 {
+		t.Fatalf("intake records = %d, want 1", n)
+	}
+	saved := firstIntakeRecord(t, srv)
+	if got := saved.GetString("name"); got != "Jane Doe" {
+		t.Fatalf("name = %q, want %q", got, "Jane Doe")
+	}
+	if got := saved.GetString("mentalHealth"); got != "" {
+		t.Fatalf("mentalHealth = %q, want empty (sec-02 not submitted)", got)
+	}
+	if got := saved.GetString("substanceUse"); got != "" {
+		t.Fatalf("substanceUse = %q, want empty (sec-02 not submitted)", got)
+	}
+	if got := saved.GetString("fleeingViolence"); got != "" {
+		t.Fatalf("fleeingViolence = %q, want empty (sec-02 not submitted)", got)
+	}
+}
+
+// TestSection01FirstSaveNoJSRedirect verifies the no-JS variant of the first
+// save: without HX-Request, POST /section/01 still persists and redirects to
+// the resume URL.
+func TestSection01FirstSaveNoJSRedirect(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedActiveEvent(t, srv.pb)
+	admin := adminCookie(srv, fx.admin)
+
+	rec := doSection01Post(t, srv, admin, false, validSection01Form(fx, nil))
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	saved := firstIntakeRecord(t, srv)
+	if loc := rec.Header().Get("Location"); loc != "/intake/"+saved.Id {
+		t.Fatalf("Location = %q, want %q", loc, "/intake/"+saved.Id)
+	}
+	if got := saved.GetString("name"); got != "Jane Doe" {
+		t.Fatalf("name = %q, want %q", got, "Jane Doe")
+	}
+}
+
+// TestSection01EditPreservesSec0205 verifies that re-saving sec-01 on an
+// existing record does not clobber values written by sec-02. This is a
+// regression guard for criterion 3.
+func TestSection01EditPreservesSec0205(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedActiveEvent(t, srv.pb)
+	admin := adminCookie(srv, fx.admin)
+
+	id := seedCompleteRecord(t, srv, admin, fx, true)
+
+	form := validSection01Form(fx, map[string][]string{
+		"id":         {id},
+		"first_name": {"Janet"},
+	})
+	rec := doSection01Post(t, srv, admin, true, form)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+
+	saved := firstIntakeRecord(t, srv)
+	if got := saved.GetString("name"); got != "Janet Doe" {
+		t.Fatalf("name = %q, want %q", got, "Janet Doe")
+	}
+	if got := saved.GetString("mentalHealth"); got != "no" {
+		t.Fatalf("mentalHealth = %q, want %q", got, "no")
+	}
+	if got := saved.GetString("substanceUse"); got != "no" {
+		t.Fatalf("substanceUse = %q, want %q", got, "no")
+	}
+	if got := saved.GetString("fleeingViolence"); got != "no" {
+		t.Fatalf("fleeingViolence = %q, want %q", got, "no")
+	}
+}
+
+// TestFinishFullGateBlocksIncomplete verifies the defense-in-depth complete-
+// record gate still runs at /intake/{id}/finish. A first-save sec-01-only
+// record has empty sec-02-05 values; requesting finish renders the page with
+// errors for the three missing fields.
+func TestFinishFullGateBlocksIncomplete(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedActiveEvent(t, srv.pb)
+	admin := adminCookie(srv, fx.admin)
+
+	rec01 := doSection01Post(t, srv, admin, true, validSection01Form(fx, nil))
+	if rec01.Code != http.StatusAccepted {
+		t.Fatalf("sec-01 status = %d, want 202", rec01.Code)
+	}
+	id := firstIntakeRecord(t, srv).Id
+
+	req := httptest.NewRequest(http.MethodPost, "/intake/"+id+"/finish", nil)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	addCSRFToRequest(req)
+	req.AddCookie(admin)
+	rec := httptest.NewRecorder()
+	srv.Mux().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("finish status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, marker := range []string{
+		`id="mentalHealth-error">Please select one.`,
+		`id="substanceUse-error">Please select one.`,
+		`id="fleeingViolence-error">Please select one.`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("finish page missing error marker %q", marker)
+		}
 	}
 }
 
