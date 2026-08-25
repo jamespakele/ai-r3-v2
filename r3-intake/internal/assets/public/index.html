@@ -72,11 +72,11 @@ document.addEventListener('htmx:beforeSwap', function(e){
         </div>
       </div>
       <div class="topbar-actions">
-        <button type="button" onclick="if(R3F.validateAll()){R3F.saveAll()}" class="btn btn-primary">Save</button>
         <button type="button" onclick="window.print()" class="btn btn-ghost">Print / Save PDF</button>
         {{if and .HasRecord .IsAuthed}}<a href="/notes/{{.ID}}" class="btn btn-ghost">Notes</a>{{end}}
         {{if .IsAuthed}}<a href="/" class="btn btn-ghost">List</a>{{else}}<a href="/login" class="btn btn-ghost">Sign in</a>{{end}}
         <a href="/public/intake" class="btn btn-primary">New</a>
+        <button type="button" onclick="if(R3F.validateAll()){R3F.saveAll()}" class="btn btn-primary">Save</button>
       </div>
     </div>
     <div class="topbar-progress">
