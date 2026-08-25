@@ -1,69 +1,37 @@
-# RESULT — Epic 34: Remove per-section Save buttons + equal-size Save/New
+# RESULT — t_1f69d076: Update tests for all-sections save flow and saveAll presence
 
-## Goal
+## What was done
 
-Remove the redundant per-section "Save section 0X" buttons from the R3 intake form,
-make the single top-level Save button persist all five sections via `R3F.saveAll()`,
-and ensure the bottom Save and New buttons render at identical sizes.
+Updated the r3-intake Go test suite to match the restored `R3F.saveAll()` flow (sibling card t_8a980895 restored the wiring in the embedded template).
 
-## What was built
+### File 1 — r3-intake/internal/assets/public/index.html
+Copied the already-reviewed restored `saveAll` wiring from sibling worktree t_8a980895 so the template-assertion test passes in this worktree:
+- `R3F.saveAll` / `patchRecordId` / `applyErrors` methods present.
+- Both Save buttons wired to `if(R3F.validateAll()){R3F.saveAll()}`.
+- Stale `htmx.trigger(document.getElementById('sec-01'),'submit')` wiring removed.
 
-### Remove per-section Save buttons + saveAll (t_2e1c5fdd)
+### File 2 — r3-intake/internal/server/intake_save_validation_test.go
+- `TestEmbeddedTemplateIncludesValidationUI`: flipped from asserting `saveAll` ABSENT to asserting it is present (`R3F.saveAll`/`patchRecordId`/`applyErrors`), exactly 2 Save buttons wired to `R3F.saveAll()`, stale `htmx.trigger` wiring absent, `section-save-btn` still absent.
+- `seedCompleteRecord`: rewritten to the sequential saveAll order `sec-02 → sec-03/04/05 → sec-01` (202/303 on first, 204/303 on subsequent), signature unchanged.
+- NEW `TestSaveAllSequentialFlowCoversAllSections`: 202 + `HX-Redirect` (`/intake/` prefix) on first save (sec-02), record-id patching keeps count==1, 204s for sec-03/04/05/01, `name` + sec-02 radios + `event` persist on the single record.
+- NEW `TestSaveAllSurfaces400OnInvalidSection01`: 400 JSON with `first_name` error key, count==1 + `name==""` (sec-02 record persists; failed sec-01 adds nothing).
 
-- Removed the 5 `<button class="section-save-btn">Save section 0N</button>` elements
-  from `sec-01`..`sec-05`.
-- Each form keeps its `hx-post="/section/0N" hx-trigger="submit"` attributes.
-- Added `R3F.saveAll()` — a sequential `await fetch` loop over all 5 sections that:
-  - sends `HX-Request: true` so the server's 202/HX-Redirect path is exercised,
-  - on a new record reads `HX-Redirect`, extracts the new record id, and patches
-    `input[name=id]` across all 5 forms + `#finish-form` to avoid duplicate records,
-  - replicates the section-01 First/Last validation before posting and aborts on 400.
-- Both top-level Save buttons now call `R3F.saveAll()`.
-- Updated topbar and intro help text so they no longer reference per-section saving.
-- Removed the dead `.section-save-btn` CSS block.
-- Bumped all 9 `/static/app.css?v=8` cache-buster links to `?v=9`.
-
-### Equal-size Save/New buttons (t_22fbf8d0)
-
-- Replaced the single `.finish-actions .btn-primary` sizing rule with a combined
-  selector that also sizes `.btn-ghost`:
-  ```css
-  .finish-actions .btn-primary,
-  .finish-actions .btn-ghost { box-sizing: border-box; padding: 13px 26px; font-size: 15px; line-height: 1; }
-  ```
-- `box-sizing: border-box` is required because there is no global border-box reset;
-  without it the ghost button's 1px border creates a 2px height gap versus the
-  primary button's `border: none`, even when padding matches.
-- Scoped strictly to `.finish-actions`; no other buttons are affected.
-
-## Files changed
-
-- `r3-intake/internal/assets/public/index.html`
-- `r3-intake/internal/assets/public/app.css`
-- `RESULT.md`
-- `docs/plans/omp-plan-remove-per-section-save-buttons.md`
-- `docs/plans/omp-plan-save-new-buttons-same-size.md`
-- `docs/plans/omp-plan-epic34-integration.md`
-
-## Verification
-
-- `grep "Save section" r3-intake/internal/assets/public/index.html` → no matches.
-- `grep "section-save-btn" r3-intake/internal/assets/public/index.html r3-intake/internal/assets/public/app.css` → no matches.
-- `grep "R3F.saveAll" r3-intake/internal/assets/public/index.html` → 2 matches (topbar Save + finish-form Save).
-- `grep -c "app.css?v=9" r3-intake/internal/assets/public/index.html` → 9.
-- `grep "app.css?v=8" r3-intake/internal/assets/public/index.html` → no matches.
-- `grep -A2 "finish-actions .btn-primary" r3-intake/internal/assets/public/app.css` shows both `.btn-primary` and `.btn-ghost` in the combined selector.
-- `cd r3-intake && go build ./...` → exit 0.
-- `cd r3-intake && go vet ./...` → exit 0.
-- `cd r3-intake && go test ./...` → PASS.
-- `git diff --check` → clean.
+## Verification (all from plan's Verification Criteria)
+- VC1 template copy: saveAll count 3, `if(R3F.validateAll()){R3F.saveAll()}` count 2, stale `htmx.trigger` count 0, patchRecordId ≥1, applyErrors ≥2. PASS
+- VC2 `go build ./...` (in r3-intake/): clean. PASS
+- VC3 `go vet ./...`: clean. PASS
+- VC4 full server suite `go test ./internal/server/... -count=1`: `ok r3-intake/internal/server 21.6s`. PASS
+- VC5 targeted `go test -run 'TestSaveAll' -count=1 -v`: both `--- PASS`. PASS
+- VC6 negative regression guard: old `still contains saveAll` gone; `R3F.saveAll` + `sec-03` present in test. PASS
+- VC7 `seedCompleteRecord` ordering: body shows `"02"` first, then `"03"/"04"/"05"` loop, then sec-01. PASS
+- Whole module `go test ./... -count=1`: `ok` for server + migrations. PASS
 
 ## Acceptance criteria
+- All tests pass with the restored `saveAll` flow: YES (suite green).
+- Test suite no longer enshrines the broken sec-01-only submit: YES (assertion flipped to saveAll-present; new full-flow coverage added).
 
-- [x] No "Save section" buttons remain.
-- [x] Each section form still has `hx-post`/`hx-trigger` attributes.
-- [x] Both Save buttons call `R3F.saveAll()`.
-- [x] `R3F.saveAll()` submits all 5 sections and patches the record id on first save.
-- [x] Save and New buttons render at identical size.
-- [x] No regression to buttons outside `.finish-actions`.
-- [x] Build/vet/test green and `git diff --check` clean.
+## Artifacts
+- Plan: docs/plans/omp-plan-save-all-tests.md (generated by fusion-harness, gate passed)
+- Plan: docs/planning/WORKING_PLAN_save-all-tests.md
+- Changed: r3-intake/internal/assets/public/index.html
+- Changed: r3-intake/internal/server/intake_save_validation_test.go

@@ -133,8 +133,10 @@ func parseErrorsBody(t *testing.T, rec *httptest.ResponseRecorder) map[string]st
 // validSection01Form builds a fully valid section-01 form (the 10 fields the
 // sec-01 form submits). The three sec-02 radios are deliberately absent: in
 // the real DOM they live in the separate sec-02 form, so a sec-01 POST never
-// carries them. Tests that need a complete record save sec-02 first (see
-// seedCompleteRecord). overrides replace or delete keys by name.
+// carries them. Tests that need a complete record use seedCompleteRecord,
+// which mirrors R3F.saveAll() by saving sec-02..sec-05 first, then sec-01
+// last so the full 12-field gate passes. overrides replace or delete keys by
+// name.
 func validSection01Form(fx sectionFixture, overrides map[string][]string) url.Values {
 	v := url.Values{
 		"event":          {fx.event},
@@ -173,23 +175,39 @@ func validSection02Form(id string) url.Values {
 	}
 }
 
-// seedCompleteRecord mirrors the real save flow: the sec-02 form autosaves
-// first (creating the record), then sec-01 saves with the returned id so
-// validateRecord sees the persisted sec-02 values. Returns the record id.
+// seedCompleteRecord mirrors R3F.saveAll(): sec-02 creates the record
+// (202 + HX-Redirect for htmx, 303 without JS), sec-03..sec-05 save with the
+// patched record id, and sec-01 runs last so the 12-field validateRecord
+// gate sees the persisted sec-02 radio values and passes. Returns the id.
 func seedCompleteRecord(t *testing.T, srv *Server, cookie *http.Cookie, fx sectionFixture, hx bool) string {
 	t.Helper()
+
+	firstWant := http.StatusAccepted
+	if !hx {
+		firstWant = http.StatusSeeOther
+	}
 	rec02 := doSectionPost(t, srv, cookie, hx, "02", validSection02Form(""))
-	if rec02.Code != http.StatusAccepted {
-		t.Fatalf("sec-02 seed status = %d, want 202", rec02.Code)
+	if rec02.Code != firstWant {
+		t.Fatalf("sec-02 seed status = %d, want %d", rec02.Code, firstWant)
 	}
 	id := firstIntakeRecord(t, srv).Id
-	rec01 := doSection01Post(t, srv, cookie, hx, validSection01Form(fx, map[string][]string{"id": {id}}))
-	want := http.StatusNoContent
+
+	subsequentWant := http.StatusNoContent
 	if !hx {
-		want = http.StatusSeeOther
+		subsequentWant = http.StatusSeeOther
 	}
-	if rec01.Code != want {
-		t.Fatalf("sec-01 seed status = %d, want %d", rec01.Code, want)
+	// sec-03/04/05 only set optional fields — a minimal id-only POST returns 204.
+	for _, sec := range []string{"03", "04", "05"} {
+		rec := doSectionPost(t, srv, cookie, hx, sec, url.Values{"id": {id}})
+		if rec.Code != subsequentWant {
+			t.Fatalf("sec-%s seed status = %d, want %d", sec, rec.Code, subsequentWant)
+		}
+	}
+
+	// sec-01 LAST: full 12-field gate passes (sec-02 radios already persisted).
+	rec01 := doSection01Post(t, srv, cookie, hx, validSection01Form(fx, map[string][]string{"id": {id}}))
+	if rec01.Code != subsequentWant {
+		t.Fatalf("sec-01 seed status = %d, want %d", rec01.Code, subsequentWant)
 	}
 	return id
 }
@@ -281,10 +299,10 @@ func TestSection01MultipleMissingReturnsAllErrors(t *testing.T) {
 	}
 }
 
-// TestSection01AllFieldsPresentSucceeds verifies the full valid save: the
-// sec-02 autosave creates the record and returns the HX-Redirect (202), then
-// sec-01 saves the remaining 9 fields with the new id (204) and persists the
-// joined name plus the sec-02 radio values.
+// TestSection01AllFieldsPresentSucceeds verifies the full valid save in the
+// R3F.saveAll() ordering: sec-02 first creates the record and returns the
+// HX-Redirect (202), then sec-01 saves the remaining 9 fields with the new id
+// (204) and persists the joined name plus the sec-02 radio values.
 func TestSection01AllFieldsPresentSucceeds(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedActiveEvent(t, srv.pb)
@@ -400,10 +418,128 @@ func TestSection02AutosaveSkipsValidation(t *testing.T) {
 	}
 }
 
+// TestSaveAllSequentialFlowCoversAllSections verifies the full R3F.saveAll()
+// flow end to end: sec-02 creates the record (202 + HX-Redirect), sec-03/04/05
+// save with the patched record id (204, single record reused), and sec-01 runs
+// last (204) with the 12-field gate passing against the persisted sec-02
+// radios. The joined name and the sec-02 radio values persist on one record.
+func TestSaveAllSequentialFlowCoversAllSections(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedActiveEvent(t, srv.pb)
+	admin := adminCookie(srv, fx.admin)
+
+	// sec-02 first: creates the record, 202 + HX-Redirect (authed → /intake/<id>).
+	rec02 := doSectionPost(t, srv, admin, true, "02", validSection02Form(""))
+	if rec02.Code != http.StatusAccepted {
+		t.Fatalf("sec-02 status = %d, want 202", rec02.Code)
+	}
+	loc := rec02.Header().Get("HX-Redirect")
+	if !strings.HasPrefix(loc, "/intake/") {
+		t.Fatalf("HX-Redirect = %q, want prefix /intake/", loc)
+	}
+	id := firstIntakeRecord(t, srv).Id
+
+	// Record-id patching: subsequent section forms carry the new id so each
+	// POST updates the same record (204) rather than creating duplicates.
+	for _, sec := range []string{"03", "04", "05"} {
+		r := doSectionPost(t, srv, admin, true, sec, url.Values{"id": {id}})
+		if r.Code != http.StatusNoContent {
+			t.Fatalf("sec-%s status = %d, want 204", sec, r.Code)
+		}
+	}
+	if n := countIntakeRecords(t, srv); n != 1 {
+		t.Fatalf("intake records after sec-02..sec-05 = %d, want 1 (id patching must reuse the record)", n)
+	}
+
+	// sec-01 last: carries the patched id; full 12-field gate passes because
+	// the persisted sec-02 radios satisfy mentalHealth/substanceUse/fleeingViolence.
+	rec01 := doSection01Post(t, srv, admin, true, validSection01Form(fx, map[string][]string{"id": {id}}))
+	if rec01.Code != http.StatusNoContent {
+		t.Fatalf("sec-01 status = %d, want 204", rec01.Code)
+	}
+	if n := countIntakeRecords(t, srv); n != 1 {
+		t.Fatalf("intake records = %d, want 1", n)
+	}
+	saved := firstIntakeRecord(t, srv)
+	if got := saved.Id; got != id {
+		t.Fatalf("record id = %q, want %q (id must be patched, not a new record)", got, id)
+	}
+	if got := saved.GetString("name"); got != "Jane Doe" {
+		t.Fatalf("name = %q, want %q", got, "Jane Doe")
+	}
+	if got := saved.GetString("mentalHealth"); got != "no" {
+		t.Fatalf("mentalHealth = %q, want %q", got, "no")
+	}
+	if got := saved.GetString("substanceUse"); got != "no" {
+		t.Fatalf("substanceUse = %q, want %q", got, "no")
+	}
+	if got := saved.GetString("fleeingViolence"); got != "no" {
+		t.Fatalf("fleeingViolence = %q, want %q", got, "no")
+	}
+	if got := saved.GetString("event"); got != fx.event {
+		t.Fatalf("event = %q, want %q", got, fx.event)
+	}
+}
+
+// TestSaveAllSurfaces400OnInvalidSection01 verifies the 400 path within the
+// saveAll flow: sec-02 creates the record, sec-03/04/05 save, then sec-01
+// fails the 12-field gate. The server surfaces a 400 JSON body (which
+// R3F.applyErrors would consume) and persists nothing new for sec-01 — the
+// record already exists from sec-02, so the correct assertion is count==1
+// with an empty name, not count==0 (that would be the standalone-sec-01 case).
+func TestSaveAllSurfaces400OnInvalidSection01(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedActiveEvent(t, srv.pb)
+	admin := adminCookie(srv, fx.admin)
+
+	// sec-02 first: creates the record (202).
+	rec02 := doSectionPost(t, srv, admin, true, "02", validSection02Form(""))
+	if rec02.Code != http.StatusAccepted {
+		t.Fatalf("sec-02 status = %d, want 202", rec02.Code)
+	}
+	id := firstIntakeRecord(t, srv).Id
+
+	for _, sec := range []string{"03", "04", "05"} {
+		r := doSectionPost(t, srv, admin, true, sec, url.Values{"id": {id}})
+		if r.Code != http.StatusNoContent {
+			t.Fatalf("sec-%s status = %d, want 204", sec, r.Code)
+		}
+	}
+
+	// sec-01 last but missing first_name+last_name (and the rest): server
+	// surfaces a 400 JSON body R3F.applyErrors would consume. The record
+	// already exists from sec-02; sec-01's failed gate persists nothing new.
+	form := validSection01Form(fx, map[string][]string{
+		"id":         {id},
+		"first_name": {}, // drop
+		"last_name":  {}, // drop
+	})
+	rec01 := doSection01Post(t, srv, admin, true, form)
+	if rec01.Code != http.StatusBadRequest {
+		t.Fatalf("sec-01 status = %d, want 400", rec01.Code)
+	}
+	if ct := rec01.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Fatalf("Content-Type = %q, want application/json", ct)
+	}
+	errs := parseErrorsBody(t, rec01)
+	if _, ok := errs["first_name"]; !ok {
+		t.Errorf("errors = %v, want key %q present", errs, "first_name")
+	}
+	// Correct saveAll-flow assertion: record already created by sec-02;
+	// failed sec-01 must not duplicate it nor persist the name.
+	if n := countIntakeRecords(t, srv); n != 1 {
+		t.Fatalf("intake records = %d, want 1 (sec-02 record persists; failed sec-01 must not create a duplicate)", n)
+	}
+	if got := firstIntakeRecord(t, srv).GetString("name"); got != "" {
+		t.Fatalf("name = %q, want empty (failed sec-01 must not persist)", got)
+	}
+}
+
 // TestEmbeddedTemplateIncludesValidationUI verifies the rebuilt embed carries
 // the new validation UI: validateAll/setGroupErr/clearGroupErr, the group
-// error containers, and the validateAll-gated Save buttons — and that the
-// removed saveAll/per-section-save wiring is gone.
+// error containers, and the validateAll-gated Save buttons wired to the
+// restored R3F.saveAll() flow — and that the stale sec-01-only submit wiring
+// and the old per-section section-save-btn class are gone.
 func TestEmbeddedTemplateIncludesValidationUI(t *testing.T) {
 	tmpl, err := assets.TemplateString()
 	if err != nil {
@@ -413,6 +549,9 @@ func TestEmbeddedTemplateIncludesValidationUI(t *testing.T) {
 		"R3F.validateAll",
 		"R3F.setGroupErr",
 		"R3F.clearGroupErr",
+		"R3F.saveAll",
+		"R3F.patchRecordId",
+		"R3F.applyErrors",
 		"event-group",
 		"dob-group",
 		"contact-group",
@@ -430,9 +569,24 @@ func TestEmbeddedTemplateIncludesValidationUI(t *testing.T) {
 			t.Errorf("embedded template missing %q", want)
 		}
 	}
-	if strings.Contains(tmpl, "saveAll") {
-		t.Errorf("embedded template still contains saveAll")
+	// saveAll is restored and wired to both Save buttons.
+	if !strings.Contains(tmpl, "R3F.saveAll") {
+		t.Errorf("embedded template missing R3F.saveAll")
 	}
+	if !strings.Contains(tmpl, "R3F.patchRecordId") {
+		t.Errorf("embedded template missing R3F.patchRecordId")
+	}
+	if !strings.Contains(tmpl, "R3F.applyErrors") {
+		t.Errorf("embedded template missing R3F.applyErrors")
+	}
+	if c := strings.Count(tmpl, `if(R3F.validateAll()){R3F.saveAll()}`); c != 2 {
+		t.Errorf("Save buttons wired to R3F.saveAll() = %d, want 2", c)
+	}
+	// Stale sec-01-only submit wiring must be gone from Save buttons.
+	if strings.Contains(tmpl, `htmx.trigger(document.getElementById('sec-01'),'submit')`) {
+		t.Errorf("embedded template still has stale htmx.trigger Save wiring")
+	}
+	// The old per-section section-save-btn class is still gone (kept assertion).
 	if strings.Contains(tmpl, "section-save-btn") {
 		t.Errorf("embedded template still contains section-save-btn")
 	}
