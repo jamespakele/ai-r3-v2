@@ -173,6 +173,38 @@ func validSection02Form(id string) url.Values {
 	}
 }
 
+// validSection03Form builds a valid section-03 form.
+func validSection03Form(id string) url.Values {
+	return url.Values{
+		"id":                  {id},
+		"hmis":                {"on"},
+		"hmisProvider":        {"Provider One"},
+		"documents":           {"id"},
+		"healthInsuranceDetail": {"insured"},
+		"housing":             {"shelter"},
+		"income":              {"ssi"},
+		"casemanagerName":     {"Casey Manager"},
+	}
+}
+
+// validSection04Form builds a valid section-04 form.
+func validSection04Form(id string) url.Values {
+	return url.Values{
+		"id":        {id},
+		"personal_0": {"answer 0"},
+		"personal_1": {"answer 1"},
+	}
+}
+
+// validSection05Form builds a valid section-05 form.
+func validSection05Form(id string) url.Values {
+	return url.Values{
+		"id":           {id},
+		"servicePlan_0": {"plan 0"},
+		"servicePlan_1": {"plan 1"},
+	}
+}
+
 // seedCompleteRecord mirrors the real save flow: the sec-02 form autosaves
 // first (creating the record), then sec-01 saves with the returned id so
 // validateRecord sees the persisted sec-02 values. Returns the record id.
@@ -518,10 +550,85 @@ func TestSection02AutosaveSkipsValidation(t *testing.T) {
 	}
 }
 
+// TestSaveAllServerFlow verifies the reordered saveAll sequence: sec-02 is
+// posted first on a new record (creating it and returning HX-Redirect), the
+// returned id is patched into the remaining forms, then sec-03/04/05/01
+// return 204 and all sections persist against a single record.
+func TestSaveAllServerFlow(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedActiveEvent(t, srv.pb)
+	admin := adminCookie(srv, fx.admin)
+
+	sec01 := validSection01Form(fx, map[string][]string{"id": {""}})
+	sec02 := validSection02Form("")
+	sec03 := validSection03Form("")
+	sec04 := validSection04Form("")
+	sec05 := validSection05Form("")
+
+	// Step 1: sec-02 creates the record and returns HX-Redirect.
+	rec02 := doSectionPost(t, srv, admin, true, "02", sec02)
+	if rec02.Code != http.StatusAccepted {
+		t.Fatalf("sec-02 status = %d, want 202", rec02.Code)
+	}
+	loc := rec02.Header().Get("HX-Redirect")
+	if loc == "" {
+		t.Fatalf("sec-02 response missing HX-Redirect")
+	}
+
+	// Simulate patchRecordId by extracting the id from /intake/<id>.
+	var id string
+	if i := strings.LastIndex(loc, "/"); i >= 0 {
+		id = loc[i+1:]
+	} else {
+		t.Fatalf("HX-Redirect %q does not contain /intake/<id>", loc)
+	}
+
+	sec01.Set("id", id)
+	sec03.Set("id", id)
+	sec04.Set("id", id)
+	sec05.Set("id", id)
+
+	// Steps 2-5: remaining sections return 204.
+	for _, tc := range []struct {
+		section string
+		form    url.Values
+	}{
+		{"03", sec03},
+		{"04", sec04},
+		{"05", sec05},
+		{"01", sec01},
+	} {
+		rec := doSectionPost(t, srv, admin, true, tc.section, tc.form)
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("sec-%s status = %d, want 204", tc.section, rec.Code)
+		}
+	}
+
+	if n := countIntakeRecords(t, srv); n != 1 {
+		t.Fatalf("intake records = %d, want 1", n)
+	}
+	saved := firstIntakeRecord(t, srv)
+	if got := saved.GetString("name"); got != "Jane Doe" {
+		t.Errorf("name = %q, want %q", got, "Jane Doe")
+	}
+	if got := saved.GetString("mentalHealth"); got != "no" {
+		t.Errorf("mentalHealth = %q, want %q", got, "no")
+	}
+	if got := saved.GetString("hmisProvider"); got != "Provider One" {
+		t.Errorf("hmisProvider = %q, want %q", got, "Provider One")
+	}
+	if got := saved.GetStringSlice("personal"); len(got) == 0 || got[0] != "answer 0" {
+		t.Errorf("personal = %v, want non-empty starting with answer 0", got)
+	}
+	if got := saved.GetStringSlice("servicePlan"); len(got) == 0 || got[0] != "plan 0" {
+		t.Errorf("servicePlan = %v, want non-empty starting with plan 0", got)
+	}
+}
+
 // TestEmbeddedTemplateIncludesValidationUI verifies the rebuilt embed carries
-// the new validation UI: validateAll/setGroupErr/clearGroupErr, the group
-// error containers, and the validateAll-gated Save buttons — and that the
-// removed saveAll/per-section-save wiring is gone.
+// the validation UI: validateAll/setGroupErr/clearGroupErr, the group
+// error containers, the validateAll-gated Save buttons, and the restored
+// R3F.saveAll/R3F.patchRecordId/R3F.applyErrors wiring.
 func TestEmbeddedTemplateIncludesValidationUI(t *testing.T) {
 	tmpl, err := assets.TemplateString()
 	if err != nil {
@@ -548,10 +655,18 @@ func TestEmbeddedTemplateIncludesValidationUI(t *testing.T) {
 			t.Errorf("embedded template missing %q", want)
 		}
 	}
-	if strings.Contains(tmpl, "saveAll") {
-		t.Errorf("embedded template still contains saveAll")
+	for _, want := range []string{"R3F.saveAll", "R3F.patchRecordId", "R3F.applyErrors"} {
+		if !strings.Contains(tmpl, want) {
+			t.Errorf("embedded template missing %q", want)
+		}
+	}
+	if strings.Count(tmpl, "if(R3F.validateAll()){R3F.saveAll()}") != 2 {
+		t.Errorf("expected both Save buttons to call R3F.saveAll(), got %d", strings.Count(tmpl, "if(R3F.validateAll()){R3F.saveAll()}"))
 	}
 	if strings.Contains(tmpl, "section-save-btn") {
 		t.Errorf("embedded template still contains section-save-btn")
+	}
+	if strings.Contains(tmpl, "htmx.trigger(document.getElementById('sec-01'),'submit')") {
+		t.Errorf("stale htmx.trigger Save wiring still present")
 	}
 }
