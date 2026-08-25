@@ -52,6 +52,17 @@ var (
 		"servedMilitary", "hasPets", "employment", "mentalHealth",
 		"substanceUse", "fleeingViolence",
 	}
+	// SECTION01_REQUIRED_FIELDS are the required fields the sec-01 form
+	// actually POSTs. The remaining required fields (mentalHealth,
+	// substanceUse, fleeingViolence) live in the sec-02 form and are never
+	// submitted before the sec-01 gate runs. They are validated by the
+	// finish handler's full 12-field gate (validateRecord), not here.
+	// Validating them against the record at sec-01 would always reject a
+	// first save because sec-02-05 are empty until their sections POST.
+	SECTION01_REQUIRED_FIELDS = []string{
+		"event", "name", "dob", "contact", "race", "sexAtBirth",
+		"servedMilitary", "hasPets", "employment",
+	}
 )
 
 // FormState is the view model consumed by public/index.html.
@@ -429,7 +440,7 @@ func (s *Server) handleSection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if section == "01" {
-		missing := s.validateRecord(rec)
+		missing := s.validateFields(rec, SECTION01_REQUIRED_FIELDS)
 		if len(missing) > 0 {
 			writeValidationErrors(w, requiredFieldMessages(missing))
 			return
@@ -695,10 +706,24 @@ func (s *Server) applyToState(st *FormState, r *http.Request) {
 	st.CasemanagerName = r.FormValue("casemanagerName")
 }
 
-// validateRecord runs the 12 required-field checks against a saved record.
+// validateRecord runs all 12 required-field checks against a saved record.
+// Called from the finish handler (POST /intake/{id}/finish) as the
+// defense-in-depth complete-record gate. It is intentionally NOT called from
+// handleSection: a sec-01 POST never carries sec-02-05 fields, so gating
+// persistence on this check there would block every first save.
 func (s *Server) validateRecord(rec *core.Record) map[string]bool {
+	return s.validateFields(rec, REQUIRED_FIELDS)
+}
+
+// validateFields checks a subset of REQUIRED_FIELDS against a record and
+// returns the missing-field keys. The sec-01 gate passes only
+// SECTION01_REQUIRED_FIELDS (the fields the sec-01 POST carries); the
+// sec-02-05 radios are excluded so a first save is not rejected for values
+// the request never sends. The contact digit-length check runs only when
+// "contact" is in the requested field set.
+func (s *Server) validateFields(rec *core.Record, fields []string) map[string]bool {
 	errs := map[string]bool{}
-	for _, k := range REQUIRED_FIELDS {
+	for _, k := range fields {
 		if k == "race" {
 			if !anyBool(asBoolMap(rec, "race")) {
 				errs["race"] = true
@@ -709,8 +734,13 @@ func (s *Server) validateRecord(rec *core.Record) map[string]bool {
 			errs[k] = true
 		}
 	}
-	if len(digitsOnly(rec.GetString("contact"))) < 10 {
-		errs["contact"] = true
+	for _, k := range fields {
+		if k == "contact" {
+			if len(digitsOnly(rec.GetString("contact"))) < 10 {
+				errs["contact"] = true
+			}
+			break
+		}
 	}
 	return errs
 }
