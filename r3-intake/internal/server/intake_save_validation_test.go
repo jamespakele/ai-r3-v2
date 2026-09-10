@@ -15,7 +15,7 @@ import (
 
 // sectionFixture carries the record ids a section-save test needs: a valid
 // event and a real admin user (the session user must exist as a users record
-// so the created_by/assigned_to relations validate on save).
+// so the created_by relation validates on save).
 type sectionFixture struct {
 	event string
 	admin string

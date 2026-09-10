@@ -12,7 +12,7 @@ import (
 
 // Focused acceptance tests for the claim-feature removal: any signed-in user
 // may access and work on any intake record, the claim workflow is gone, and
-// new records are no longer auto-claimed.
+// new records default to status unassigned.
 
 // TestCrossUserIntakeAccess proves a case manager can open and save a
 // section on an intake created by another user (the old gate bounced both
@@ -75,7 +75,7 @@ func TestClaimRouteRemoved(t *testing.T) {
 }
 
 // TestListHasNoClaimUI proves the list page renders neither a Claim button
-// nor the Assigned column, nor a Claimed status-filter option.
+// nor a claim-status filter option.
 func TestListHasNoClaimUI(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedActiveEvent(t, srv.pb)
@@ -99,10 +99,9 @@ func TestListHasNoClaimUI(t *testing.T) {
 	}
 }
 
-// TestNewRecordNotAutoClaimed proves a record created by a signed-in user is
-// no longer auto-claimed: status is the unassigned default and only
-// created_by is set.
-func TestNewRecordNotAutoClaimed(t *testing.T) {
+// TestNewRecordUnassignedDefault proves a record created by a signed-in user is
+// created with status unassigned and only created_by set.
+func TestNewRecordUnassignedDefault(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedActiveEvent(t, srv.pb)
 	admin := adminCookie(srv, fx.admin)
@@ -112,11 +111,8 @@ func TestNewRecordNotAutoClaimed(t *testing.T) {
 		t.Fatalf("create = %d, want 202", rec.Code)
 	}
 	saved := firstIntakeRecord(t, srv)
-	if got := saved.GetString("status"); got == "claimed" {
-		t.Errorf("status = %q, want not claimed (auto-claim removed)", got)
-	}
-	if got := saved.GetString("assigned_to"); got != "" {
-		t.Errorf("assigned_to = %q, want empty", got)
+	if got := saved.GetString("status"); got != "unassigned" {
+		t.Errorf("status = %q, want %q", got, "unassigned")
 	}
 	if got := saved.GetString("created_by"); got != fx.admin {
 		t.Errorf("created_by = %q, want %q", got, fx.admin)
@@ -140,10 +136,11 @@ func TestCaseManagerAnySite(t *testing.T) {
 	}
 }
 
-// TestPublicResumeLegacyClaimed pins the public-resume rule: anonymously
-// created records (created_by empty) are publicly resumable regardless of
-// status; staff-created records require login.
-func TestPublicResumeLegacyClaimed(t *testing.T) {
+// TestPublicResumeRule pins the public-resume rule: an anonymously created
+// record (created_by empty, status unassigned) is publicly resumable and
+// returns 200; a staff-created record (created_by set to fx.admin, status
+// unassigned) requires login and returns 303.
+func TestPublicResumeRule(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedActiveEvent(t, srv.pb)
 
@@ -165,7 +162,6 @@ func TestPublicResumeLegacyClaimed(t *testing.T) {
 		return rec.Id
 	}
 	anonUnassigned := mk("unassigned", "")
-	legacyClaimed := mk("claimed", "")
 	staffCreated := mk("unassigned", fx.admin)
 
 	get := func(id string) *httptest.ResponseRecorder {
@@ -177,9 +173,6 @@ func TestPublicResumeLegacyClaimed(t *testing.T) {
 
 	if rec := get(anonUnassigned); rec.Code != http.StatusOK {
 		t.Errorf("anon unassigned = %d, want 200", rec.Code)
-	}
-	if rec := get(legacyClaimed); rec.Code != http.StatusOK {
-		t.Errorf("legacy claimed = %d, want 200 (publicly resumable)", rec.Code)
 	}
 	if rec := get(staffCreated); rec.Code != http.StatusSeeOther {
 		t.Errorf("staff-created = %d, want 303 to login", rec.Code)
