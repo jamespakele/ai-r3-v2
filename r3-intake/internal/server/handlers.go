@@ -125,16 +125,9 @@ type sessionUser struct {
 }
 
 // canAccessIntake returns true when u is allowed to view or mutate rec.
-// Admins may access any intake; other users may only touch records they
-// created or are assigned to.
+// The claim feature was removed: any signed-in user may access any intake.
 func canAccessIntake(rec *core.Record, u *sessionUser) bool {
-	if u == nil {
-		return false
-	}
-	if u.Role == "admin" {
-		return true
-	}
-	return rec.GetString("created_by") == u.ID || rec.GetString("assigned_to") == u.ID
+	return u != nil
 }
 
 // templateFuncs exposes the canonical lists + helpers to the template.
@@ -399,9 +392,10 @@ func (s *Server) handlePublicIntake(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	// Public resume is only allowed for unassigned/unclaimed records created
-	// anonymously (created_by empty). Once a case manager claims the record,
-	// auth is required.
+	// Public resume is only allowed for records created anonymously
+	// (created_by empty) that were never claimed. The claimed clause stays
+	// for legacy data: the old Claim button set status=claimed without
+	// setting created_by. Claimed and staff-created records require auth.
 	if rec.GetString("created_by") != "" || rec.GetString("status") == "claimed" {
 		http.Redirect(w, r, "/login?next="+r.URL.RequestURI(), http.StatusSeeOther)
 		return
@@ -555,7 +549,7 @@ func (s *Server) handleIntakeCmd(w http.ResponseWriter, r *http.Request) {
 }
 
 // getOrCreateIntake loads the intake by the hidden "id" form field, or creates
-// a new one (status unassigned, or claimed + assigned_to = authed user).
+// a new one (created_by = authed user; claim auto-assignment was removed).
 func (s *Server) getOrCreateIntake(r *http.Request, user *sessionUser) (*core.Record, error) {
 	id := strings.TrimSpace(r.FormValue("id"))
 	if id != "" {
@@ -569,8 +563,6 @@ func (s *Server) getOrCreateIntake(r *http.Request, user *sessionUser) (*core.Re
 	}
 	if user != nil {
 		rec.Set("created_by", user.ID)
-		rec.Set("assigned_to", user.ID)
-		rec.Set("status", "claimed")
 	}
 	return rec, nil
 }

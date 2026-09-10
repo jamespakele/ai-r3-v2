@@ -178,21 +178,21 @@ func validSection02Form(id string) url.Values {
 // validSection03Form builds a valid section-03 form.
 func validSection03Form(id string) url.Values {
 	return url.Values{
-		"id":                  {id},
-		"hmis":                {"on"},
-		"hmisProvider":        {"Provider One"},
-		"documents":           {"id"},
+		"id":                    {id},
+		"hmis":                  {"on"},
+		"hmisProvider":          {"Provider One"},
+		"documents":             {"id"},
 		"healthInsuranceDetail": {"insured"},
-		"housing":             {"shelter"},
-		"income":              {"ssi"},
-		"casemanagerName":     {"Casey Manager"},
+		"housing":               {"shelter"},
+		"income":                {"ssi"},
+		"casemanagerName":       {"Casey Manager"},
 	}
 }
 
 // validSection04Form builds a valid section-04 form.
 func validSection04Form(id string) url.Values {
 	return url.Values{
-		"id":        {id},
+		"id":         {id},
 		"personal_0": {"answer 0"},
 		"personal_1": {"answer 1"},
 	}
@@ -201,7 +201,7 @@ func validSection04Form(id string) url.Values {
 // validSection05Form builds a valid section-05 form.
 func validSection05Form(id string) url.Values {
 	return url.Values{
-		"id":           {id},
+		"id":            {id},
 		"servicePlan_0": {"plan 0"},
 		"servicePlan_1": {"plan 1"},
 	}

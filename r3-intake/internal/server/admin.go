@@ -17,14 +17,12 @@ var hst = time.FixedZone("HST", -10*60*60)
 
 // IntakeRow is the admin list view of an intake record. SSN is masked to last-4.
 type IntakeRow struct {
-	ID           string
-	Name         string
-	SSNMasked    string
-	Status       string
-	AssignedName string
-	Created      string
-	CreatedByID  string
-	AssignedToID string
+	ID          string
+	Name        string
+	SSNMasked   string
+	Status      string
+	Created     string
+	CreatedByID string
 }
 
 // AdminView is the view model for the admin dashboard template.
@@ -157,25 +155,15 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		}
 		recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "-created", 500, 0)
 		if err == nil {
-			userMap := s.userNameMap()
 			for _, rec := range recs {
 				s.decryptSensitive(rec)
 				row := IntakeRow{
-					ID:           rec.Id,
-					Name:         rec.GetString("name"),
-					SSNMasked:    maskSSN(rec.GetString("ssn")),
-					Status:       rec.GetString("status"),
-					Created:      rec.GetString("created"),
-					CreatedByID:  rec.GetString("created_by"),
-					AssignedToID: rec.GetString("assigned_to"),
-				}
-				row.AssignedName = userMap[row.AssignedToID]
-				if row.AssignedName == "" {
-					if row.Status == "unassigned" {
-						row.AssignedName = "Unassigned"
-					} else {
-						row.AssignedName = "—"
-					}
+					ID:          rec.Id,
+					Name:        rec.GetString("name"),
+					SSNMasked:   maskSSN(rec.GetString("ssn")),
+					Status:      rec.GetString("status"),
+					Created:     rec.GetString("created"),
+					CreatedByID: rec.GetString("created_by"),
 				}
 				view.Rows = append(view.Rows, row)
 			}
@@ -207,8 +195,8 @@ func (s *Server) handleAdminSettings(w http.ResponseWriter, r *http.Request) {
 	_ = s.tpl.ExecuteTemplate(w, "admin", view)
 }
 
-// handleAdminSub routes /admin/* mutations: site add/toggle, claim, complete,
-// delete, user add. Site and user mutations are admin-only.
+// handleAdminSub routes /admin/* mutations: site add/toggle, complete, delete,
+// user add. Site and user mutations are admin-only.
 func (s *Server) handleAdminSub(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.NotFound(w, r)
@@ -233,8 +221,6 @@ func (s *Server) handleAdminSub(w http.ResponseWriter, r *http.Request) {
 		s.adminSiteUpdate(w, r, path)
 	case strings.HasPrefix(path, "sites/") && strings.HasSuffix(path, "/delete") && u.Role == "admin":
 		s.adminSiteDelete(w, r, path)
-	case strings.HasPrefix(path, "intake/") && strings.HasSuffix(path, "/claim"):
-		s.adminClaim(w, r, u)
 	case strings.HasPrefix(path, "intake/") && strings.HasSuffix(path, "/complete"):
 		s.adminComplete(w, r, u)
 	case path == "intake/bulk-delete" && u.Role == "admin":
@@ -344,35 +330,13 @@ func (s *Server) adminSiteDelete(w http.ResponseWriter, r *http.Request, path st
 	http.Redirect(w, r, "/admin?tab=sites", http.StatusSeeOther)
 }
 
-// adminClaim assigns the intake to the current user and sets status=claimed.
-func (s *Server) adminClaim(w http.ResponseWriter, r *http.Request, u *sessionUser) {
-	id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/admin/intake/"), "/claim")
-	rec, err := s.findIntake(id)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	// Only claim unassigned intakes; admins can claim anything.
-	if rec.GetString("status") != "unassigned" && u.Role != "admin" {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
-	rec.Set("assigned_to", u.ID)
-	rec.Set("status", "claimed")
-	_ = s.saveIntake(rec)
-	http.Redirect(w, r, "/intake/"+rec.Id, http.StatusSeeOther)
-}
-
-// adminComplete marks the intake completed.
+// adminComplete marks the intake completed. (The claim feature was removed:
+// any signed-in user may complete a record.)
 func (s *Server) adminComplete(w http.ResponseWriter, r *http.Request, u *sessionUser) {
 	id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/admin/intake/"), "/complete")
 	rec, err := s.findIntake(id)
 	if err != nil {
 		http.NotFound(w, r)
-		return
-	}
-	if u.Role != "admin" && rec.GetString("assigned_to") != u.ID && rec.GetString("created_by") != u.ID {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 	rec.Set("status", "completed")
@@ -754,26 +718,6 @@ func (s *Server) siteNameMap() map[string]string {
 	}
 	for _, st := range recs {
 		m[st.ID] = st.Name
-	}
-	return m
-}
-
-// userNameMap returns {userID: name} for all users.
-func (s *Server) userNameMap() map[string]string {
-	m := map[string]string{}
-	col, err := s.pb.FindCollectionByNameOrId("users")
-	if err != nil {
-		return m
-	}
-	recs, err := s.pb.FindRecordsByFilter(col.Id, "deleted=false", "name", 1000, 0)
-	if err != nil {
-		return m
-	}
-	for _, r := range recs {
-		m[r.Id] = r.GetString("name")
-		if m[r.Id] == "" {
-			m[r.Id] = r.GetString("email")
-		}
 	}
 	return m
 }

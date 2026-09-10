@@ -56,7 +56,7 @@ type MatrixRow struct {
 	TotalDays    int
 	PresentCount int
 	WalkInCount  int
-	LastPresent string // YYYY-MM-DD or ""
+	LastPresent  string // YYYY-MM-DD or ""
 }
 
 // MatrixSummary holds the aggregate stat cards below the matrix, computed
@@ -127,19 +127,19 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 	_, siteName := s.resolveSite(u, "")
 
 	view := MatrixViewData{
-		UserName:      u.Name,
-		Role:          u.Role,
-		IsAdmin:       u.Role == "admin",
-		SiteName:      siteName,
-		DateFrom:      from,
-		DateTo:        to,
-		Dates:         dates,
-		Rows:          rows,
-		Events:        events,
-		Summary:       computeSummary(rows, len(dates)),
-		EventID:       eventID,
-		EventRequired: eventID == "",
-		NoEvents:       len(events) == 0,
+		UserName:        u.Name,
+		Role:            u.Role,
+		IsAdmin:         u.Role == "admin",
+		SiteName:        siteName,
+		DateFrom:        from,
+		DateTo:          to,
+		Dates:           dates,
+		Rows:            rows,
+		Events:          events,
+		Summary:         computeSummary(rows, len(dates)),
+		EventID:         eventID,
+		EventRequired:   eventID == "",
+		NoEvents:        len(events) == 0,
 		EventLocation:   eventLocation,
 		EventStartLabel: eventStartLabel,
 		EventEndLabel:   eventEndLabel,
@@ -269,72 +269,22 @@ func buildDateRange(from, to string) []string {
 	return out
 }
 
-// resolveSite returns the effective site ID and display name for the user.
-// Admins may pick any active site or "" (All locations); case managers are
-// pinned to the site derived from their assigned intakes.
+// resolveSite returns the effective site ID and display name. (The claim
+// feature was removed: any signed-in user may pick any site or All locations.)
 func (s *Server) resolveSite(u *sessionUser, param string) (string, string) {
 	sites, err := s.loadSites(false)
 	if err != nil {
 		return "", ""
 	}
-	if u.Role == "admin" {
-		if param == "" {
-			return "", "All locations"
-		}
-		for _, st := range sites {
-			if st.ID == param {
-				return st.ID, st.Name
-			}
-		}
+	if param == "" {
 		return "", "All locations"
 	}
-	// case_manager: derive site from assigned intakes. Each intake's home
-	// event determines the site: resolve the event's site and count by site so
-	// the derived value stays a site id (callers use it as a site
-	// filter/guard). The matrix is event-scoped, but this function's contract
-	// is a site, so we resolve through the event rather than keying by event.
-	counts := map[string]int{}
-	col, err := s.intakeCollection()
-	if err == nil {
-		filter := fmt.Sprintf("assigned_to='%s'", mcpmod.EscapeFilter(u.ID))
-		recs, err := s.pb.FindRecordsByFilter(col.Id, filter, "name", 1000, 0)
-		if err == nil {
-			eventsCol, eerr := s.eventsCollection()
-			for _, rec := range recs {
-				eventID := rec.GetString("event")
-				if eventID == "" || eerr != nil {
-					continue
-				}
-				ev, err := s.pb.FindRecordById(eventsCol.Id, eventID)
-				if err != nil {
-					continue
-				}
-				sid := ev.GetString("site")
-				if sid != "" {
-					counts[sid]++
-				}
-			}
+	for _, st := range sites {
+		if st.ID == param {
+			return st.ID, st.Name
 		}
 	}
-	if len(counts) > 0 {
-		best := ""
-		bestN := -1
-		for sid, n := range counts {
-			if n > bestN {
-				best, bestN = sid, n
-			}
-		}
-		for _, st := range sites {
-			if st.ID == best {
-				return st.ID, st.Name
-			}
-		}
-	}
-	// Fallback: first active site.
-	if len(sites) > 0 {
-		return sites[0].ID, sites[0].Name
-	}
-	return "", ""
+	return "", "All locations"
 }
 
 // loadMatrixRows builds the participant rows and fills cells from attendance.
@@ -361,13 +311,9 @@ func (s *Server) loadMatrixRows(u *sessionUser, dates []string, eventID string) 
 			eventSite = eventRec.GetString("site")
 		}
 	}
-	var intakeFilter string
-	switch {
-	case u.Role == "case_manager":
-		intakeFilter = fmt.Sprintf("assigned_to='%s'", mcpmod.EscapeFilter(u.ID))
-	default:
-		intakeFilter = "1=1"
-	}
+	// Roster is always the full participant list for every signed-in user;
+	// the claim feature was removed and the event never scopes the roster.
+	intakeFilter := "1=1"
 	intakeRecs, err := s.pb.FindRecordsByFilter(intakeCol.Id, intakeFilter, "name", 1000, 0)
 	if err != nil {
 		return nil, err
@@ -607,27 +553,15 @@ func (s *Server) handleToggle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Authorization: case managers may only toggle their own intakes.
-	// The intake record is also the source of the effective event for
-	// participants with no explicit event selected.
+	// Claim-based access restrictions were removed: any signed-in user may
+	// toggle attendance. The intake record is also the source of the
+	// effective event for participants with no explicit event selected.
 	intakeCol, err := s.intakeCollection()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	intakeLoaded := false
-	if u.Role == "case_manager" {
-		rec, err := s.pb.FindRecordById(intakeCol.Id, intakeID)
-		if err != nil || rec.GetString("assigned_to") != u.ID {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		intakeLoaded = true
-		if siteID == "" {
-			siteID = rec.GetString("event")
-		}
-	}
-	if siteID == "" && !intakeLoaded {
+	if siteID == "" {
 		if rec, err := s.pb.FindRecordById(intakeCol.Id, intakeID); err == nil {
 			siteID = rec.GetString("event")
 		}

@@ -228,10 +228,10 @@ func TestPersonAttendanceAuthz(t *testing.T) {
 		}
 	})
 
-	t.Run("cm1 forbidden on other intake", func(t *testing.T) {
+	t.Run("cm1 views other intake", func(t *testing.T) {
 		rec := doPersonAttendance(srv, cm1, "GET", "/intake/"+fx.i2+"/attendance", nil)
-		if rec.Code != http.StatusForbidden {
-			t.Errorf("cm1 GET i2 = %d, want 403", rec.Code)
+		if rec.Code != http.StatusOK {
+			t.Errorf("cm1 GET i2 = %d, want 200", rec.Code)
 		}
 	})
 

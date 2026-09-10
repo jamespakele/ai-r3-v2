@@ -98,17 +98,12 @@ type personAttendanceRecord struct {
 }
 
 // loadPersonAttendanceIntake loads the intake record for the per-person
-// attendance routes and enforces authorization: case managers may only access
-// intakes assigned to them; admins may access any. On failure it writes the
-// HTTP error and returns ok=false.
+// attendance routes. (The claim feature was removed: any signed-in user may
+// access any intake.) On failure it writes the HTTP error and returns ok=false.
 func (s *Server) loadPersonAttendanceIntake(w http.ResponseWriter, r *http.Request, u *sessionUser, id string) (*core.Record, bool) {
 	rec, err := s.findIntake(id)
 	if err != nil {
 		http.NotFound(w, r)
-		return nil, false
-	}
-	if u.Role == "case_manager" && rec.GetString("assigned_to") != u.ID {
-		http.Error(w, "forbidden", http.StatusForbidden)
 		return nil, false
 	}
 	return rec, true
@@ -180,7 +175,7 @@ func (s *Server) buildPersonAttendanceView(u *sessionUser, intake *core.Record, 
 		IsAdmin:    u.Role == "admin",
 		IntakeID:   intake.Id,
 		IntakeName: intake.GetString("name"),
-		EventName:   s.nameFor("events", intake.GetString("event")),
+		EventName:  s.nameFor("events", intake.GetString("event")),
 		Month:      month,
 		PrevMonth:  t.AddDate(0, -1, 0).Format("2006-01"),
 		NextMonth:  t.AddDate(0, 1, 0).Format("2006-01"),

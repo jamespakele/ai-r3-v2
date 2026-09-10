@@ -212,6 +212,30 @@ func TestMatrixRosterEventIndependent(t *testing.T) {
 	}
 }
 
+// TestMatrixRosterCaseManagerSeesAll proves the claim-based roster scoping is
+// gone: a case manager's roster is the full participant list, including
+// participants assigned to nobody and to other users.
+func TestMatrixRosterCaseManagerSeesAll(t *testing.T) {
+	srv := newTestServer(t)
+	fx := seedRosterData(t, srv.pb)
+
+	cm := &sessionUser{ID: fx.cm, Email: "cm@example.com", Name: "Case Manager", Role: "case_manager"}
+	dates := []string{"2026-08-13"}
+
+	rows, err := srv.loadMatrixRows(cm, dates, "")
+	if err != nil {
+		t.Fatalf("loadMatrixRows: %v", err)
+	}
+	ids := make([]string, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.IntakeID)
+	}
+	want := []string{fx.iInSite1, fx.iInSite2, fx.iOtherSite, fx.iAssignedCM} // Alice, Bob, Carol, Dana
+	if !equalStrings(ids, want) {
+		t.Errorf("cm roster = %v, want %v", ids, want)
+	}
+}
+
 // equalStrings compares two string slices element-wise.
 func equalStrings(a, b []string) bool {
 	if len(a) != len(b) {
