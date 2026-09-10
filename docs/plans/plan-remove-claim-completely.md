@@ -72,3 +72,7 @@ Records that were anonymous-created and later claimed (created_by empty, status 
 ## Conventions
 
 All timestamps HST (`hst` var, `formatTime`). PocketBase v0.39 API (no `app.dao()`, no `core.NewBaseCollection`). Templates are embedded at build time — rebuild the binary before any server restart. Tests are updated, not deleted. Keep the complete Go test suite green (run every package, not a subset).
+
+## Note to the decomposer (story-card generation)
+
+When generating story cards from this plan, describe every command in plain English (for example: run the full Go test suite across every package; search the source tree for the removed field name). Never write shell syntax or glob tokens into generated card titles or bodies — especially the Go test-everything idiom spelled dot-slash plus three dots — because the kanban engine's graph builder treats such tokens as unresolvable repository references and rejects the decomposition. Card text must be prose and bare file names only.
