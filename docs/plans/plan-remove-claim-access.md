@@ -1,6 +1,8 @@
 # Plan: Remove the "Claim" Feature (keep the Case Manager field)
 
-Status: ready to implement.
+> **SUPERSEDED 2026-09-09** by `docs/plans/plan-remove-claim-completely.md` — James ordered FULL removal: the `claimed` status value, the `assigned_to` field, and all legacy preservation are void. The "kept for legacy rows" decisions below (Claimed filter option, `.status-claimed` CSS, claimed public-resume clause) are superseded. Do not implement from this file.
+
+Status: superseded — see plan-remove-claim-completely.md
 Source of user direction: R3 staff conversation (Kika, check-in person, providers), 2026-09-09 — "Nix the claiming restrictiveness," keep the case manager portion.
 
 ## 1. What was asked
