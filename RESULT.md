@@ -1,38 +1,52 @@
-# RESULT — migration 017_remove_claim.go
+# RESULT — remove claim references from server handlers, admin filter, and UI assets
 
-## What was built
-Created `r3-intake/pocketbase/migrations/017_remove_claim.go` (Story 1 of the
-"Remove the Claim Feature Completely" epic) and registered it in
-`r3-intake/pocketbase/migrations/migrations.go`.
+## What was built (Story 2 of "Remove the Claim Feature Completely" epic)
 
-### Up migration (`upRemoveClaim`), idempotently guarded
-1. Data rewrite: every `intake` record with `status='claimed'` -> `status='unassigned'`
-   (FindRecordsByFilter `status='claimed'`, Set + Save), before dropping the enum value.
-2. Drop `claimed` from `intake.status` select values -> `["unassigned", "completed"]`.
-3. Remove the `assigned_to` field from the `intake` collection.
+Removed every remaining claim reference from the app-code and UI layers so
+behavior is uniform: no `claimed` status value, no filtered/rendered Claim
+state, public resume purely on `created_by` empty.
 
-Ordering follows the epic spec: the claimed-value save happens before the enum edit
-because PocketBase rejects saves holding an enum value that no longer exists.
+### Changes (committed 4a6447a on wt/t_916ad5b6)
+1. internal/server/handlers.go (handlePublicIntake): deleted the
+   `|| rec.GetString("status") == "claimed"` clause; public resume is now
+   allowed whenever `created_by` is empty. Comment rewritten with no legacy
+   claim rationale.
+2. internal/server/admin.go (handleList status filter): accepts only
+   `unassigned` or `completed` (removed `claimed`).
+3. internal/assets/public/index.html: removed the Claimed `<option>` from the
+   admin status dropdown.
+4. internal/assets/public/app.css: deleted the .status-claimed rule.
 
-### Down migration (`downRemoveClaim`), idempotently guarded
-1. Re-adds `claimed` to `intake.status` values.
-2. Re-adds `assigned_to` as an optional single-select relation to `users`.
+Test reconciliation (kept the suite green for THIS change):
+- records_list_integration_test.go + records_list_attendance_join_integration_test.go:
+  fixture status claimed -> completed; composition queries ?status=claimed -> ?status=completed
+  (filter semantics preserved).
+- claim_removal_integration_test.go: dropped the "Claimed option must remain" assertion
+  (option is gone); TestPublicResumeLegacyClaimed legacy-claimed leg now expects 200
+  (publicly resumable when created_by empty).
 
-## Files changed
-- `r3-intake/pocketbase/migrations/017_remove_claim.go` (new)
-- `r3-intake/pocketbase/migrations/migrations.go` (one registration line, filename `017_remove_claim.go`)
+## Verification (run independently in this worktree)
+- grep "claimed" in the 4 changed production files -> ZERO hits
+- go build ./... -> exit 0
+- go vet ./... -> exit 0 (0 diagnostics)
+- go test ./... -> ok (internal/server 114 PASS / 0 FAIL, migrations ok)
+- Gated tests PASS: TestListHasNoClaimUI, TestPublicResumeLegacyClaimed,
+  TestListEventFilterComposesWithStatusAndSearch, TestListEventFilterJoinsAttendance
 
-## Verification
-- `gofmt -l pocketbase/migrations/017_remove_claim.go` -> empty (gofmt-clean)
-- `go build ./...` -> exit 0
-- `go vet ./...` -> exit 0 (run on ./pocketbase/... and full tree)
-- `go test ./pocketbase/migrations/...` -> ok (0.097s)
+Note: `make verify` cannot complete because its `build` target references
+./cmd/r3-intake but no cmd/ dir exists on this (or the default) branch --
+pre-existing, unrelated to this change. Gate substance run directly.
 
 ## Out-of-scope (owned by sibling cards, as decomposed)
-The `internal/server` package has one expected failure after this migration:
-`TestPublicResumeLegacyClaimed` (claim_removal_integration_test.go) tries to save
-`status='claimed'` and now fails with "Invalid value claimed" — the enum value was
-correctly removed. Rewriting that fixture (and the other claimed/assigned_to test
-references) is the job of sibling card `t_7a3e5403` (Story 4 — Update test suite),
-which depends on this card. App-code/MCP removal are Story 2/3 (`t_916ad5b6`,
-`t_081e1391`). The epic's full-suite green gate runs after all children merge.
+- Migration 017_remove_claim.go: sibling t_ab332d9f (Story 1).
+- MCP claim/assigned_to vocabulary: sibling t_081e1391 (Story 3).
+  mcp.go is intentionally untouched here.
+- Full test-suite claim/assigned_to sweep + migration test + rename of
+  TestPublicResumeLegacyClaimed -> TestPublicResumeRule: sibling t_7a3e5403 (Story 4).
+- OVERLAP to reconcile at parent merge: t_7a3e5403 also targets
+  records_list_integration_test.go / records_list_attendance_join_integration_test.go /
+  claim_removal_integration_test.go (differs: my branch still names
+  TestPublicResumeLegacyClaimed and seeds a claimed row in one no status-filtered
+  fixture; Story 4 intends to rewrite those). Recommend the parent merge resolve
+  toward Story 4 conclusions once both branches land.
+ 

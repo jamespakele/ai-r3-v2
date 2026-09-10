@@ -198,7 +198,6 @@ a:hover { color: #b5502e; }
 .status-badge { font: 600 11px 'Public Sans', sans-serif; padding: 3px 9px; border-radius: 999px;
   text-transform: capitalize; }
 .status-unassigned { background: #fbeeec; color: #8f3a2e; }
-.status-claimed { background: #fdf3e3; color: #8a6a1e; }
 .status-completed { background: #eef3ea; color: #3f6b34; }
 .admin-result-count { font: 400 13px 'Public Sans', sans-serif; color: #6b5f52; margin: 0 0 12px; }
 

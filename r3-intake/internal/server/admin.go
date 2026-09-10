@@ -94,7 +94,7 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		parts := []string{}
 		// Status filter from ?status=
 		statusFilter := strings.TrimSpace(r.URL.Query().Get("status"))
-		if statusFilter == "unassigned" || statusFilter == "claimed" || statusFilter == "completed" {
+		if statusFilter == "unassigned" || statusFilter == "completed" {
 			parts = append(parts, fmt.Sprintf("status='%s'", mcpmod.EscapeFilter(statusFilter)))
 			view.StatusFilter = statusFilter
 		}

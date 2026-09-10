@@ -392,11 +392,9 @@ func (s *Server) handlePublicIntake(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	// Public resume is only allowed for records created anonymously
-	// (created_by empty) that were never claimed. The claimed clause stays
-	// for legacy data: the old Claim button set status=claimed without
-	// setting created_by. Claimed and staff-created records require auth.
-	if rec.GetString("created_by") != "" || rec.GetString("status") == "claimed" {
+	// Public resume is allowed for records created anonymously
+	// (created_by empty); staff-created records require auth.
+	if rec.GetString("created_by") != "" {
 		http.Redirect(w, r, "/login?next="+r.URL.RequestURI(), http.StatusSeeOther)
 		return
 	}
