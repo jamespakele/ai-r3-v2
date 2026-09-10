@@ -1,38 +1,60 @@
-# RESULT — migration 017_remove_claim.go
+# Story 4 — Test sweep: complete claim-reference removal (t_7a3e5403)
 
-## What was built
-Created `r3-intake/pocketbase/migrations/017_remove_claim.go` (Story 1 of the
-"Remove the Claim Feature Completely" epic) and registered it in
-`r3-intake/pocketbase/migrations/migrations.go`.
+## What shipped
+Updated the R3 intake test suite to align with the claim-free schema/enums
+(migration 017 + app-code/MCP siblings), and added a round-trip migration
+test for 017. No non-test source logic was authored by this card.
 
-### Up migration (`upRemoveClaim`), idempotently guarded
-1. Data rewrite: every `intake` record with `status='claimed'` -> `status='unassigned'`
-   (FindRecordsByFilter `status='claimed'`, Set + Save), before dropping the enum value.
-2. Drop `claimed` from `intake.status` select values -> `["unassigned", "completed"]`.
-3. Remove the `assigned_to` field from the `intake` collection.
+### Test files updated (r3-intake/internal/server)
+- attendance_roster_integration_test.go: removed `assigned_to` seed set on the
+  Dana (iAssignedCM) intake fixture (field no longer exists).
+- person_attendance_integration_test.go: removed `assigned_to` sets on i1/i2
+  intake fixtures.
+- intake_save_validation_test.go: seed comment now references created_by only.
+- records_list_attendance_join_integration_test.go: the date-range test's
+  intakeA seed status claimed -> unassigned.
+- claim_removal_integration_test.go:
+  - TestNewRecordNotAutoClaimed -> TestNewRecordUnassignedDefault (asserts
+    status == unassigned + created_by; assigned_to read removed).
+  - TestPublicResumeLegacyClaimed -> TestPublicResumeRule (anon-created
+    unassigned -> 200 public resume; staff-created -> 303 login; legacy
+    claimed leg removed since the enum value no longer exists).
 
-Ordering follows the epic spec: the claimed-value save happens before the enum edit
-because PocketBase rejects saves holding an enum value that no longer exists.
+### New migration test (r3-intake/pocketbase/migrations/017_remove_claim_test.go)
+TestRemoveClaimMigration boots an in-process PocketBase with the FULL chain
+applied (so 017 has run), then exercises a down -> seed -> up round-trip:
+1. downRemoveClaim restores the claimed enum + assigned_to relation field.
+2. Seeded legacy rows: site -> event -> real user -> 3 intakes with
+   status=claimed (two carry assigned_to, one empty).
+3. upRemoveClaim runs: rewrites every claimed row to unassigned, drops the
+   enum value, removes assigned_to.
+4. Asserts: zero rows with status=claimed; no intake.assigned_to field; status
+   select values exactly [unassigned completed].
+5. Idempotent re-up: a second upRemoveClaim is a no-op (error-free, state
+   unchanged). Down round-trip restores claimed + assigned_to.
 
-### Down migration (`downRemoveClaim`), idempotently guarded
-1. Re-adds `claimed` to `intake.status` values.
-2. Re-adds `assigned_to` as an optional single-select relation to `users`.
+### Regression reconcile (migrations.go)
+The migration sibling t_ab332d9f had ACCIDENTALLY dropped the
+`migrations.Register(upAttendanceRemoveSite, downAttendanceRemoveSite,
+"015_attendance_remove_site.go")` line while adding 017 (file kept, register
+line deleted). That unmounted migration 015, so `attendance.site` was never
+removed and TestAttendanceSchemaNoSiteField failed. Restored the single 015
+registration line (epic convention: resolve overlaps toward Story 4 at parent
+merge). It is population of the sibling's own migration list, not new logic.
 
-## Files changed
-- `r3-intake/pocketbase/migrations/017_remove_claim.go` (new)
-- `r3-intake/pocketbase/migrations/migrations.go` (one registration line, filename `017_remove_claim.go`)
+## Verification (all from r3-intake, HOME=/home/pakele)
+- gofmt -l on all changed files: EMPTY (clean)
+- go vet ./...: exit 0
+- go build ./...: exit 0
+- go test ./...: r3-intake/internal/server ok (16.65s), pocketbase/migrations ok
+- TestRemoveClaimMigration: PASS (verbose, -count=1)
+- Zero-hit gate (app source, test files INCLUDED, migrations folder + docs
+  EXCLUDED per epic): `grep -rniE 'claimed|assigned_to' --include='*.go'
+  --exclude-dir=migrations .` -> ZERO hits (exit 1); assets dir -> ZERO hits.
+- All remaining claimed/assigned_to references are confined to
+  pocketbase/migrations/ (001 history + 017 removal code + 017 test) — the
+  epic explicitly excludes that folder from the gate.
 
-## Verification
-- `gofmt -l pocketbase/migrations/017_remove_claim.go` -> empty (gofmt-clean)
-- `go build ./...` -> exit 0
-- `go vet ./...` -> exit 0 (run on ./pocketbase/... and full tree)
-- `go test ./pocketbase/migrations/...` -> ok (0.097s)
-
-## Out-of-scope (owned by sibling cards, as decomposed)
-The `internal/server` package has one expected failure after this migration:
-`TestPublicResumeLegacyClaimed` (claim_removal_integration_test.go) tries to save
-`status='claimed'` and now fails with "Invalid value claimed" — the enum value was
-correctly removed. Rewriting that fixture (and the other claimed/assigned_to test
-references) is the job of sibling card `t_7a3e5403` (Story 4 — Update test suite),
-which depends on this card. App-code/MCP removal are Story 2/3 (`t_916ad5b6`,
-`t_081e1391`). The epic's full-suite green gate runs after all children merge.
+## Commit
+b4ddb20 story 4: test sweep — drop claimed/assigned_to refs, add 017 round-trip
+migration test, restore 015 reg
