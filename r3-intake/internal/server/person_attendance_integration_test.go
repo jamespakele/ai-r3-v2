@@ -83,14 +83,12 @@ func seedPersonAttendanceData(t *testing.T, pb *pocketbase.PocketBase) personAtt
 		r := rec("intake")
 		r.Set("name", "Alice")
 		r.Set("event", ev)
-		r.Set("assigned_to", cm1)
 		return r
 	}())
 	i2 := save("i2", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Bob")
 		r.Set("event", ev)
-		r.Set("assigned_to", cm2)
 		return r
 	}())
 

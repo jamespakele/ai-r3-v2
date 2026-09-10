@@ -386,7 +386,7 @@ func TestListEventFilterConstrainsByDateRange(t *testing.T) {
 		r := rec("intake")
 		r.Set("name", "Alice")
 		r.Set("event", ev1)
-		r.Set("status", "claimed")
+		r.Set("status", "unassigned")
 		return r
 	}())
 	// Attendance dated after ev1's end_date (2026-08-31): must not surface.
