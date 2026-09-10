@@ -7,7 +7,7 @@ Repo: jamespakele/ai-r3-v2 (app: r3-intake, Go + PocketBase + htmx)
 
 The R3 intake app had a "claim" workflow: a case manager could claim an intake record, which set `status='claimed'` + `assigned_to=<user>` and restricted access to the owner. Users rejected it ("Nix the claiming restrictiveness"). The behavior layer is ALREADY REMOVED and verified on master (access open to all signed-in users, Claim button/route gone, Assigned column gone, auto-claim gone, attendance roster/site pinning gone).
 
-What remains is EVERYTHING that still makes some records or parts of the system behave differently: the `claimed` status value, the `assigned_to` field, legacy data holding those values, the Claimed filter option, the claimed badge CSS, the claimed branch in the status filter, the claimed clause in public-resume, and the claim vocabulary in the MCP API. James's directive: "No legacy claimed anything, remove it entirely... remove the field, do not preserve what's there."
+What remains is EVERYTHING that still makes some records or parts of the system behave differently: the `claimed` status value, the `assigned_to` field, legacy data holding those values, the Claimed filter option, the claimed badge CSS, the claimed branch in the status filter, the claimed clause in public-resume, and the claim vocabulary in the MCP API. James's directive: "No legacy claimed anything, remove it entirely — remove the field, do not preserve what's there."
 
 ## Keep (do not touch)
 
@@ -54,7 +54,7 @@ Note: fresh databases run 001 (which still declares the field/value) then 017 (w
 - `intake_save_validation_test.go`: the seed comment still reads "so the created_by/assigned_to relations validate on save" — update it to reference `created_by` only.
 - New migration test in `pocketbase/migrations/` (pattern: `014_users_deleted_test.go`, which calls the migration's up/down funcs directly): the harness boots PocketBase with the FULL chain applied, so seed legacy data via a down→seed→up round-trip: (1) after `RunAllMigrations()`, call `down017(app)` — this restores the `claimed` enum value and the `assigned_to` field; (2) insert legacy-shaped intake rows (PB saves now work — the enum accepts `claimed` again); (3) call `up017(app)` — the data-rewrite step inside up() must run unconditionally (not skipped by an "already applied" guard on the field check alone) so it rewrites the seeded rows; (4) assert: no record has `status='claimed'`, the intake collection has no `assigned_to` field, status select values are exactly `[unassigned completed]`; (5) a second `up017(app)` call must be a no-op (idempotent). This doubles as the down/up round-trip test.
 - `claim_removal_integration_test.go`: `TestNewRecordNotAutoClaimed` reads `GetString("assigned_to")` — after the field is removed that read returns "", and the final grep gate flags the reference. Rewrite the assertion to check `status` + `created_by` only.
-- **Final gate (end of this story):** `grep -rniE 'claimed|assigned_to' r3-intake/internal r3-intake/cmd` → ZERO hits (tests now clean too; migrations/ and docs/ excluded). Then full gate green: `cd r3-intake && make build && go vet ./... && go test ./...`.
+- **Final gate (end of this story):** a source-wide search for the removed status value and the removed assignment field name must return ZERO hits across the whole application source tree, test files included (the schema-migrations folder and the planning docs are excluded — they retain the historical schema definition and the removal code). Then the full project gate must be green: from the application directory, run the embedded-template build, the Go vet pass, and the complete Go test suite (every package, not a subset); all checks must pass.
 
 ## Story 5 — Real-data verification + deploy (parent, after children)
 
@@ -71,4 +71,4 @@ Records that were anonymous-created and later claimed (created_by empty, status 
 
 ## Conventions
 
-All timestamps HST (`hst` var, `formatTime`). PocketBase v0.39 API (no `app.dao()`, no `core.NewBaseCollection`). Templates are `go:embed`-ed — `make build` before any restart. Tests are updated, not deleted. Keep `go test ./...` green.
+All timestamps HST (`hst` var, `formatTime`). PocketBase v0.39 API (no `app.dao()`, no `core.NewBaseCollection`). Templates are embedded at build time — rebuild the binary before any server restart. Tests are updated, not deleted. Keep the complete Go test suite green (run every package, not a subset).
