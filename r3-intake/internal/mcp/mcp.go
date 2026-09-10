@@ -49,11 +49,10 @@ func NewServer(d Deps) (*mcp.Server, error) {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"status":      map[string]any{"type": "string", "enum": []string{"unassigned", "claimed", "completed"}, "description": "Filter by intake status"},
-				"site":        map[string]any{"type": "string", "description": "Filter by event id or event name (the intake's home event; intake.site was renamed to intake.event)"},
-				"assigned_to": map[string]any{"type": "string", "description": "Filter by assigned user id or email"},
-				"limit":       map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "description": "Maximum records to return (default 50, max 200)"},
-				"offset":      map[string]any{"type": "integer", "minimum": 0, "description": "Offset for pagination (default 0)"},
+				"status": map[string]any{"type": "string", "enum": []string{"unassigned", "completed"}, "description": "Filter by intake status"},
+				"site":   map[string]any{"type": "string", "description": "Filter by event id or event name (the intake's home event; intake.site was renamed to intake.event)"},
+				"limit":  map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "description": "Maximum records to return (default 50, max 200)"},
+				"offset": map[string]any{"type": "integer", "minimum": 0, "description": "Offset for pagination (default 0)"},
 			},
 		},
 	}, d.handleListIntakes)
@@ -82,7 +81,7 @@ func NewServer(d Deps) (*mcp.Server, error) {
 			"required": []string{"query"},
 			"properties": map[string]any{
 				"query":  map[string]any{"type": "string", "minLength": 2, "description": "Search query (min 2 characters)"},
-				"status": map[string]any{"type": "string", "enum": []string{"unassigned", "claimed", "completed"}, "description": "Optional status filter"},
+				"status": map[string]any{"type": "string", "enum": []string{"unassigned", "completed"}, "description": "Optional status filter"},
 				"limit":  map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "description": "Maximum records to return (default 50, max 200)"},
 			},
 		},
@@ -116,7 +115,7 @@ func NewServer(d Deps) (*mcp.Server, error) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_users",
 		Title:       "List users",
-		Description: "Return case managers and admins for assigned_to resolution context.",
+		Description: "Return case managers and admins.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -232,22 +231,20 @@ func (d Deps) maskRecord(rec *core.Record) map[string]any {
 }
 
 type intakeSummary struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Status       string `json:"status"`
-	SiteName     string `json:"site_name"`
-	AssignedName string `json:"assigned_name"`
-	Created      string `json:"created"`
-	SSNLast4     string `json:"ssn_last4"`
-	EditURL      string `json:"edit_url"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Status   string `json:"status"`
+	SiteName string `json:"site_name"`
+	Created  string `json:"created"`
+	SSNLast4 string `json:"ssn_last4"`
+	EditURL  string `json:"edit_url"`
 }
 
 type listIntakesIn struct {
-	Status     string `json:"status"`
-	Site       string `json:"site"`
-	AssignedTo string `json:"assigned_to"`
-	Limit      int    `json:"limit"`
-	Offset     int    `json:"offset"`
+	Status string `json:"status"`
+	Site   string `json:"site"`
+	Limit  int    `json:"limit"`
+	Offset int    `json:"offset"`
 }
 
 type listIntakesOut struct {
@@ -287,13 +284,6 @@ func (d Deps) handleListIntakes(ctx context.Context, req *mcp.CallToolRequest, i
 		}
 		parts = append(parts, fmt.Sprintf("event='%s'", EscapeFilter(id)))
 	}
-	if in.AssignedTo != "" {
-		id, err := d.resolveUser(in.AssignedTo)
-		if err != nil {
-			return nil, listIntakesOut{}, err
-		}
-		parts = append(parts, fmt.Sprintf("assigned_to='%s'", EscapeFilter(id)))
-	}
 	filter := "1=1"
 	if len(parts) > 0 {
 		filter = strings.Join(parts, " && ")
@@ -308,25 +298,18 @@ func (d Deps) handleListIntakes(ctx context.Context, req *mcp.CallToolRequest, i
 	if err != nil {
 		return nil, listIntakesOut{}, err
 	}
-	users, err := d.loadUserMap()
-	if err != nil {
-		return nil, listIntakesOut{}, err
-	}
-
 	sums := make([]intakeSummary, 0, len(recs))
 	for _, r := range recs {
 		d.decryptSensitive(r)
 		eventID := r.GetString("event")
-		assignedID := r.GetString("assigned_to")
 		sums = append(sums, intakeSummary{
-			ID:           r.Id,
-			Name:         r.GetString("name"),
-			Status:       r.GetString("status"),
-			SiteName:     sites[eventID],
-			AssignedName: userName(users[assignedID]),
-			Created:      hstCreated(r.GetString("created")),
-			SSNLast4:     ssnLast4(r.GetString("ssn")),
-			EditURL:      d.editURL(r),
+			ID:       r.Id,
+			Name:     r.GetString("name"),
+			Status:   r.GetString("status"),
+			SiteName: sites[eventID],
+			Created:  hstCreated(r.GetString("created")),
+			SSNLast4: ssnLast4(r.GetString("ssn")),
+			EditURL:  d.editURL(r),
 		})
 	}
 
@@ -396,25 +379,18 @@ func (d Deps) handleSearchIntakes(ctx context.Context, req *mcp.CallToolRequest,
 	if err != nil {
 		return nil, searchIntakesOut{}, err
 	}
-	users, err := d.loadUserMap()
-	if err != nil {
-		return nil, searchIntakesOut{}, err
-	}
-
 	sums := make([]intakeSummary, 0, len(recs))
 	for _, r := range recs {
 		d.decryptSensitive(r)
 		eventID := r.GetString("event")
-		assignedID := r.GetString("assigned_to")
 		sums = append(sums, intakeSummary{
-			ID:           r.Id,
-			Name:         r.GetString("name"),
-			Status:       r.GetString("status"),
-			SiteName:     events[eventID],
-			AssignedName: userName(users[assignedID]),
-			Created:      hstCreated(r.GetString("created")),
-			SSNLast4:     ssnLast4(r.GetString("ssn")),
-			EditURL:      d.editURL(r),
+			ID:       r.Id,
+			Name:     r.GetString("name"),
+			Status:   r.GetString("status"),
+			SiteName: events[eventID],
+			Created:  hstCreated(r.GetString("created")),
+			SSNLast4: ssnLast4(r.GetString("ssn")),
+			EditURL:  d.editURL(r),
 		})
 	}
 	return nil, searchIntakesOut{Intakes: sums}, nil
@@ -422,7 +398,6 @@ func (d Deps) handleSearchIntakes(ctx context.Context, req *mcp.CallToolRequest,
 
 type statusCounts struct {
 	Unassigned int `json:"unassigned"`
-	Claimed    int `json:"claimed"`
 	Completed  int `json:"completed"`
 }
 
@@ -464,8 +439,6 @@ func (d Deps) handleIntakeStats(ctx context.Context, req *mcp.CallToolRequest, i
 		switch status {
 		case "unassigned":
 			out.ByStatus.Unassigned++
-		case "claimed":
-			out.ByStatus.Claimed++
 		case "completed":
 			out.ByStatus.Completed++
 			updated := r.GetDateTime("updated").Time()
@@ -590,32 +563,6 @@ func (d Deps) loadEventMap() (map[string]string, error) {
 	return m, nil
 }
 
-type userInfo struct {
-	Name  string
-	Email string
-	Role  string
-}
-
-func (d Deps) loadUserMap() (map[string]userInfo, error) {
-	col, err := d.PB.FindCollectionByNameOrId("users")
-	if err != nil {
-		return nil, err
-	}
-	recs, err := d.PB.FindRecordsByFilter(col.Id, "1=1", "name", 1000, 0)
-	if err != nil {
-		return nil, err
-	}
-	m := make(map[string]userInfo, len(recs))
-	for _, r := range recs {
-		m[r.Id] = userInfo{
-			Name:  r.GetString("name"),
-			Email: r.GetString("email"),
-			Role:  r.GetString("role"),
-		}
-	}
-	return m, nil
-}
-
 // resolveEvent resolves an event name or id to an event id. The intake list
 // tools' site filter now scopes by the intake's home event (migration 016
 // renamed intake.site to intake.event), so the input resolves against events.
@@ -630,27 +577,6 @@ func (d Deps) resolveEvent(nameOrID string) (string, error) {
 		return "", fmt.Errorf("event not found: %s", nameOrID)
 	}
 	return r.Id, nil
-}
-
-func (d Deps) resolveUser(emailOrID string) (string, error) {
-	if r, err := d.PB.FindRecordById("users", emailOrID); err == nil {
-		return r.Id, nil
-	}
-	r, err := d.PB.FindFirstRecordByData("users", "email", emailOrID)
-	if err != nil {
-		return "", fmt.Errorf("user not found: %s", emailOrID)
-	}
-	return r.Id, nil
-}
-
-func userName(u userInfo) string {
-	if u.Name != "" {
-		return u.Name
-	}
-	if u.Email != "" {
-		return u.Email
-	}
-	return ""
 }
 
 func EscapeFilter(s string) string {
