@@ -75,8 +75,7 @@ func TestClaimRouteRemoved(t *testing.T) {
 }
 
 // TestListHasNoClaimUI proves the list page renders neither a Claim button
-// nor the Assigned column, while the legacy Claimed filter option remains for
-// legacy rows.
+// nor the Assigned column, nor a Claimed status-filter option.
 func TestListHasNoClaimUI(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedActiveEvent(t, srv.pb)
@@ -97,9 +96,6 @@ func TestListHasNoClaimUI(t *testing.T) {
 	}
 	if strings.Contains(body, ">Assigned<") {
 		t.Errorf("list still renders the Assigned column header")
-	}
-	if !strings.Contains(body, ">Claimed<") {
-		t.Errorf("legacy Claimed status-filter option must remain for legacy rows")
 	}
 }
 
@@ -145,9 +141,8 @@ func TestCaseManagerAnySite(t *testing.T) {
 }
 
 // TestPublicResumeLegacyClaimed pins the public-resume rule: anonymously
-// created, never-claimed records remain publicly resumable; legacy claimed
-// records (the old Claim button set status without created_by) and
-// staff-created records require login.
+// created records (created_by empty) are publicly resumable regardless of
+// status; staff-created records require login.
 func TestPublicResumeLegacyClaimed(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedActiveEvent(t, srv.pb)
@@ -183,8 +178,8 @@ func TestPublicResumeLegacyClaimed(t *testing.T) {
 	if rec := get(anonUnassigned); rec.Code != http.StatusOK {
 		t.Errorf("anon unassigned = %d, want 200", rec.Code)
 	}
-	if rec := get(legacyClaimed); rec.Code != http.StatusSeeOther {
-		t.Errorf("legacy claimed = %d, want 303 to login", rec.Code)
+	if rec := get(legacyClaimed); rec.Code != http.StatusOK {
+		t.Errorf("legacy claimed = %d, want 200 (publicly resumable)", rec.Code)
 	}
 	if rec := get(staffCreated); rec.Code != http.StatusSeeOther {
 		t.Errorf("staff-created = %d, want 303 to login", rec.Code)
