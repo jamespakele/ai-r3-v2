@@ -19,7 +19,7 @@ type listFixtures struct {
 // seedListFixtures creates a site, two events, an admin user, and two intakes:
 // intakeA's home event is ev1 but it has an attendance record for ev2
 // (analogous to the verification scenario: home event differs from the
-// attended event); intakeB's home event is ev2. intakeA is claimed, intakeB
+// attended event); intakeB's home event is ev2. intakeA is completed, intakeB
 // is unassigned.
 func seedListFixtures(t *testing.T, pb *pocketbase.PocketBase) listFixtures {
 	t.Helper()
@@ -77,7 +77,7 @@ func seedListFixtures(t *testing.T, pb *pocketbase.PocketBase) listFixtures {
 		r := rec("intake")
 		r.Set("name", "Alice")
 		r.Set("event", ev1)
-		r.Set("status", "claimed")
+		r.Set("status", "completed")
 		return r
 	}())
 	intakeB := save("intakeB", func() *core.Record {
@@ -183,11 +183,11 @@ func TestListEventFilterJoinsAttendance(t *testing.T) {
 	})
 
 	t.Run("union composes with status filter", func(t *testing.T) {
-		rec := doList(srv, cookie, "?event="+fx.ev2+"&status=claimed")
+		rec := doList(srv, cookie, "?event="+fx.ev2+"&status=completed")
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", rec.Code)
 		}
-		// Only Alice is claimed; Bob is unassigned.
+		// Only Alice is completed; Bob is unassigned.
 		got := listRowNames(t, rec, "Alice", "Bob")
 		if len(got) != 1 || got[0] != "Alice" {
 			t.Fatalf("rows = %v, want [Alice]", got)
