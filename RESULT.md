@@ -44,8 +44,11 @@ Nothing marks a record complete anymore; the List screen shows every record equa
 no status notion. The Complete button, route, field, and data are gone entirely. That is
 the point of the removal and exactly what James asked for.
 
-## Next steps (parent, gated on James's review approval — deferred here)
-Real-data review-server verification on a copy of `pb_data` (migration applied; no status
-column; list page clean; complete endpoint 404; cross-user + public-resume unchanged;
-counts preserved) and the production deploy via `vps-deploy-go` run only after this epic
-receives review approval. Pending approval — do not deploy yet.
+## Deployment (COMPLETED 2026-09-11 — supersedes the earlier "pending approval" note)
+The real-data verification above was executed and passed on a fresh copy of the real
+test dataset, and the production deploy ran the same day after James's approval:
+master bd50170 deployed via vps-deploy-go (amd64), migrations 017_remove_claim.go and
+018_remove_intake_status.go applied, intake schema has no status/assigned_to columns,
+counts preserved (60 intake / 108 attendance / 2 events), snapshots verified
+(pre-deploy, deploy-backup md5-identical to pre-deploy live, post-deploy), public
+checks green. Full deployment record: DEPLOYMENT.md at the repo root.
