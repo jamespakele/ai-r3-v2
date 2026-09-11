@@ -20,7 +20,6 @@ type IntakeRow struct {
 	ID          string
 	Name        string
 	SSNMasked   string
-	Status      string
 	Created     string
 	CreatedByID string
 }
@@ -43,7 +42,6 @@ type AdminView struct {
 	EventID          string
 	EventStatus      string
 	Query            string
-	StatusFilter     string
 	EventFilter      string
 	Total            int
 }
@@ -92,12 +90,6 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 	col, err := s.intakeCollection()
 	if err == nil {
 		parts := []string{}
-		// Status filter from ?status=
-		statusFilter := strings.TrimSpace(r.URL.Query().Get("status"))
-		if statusFilter == "unassigned" || statusFilter == "completed" {
-			parts = append(parts, fmt.Sprintf("status='%s'", mcpmod.EscapeFilter(statusFilter)))
-			view.StatusFilter = statusFilter
-		}
 		// Event filter from ?event= (value is an event record ID).
 		// Strict attendance-only: an intake matches only if it has an
 		// attendance record for the selected event whose date falls within
@@ -161,7 +153,6 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 					ID:          rec.Id,
 					Name:        rec.GetString("name"),
 					SSNMasked:   maskSSN(rec.GetString("ssn")),
-					Status:      rec.GetString("status"),
 					Created:     rec.GetString("created"),
 					CreatedByID: rec.GetString("created_by"),
 				}
@@ -221,8 +212,6 @@ func (s *Server) handleAdminSub(w http.ResponseWriter, r *http.Request) {
 		s.adminSiteUpdate(w, r, path)
 	case strings.HasPrefix(path, "sites/") && strings.HasSuffix(path, "/delete") && u.Role == "admin":
 		s.adminSiteDelete(w, r, path)
-	case strings.HasPrefix(path, "intake/") && strings.HasSuffix(path, "/complete"):
-		s.adminComplete(w, r, u)
 	case path == "intake/bulk-delete" && u.Role == "admin":
 		s.adminBulkDelete(w, r)
 	case strings.HasPrefix(path, "intake/") && strings.HasSuffix(path, "/delete") && u.Role == "admin":
@@ -328,20 +317,6 @@ func (s *Server) adminSiteDelete(w http.ResponseWriter, r *http.Request, path st
 		_ = s.pb.Save(rec)
 	}
 	http.Redirect(w, r, "/admin?tab=sites", http.StatusSeeOther)
-}
-
-// adminComplete marks the intake completed. (The claim feature was removed:
-// any signed-in user may complete a record.)
-func (s *Server) adminComplete(w http.ResponseWriter, r *http.Request, u *sessionUser) {
-	id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/admin/intake/"), "/complete")
-	rec, err := s.findIntake(id)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	rec.Set("status", "completed")
-	_ = s.saveIntake(rec)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // adminDelete removes an intake (admin only).
