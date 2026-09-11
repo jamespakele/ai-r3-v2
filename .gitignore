@@ -1,0 +1,3 @@
+# Hermes kanban worker Go build/module caches
+/r3-intake/.gocache/
+/r3-intake/.gopath/
