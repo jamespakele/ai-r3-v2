@@ -79,8 +79,8 @@ func NewServer(d Deps) (*mcp.Server, error) {
 			"type":     "object",
 			"required": []string{"query"},
 			"properties": map[string]any{
-				"query":  map[string]any{"type": "string", "minLength": 2, "description": "Search query (min 2 characters)"},
-				"limit":  map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "description": "Maximum records to return (default 50, max 200)"},
+				"query": map[string]any{"type": "string", "minLength": 2, "description": "Search query (min 2 characters)"},
+				"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "description": "Maximum records to return (default 50, max 200)"},
 			},
 		},
 	}, d.handleSearchIntakes)

@@ -11,8 +11,7 @@ import (
 )
 
 // Focused acceptance tests for the claim-feature removal: any signed-in user
-// may access and work on any intake record, the claim workflow is gone, and
-// new records default to status unassigned.
+// may access and work on any intake record, and the claim workflow is gone.
 
 // TestCrossUserIntakeAccess proves a case manager can open and save a
 // section on an intake created by another user (the old gate bounced both
@@ -99,9 +98,9 @@ func TestListHasNoClaimUI(t *testing.T) {
 	}
 }
 
-// TestNewRecordUnassignedDefault proves a record created by a signed-in user is
-// created with status unassigned and only created_by set.
-func TestNewRecordUnassignedDefault(t *testing.T) {
+// TestNewRecordCreatedByOnly proves a record created by a signed-in user is
+// created with created_by set to that user.
+func TestNewRecordCreatedByOnly(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedActiveEvent(t, srv.pb)
 	admin := adminCookie(srv, fx.admin)
@@ -111,9 +110,6 @@ func TestNewRecordUnassignedDefault(t *testing.T) {
 		t.Fatalf("create = %d, want 202", rec.Code)
 	}
 	saved := firstIntakeRecord(t, srv)
-	if got := saved.GetString("status"); got != "unassigned" {
-		t.Errorf("status = %q, want %q", got, "unassigned")
-	}
 	if got := saved.GetString("created_by"); got != fx.admin {
 		t.Errorf("created_by = %q, want %q", got, fx.admin)
 	}
@@ -137,32 +133,35 @@ func TestCaseManagerAnySite(t *testing.T) {
 }
 
 // TestPublicResumeRule pins the public-resume rule: an anonymously created
-// record (created_by empty, status unassigned) is publicly resumable and
-// returns 200; a staff-created record (created_by set to fx.admin, status
-// unassigned) requires login and returns 303.
+// record (created_by empty) is publicly resumable and returns 200; a
+// staff-created record (created_by set to fx.admin) requires login and
+// returns 303.
 func TestPublicResumeRule(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedActiveEvent(t, srv.pb)
 
-	mk := func(status, createdBy string) string {
+	mk := func(createdBy string) string {
 		col, err := srv.pb.FindCollectionByNameOrId("intake")
 		if err != nil {
 			t.Fatalf("intake collection: %v", err)
 		}
 		rec := core.NewRecord(col)
-		rec.Set("name", "Resume "+status)
+		name := "Resume"
+		if createdBy != "" {
+			name = "Resume " + createdBy
+		}
+		rec.Set("name", name)
 		rec.Set("event", fx.event)
-		rec.Set("status", status)
 		if createdBy != "" {
 			rec.Set("created_by", createdBy)
 		}
 		if err := srv.pb.Save(rec); err != nil {
-			t.Fatalf("save %s: %v", status, err)
+			t.Fatalf("save %s: %v", name, err)
 		}
 		return rec.Id
 	}
-	anonUnassigned := mk("unassigned", "")
-	staffCreated := mk("unassigned", fx.admin)
+	anonCreated := mk("")
+	staffCreated := mk(fx.admin)
 
 	get := func(id string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodGet, "/public/intake?id="+id, nil)
@@ -171,8 +170,8 @@ func TestPublicResumeRule(t *testing.T) {
 		return rec
 	}
 
-	if rec := get(anonUnassigned); rec.Code != http.StatusOK {
-		t.Errorf("anon unassigned = %d, want 200", rec.Code)
+	if rec := get(anonCreated); rec.Code != http.StatusOK {
+		t.Errorf("anon-created = %d, want 200", rec.Code)
 	}
 	if rec := get(staffCreated); rec.Code != http.StatusSeeOther {
 		t.Errorf("staff-created = %d, want 303 to login", rec.Code)

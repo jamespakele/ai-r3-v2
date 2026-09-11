@@ -74,14 +74,12 @@ func seedEventDefaultFixtures(t *testing.T, pb *pocketbase.PocketBase) eventDefa
 	intakeNoEvent := save("intakeNoEvent", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "No Event")
-		r.Set("status", "unassigned")
 		return r
 	}())
 	intakeEv2 := save("intakeEv2", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Has Event")
 		r.Set("event", ev2)
-		r.Set("status", "unassigned")
 		return r
 	}())
 
