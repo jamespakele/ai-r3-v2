@@ -303,7 +303,6 @@ func (s *Server) newIntakeRecord() (*core.Record, error) {
 		return nil, err
 	}
 	rec := core.NewRecord(col)
-	rec.Set("status", "unassigned")
 	rec.Set("household", []map[string]string{{"name": "", "relationship": ""}})
 	rec.Set("race", map[string]bool{})
 	rec.Set("documents", map[string]bool{})
