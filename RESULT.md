@@ -1,62 +1,51 @@
-# RESULT — t_f3446de5: Review + Story 4 test sweep + full final gate
+# RESULT — Epic 36: Remove the Intake Status Feature Completely
 
-## Scope
-Peer review of the migration (018), server code, UI templates, and MCP cleanup for the
-complete removal of the intake status feature, plus the Story 4 test-file updates and the
-end-of-epic full gate.
+Branch: `epic/36-remove-intake-status-field-and-complete`
+Merge HEAD: `7b8ae90` (three child worktrees merged; VERIFY_MERGE.md for full detail)
+Epic issue: remove the intake "Status" concept entirely (schema + data + UI + MCP).
 
-## Peer review findings
-- Migration `018_remove_intake_status.go` (Story 1, from sibling): correct and idempotent.
-  up drops intake.status (no data rewrite); down re-adds it with post-017 values
-  [unassigned completed]. Correctly registered in migrations.go. The 017 round-trip test
-  was reworked to down018 -> 017 round-trip -> up018, composing cleanly in the chain.
-- Server/UI/MCP removal (Story 2+3, from parent t_36fab24a): complete. adminComplete
-  handler + route/dispatch gone, StatusFilter view field + handleList branch gone,
-  FormState/blank/stateFromRecord Status gone, newIntakeRecord status set gone, List
-  status column/badge/Complete button/dropdown gone (colspan 6/5->5/4), .status-unassigned/
-  .status-completed CSS gone, and all MCP status schemas/filters/summary/ByStatus/
-  CompletedThisMonth gone. No issues found.
-- Preserved (verified intact): finish route, events.status + .event-status-* CSS,
-  attendance.status (matrix/export/person-attendance), shared .status-badge class,
-  created_by provenance + public-resume rule.
+## What shipped
+The intake `status` concept is gone entirely, verified across the whole merge:
+- **Schema + data (Story 1):** `pocketbase/migrations/018_remove_intake_status.go` drops
+  the `intake.status` select field. Idempotent `up` (no-op if already absent, no data
+  rewrite — stored status values drop with the field); idempotent `down` re-adds it with
+  `["unassigned","completed"]`. Registered in `migrations.go`. The 017 round-trip test was
+  reworked (down018 -> 017 round-trip -> up018) so it composes in the full chain.
+- **Server + UI (Story 2):** `adminComplete` handler, `POST /admin/intake/{id}/complete`
+  route/dispatch, `StatusFilter` view field + `handleList` whitelist branch, `IntakeRow.Status`,
+  FormState/blank/stateFromRecord `Status`, `newIntakeRecord` status set, and the List
+  Status column / badge / Complete button / status `select`, plus `.status-unassigned` /
+  `.status-completed` CSS — all removed. Empty-state colspan 6/5 -> 5/4.
+- **MCP (Story 3):** `status` enum + `Status` struct fields + filter branches removed from
+  list/search/summary tools; stats `ByStatus` / `statusCounts` / `CompletedThisMonth` removed
+  (stats keep total + by-site); tool descriptions updated.
+- **Tests (Story 4):** all stale intake-status assertions/fixtures removed while keeping
+  event/attendance status coverage. `TestNewRecordUnassignedDefault` -> `TestNewRecordCreatedByOnly`
+  (asserts `created_by` only); public-resume seeds no longer set intake status; status-filter
+  legs dropped from records-list tests.
 
-## Story 4 changes (this card)
-Test files updated to remove every stale intake-status reference (event/attendance status
-kept):
-- claim_removal_integration_test.go: TestNewRecordUnassignedDefault ->
-  TestNewRecordCreatedByOnly (asserts created_by only); TestPublicResumeRule mk() helper
-  no longer sets intake.status (rule is created_by-based).
-- records_list_integration_test.go: dropped intake status seed sets; removed the
-  "union composes with status filter" subtest.
-- records_list_attendance_join_integration_test.go: dropped intake status seed sets and
-  comments; removed TestListEventFilterComposesWithStatusAndSearch (behaviorally
-  identical to the surviving TestListEventFilterComposesWithSearch once the stale
-  status=completed filter is gone).
-- intake_edit_event_default_integration_test.go: dropped intake status seed sets.
-- internal/mcp/mcp.go: gofmt alignment fix (leftover from status property removal).
-- Also carried the uncommitted migration-018 files from sibling t_f902df13 into this
-  branch so the epic merge does not lose them (sibling had left them uncommitted).
+## Preserved (verified intact — do not conflate)
+finish route (`POST /intake/{id}/finish`), `events.status` + `.event-status-*` CSS,
+`attendance.status` (matrix / CSV / person-attendance), shared `.status-badge`,
+`created_by` provenance + public-resume rule, `casemanagerName` + `ensureCaseManager`,
+notes audit trail, soft-delete conventions, event/site scoping.
 
-## Verification (independently re-run, not just omp self-report)
-- go build ./...  : rc=0
-- go vet ./...    : rc=0
-- gofmt -l .      : clean (empty)
-- go test ./...   :
-    ok  r3-intake/internal/server 17s
-    ok  r3-intake/pocketbase/migrations
-- Final mechanical token gate (whole tree incl tests, excl migrations dir + docs):
-    adminComplete / StatusFilter / status-unassigned / ByStatus / by_status /
-    CompletedThisMonth  -> ZERO hits
-    status-completed    -> only .event-status-completed (event feature, must stay)
-    no intake complete-route references; no intake Set/Get status anywhere
+## Verification
+| Gate | Result |
+|------|--------|
+| `go build ./...` (embedded-template build) | **PASS** rc=0 |
+| `go vet ./...` | **PASS** rc=0 |
+| `go test ./...` (every package) | **PASS** rc=0 — ok internal/server; ok pocketbase/migrations |
+| Final token gate (app tree incl. tests) | **ZERO** intake-status traces (adminComplete/StatusFilter/status-unassigned/ByStatus/by_status/CompletedThisMonth/unassigned + intake complete route) |
+| Merge hygiene | clean; single RESULT.md doc conflict resolved keep-ours; no markers |
 
-## Commits on wt/t_f3446de5
-- 051ac89 feat(intake): Story 4 test sweep — remove intake-status assertions, add migration 018
-- 4992927 feat(intake): finish intake-status removal in attendance-join and event-default tests
-- 6c80f14 chore(mcp): gofmt alignment of search_intakes schema keys
+## Known consequence (accepted — stated, not relitigated)
+Nothing marks a record complete anymore; the List screen shows every record equally with
+no status notion. The Complete button, route, field, and data are gone entirely. That is
+the point of the removal and exactly what James asked for.
 
-## Note for the epic parent merge
-Sibling t_f902df13 (Story 1, migration 018) completed its card but LEFT ITS WORK
-UNCOMMITTED — its branch wt/t_f902df13 is identical to master. This card carried the 018
-migration files (018_remove_intake_status.go, migrations.go registration, 017 test rework)
-into wt/t_f3446de5 and committed them. Merge wt/t_f3446de5 to capture the schema/data leg.
+## Next steps (parent, gated on James's review approval — deferred here)
+Real-data review-server verification on a copy of `pb_data` (migration applied; no status
+column; list page clean; complete endpoint 404; cross-user + public-resume unchanged;
+counts preserved) and the production deploy via `vps-deploy-go` run only after this epic
+receives review approval. Pending approval — do not deploy yet.
