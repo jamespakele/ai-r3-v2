@@ -589,7 +589,6 @@ document.addEventListener('htmx:beforeSwap', function(e){
     <select name="status" class="field-input">
       <option value="">All statuses</option>
       <option value="unassigned"{{if eq .StatusFilter "unassigned"}} selected{{end}}>Unassigned</option>
-      <option value="claimed"{{if eq .StatusFilter "claimed"}} selected{{end}}>Claimed</option>
       <option value="completed"{{if eq .StatusFilter "completed"}} selected{{end}}>Completed</option>
     </select>
     <select name="event" class="field-input">

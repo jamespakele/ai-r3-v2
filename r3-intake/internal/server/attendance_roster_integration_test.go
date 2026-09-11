@@ -91,7 +91,6 @@ func seedRosterData(t *testing.T, pb *pocketbase.PocketBase) rosterFixtures {
 		r := rec("intake")
 		r.Set("name", "Dana")
 		r.Set("event", ev1)
-		r.Set("assigned_to", cm)
 		return r
 	}())
 

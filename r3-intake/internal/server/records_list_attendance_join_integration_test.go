@@ -24,7 +24,7 @@ type attJoinFixtures struct {
 //   - intakeB: home ev2, attended ev2 (attendance match).
 //   - intakeC: home ev1, attended ev1 (attendance match).
 //
-// Distinct names (Alice/Bob/Charlie) and statuses (claimed/unassigned/completed)
+// Distinct names (Alice/Bob/Charlie) and statuses (unassigned/completed)
 // let tests assert search and status composition.
 func seedAttJoinFixtures(t *testing.T, pb *pocketbase.PocketBase) attJoinFixtures {
 	t.Helper()
@@ -82,7 +82,7 @@ func seedAttJoinFixtures(t *testing.T, pb *pocketbase.PocketBase) attJoinFixture
 		r := rec("intake")
 		r.Set("name", "Alice")
 		r.Set("event", ev1)
-		r.Set("status", "claimed")
+		r.Set("status", "completed")
 		return r
 	}())
 	intakeB := save("intakeB", func() *core.Record {
@@ -281,7 +281,7 @@ func TestListEventFilterComposesWithStatusAndSearch(t *testing.T) {
 	fx := seedAttJoinFixtures(t, srv.pb)
 	cookie := adminCookie(srv, fx.admin1)
 
-	rec := doAttJoinList(srv, cookie, "?event="+fx.ev2+"&status=claimed&q=Al")
+	rec := doAttJoinList(srv, cookie, "?event="+fx.ev2+"&status=completed&q=Al")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
@@ -386,7 +386,7 @@ func TestListEventFilterConstrainsByDateRange(t *testing.T) {
 		r := rec("intake")
 		r.Set("name", "Alice")
 		r.Set("event", ev1)
-		r.Set("status", "claimed")
+		r.Set("status", "unassigned")
 		return r
 	}())
 	// Attendance dated after ev1's end_date (2026-08-31): must not surface.
