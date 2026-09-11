@@ -19,8 +19,7 @@ type listFixtures struct {
 // seedListFixtures creates a site, two events, an admin user, and two intakes:
 // intakeA's home event is ev1 but it has an attendance record for ev2
 // (analogous to the verification scenario: home event differs from the
-// attended event); intakeB's home event is ev2. intakeA is completed, intakeB
-// is unassigned.
+// attended event); intakeB's home event is ev2.
 func seedListFixtures(t *testing.T, pb *pocketbase.PocketBase) listFixtures {
 	t.Helper()
 	save := func(name string, rec *core.Record) string {
@@ -77,14 +76,12 @@ func seedListFixtures(t *testing.T, pb *pocketbase.PocketBase) listFixtures {
 		r := rec("intake")
 		r.Set("name", "Alice")
 		r.Set("event", ev1)
-		r.Set("status", "completed")
 		return r
 	}())
 	intakeB := save("intakeB", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Bob")
 		r.Set("event", ev2)
-		r.Set("status", "unassigned")
 		return r
 	}())
 
@@ -144,8 +141,7 @@ func listCount(t *testing.T, rec *httptest.ResponseRecorder) string {
 // TestListEventFilterJoinsAttendance proves the Records event filter is
 // strict attendance-only: an intake matches only when it has an attendance
 // record for the selected event (attendance.intake == intake.id). It also
-// verifies the filter composes with the status filter and that the rendered
-// total matches the returned rows.
+// verifies the rendered total matches the returned rows.
 func TestListEventFilterJoinsAttendance(t *testing.T) {
 	srv := newTestServer(t)
 	fx := seedListFixtures(t, srv.pb)
@@ -179,21 +175,6 @@ func TestListEventFilterJoinsAttendance(t *testing.T) {
 		}
 		if count := listCount(t, rec); !strings.Contains(count, "Showing 0 records") {
 			t.Errorf("count = %q, want %q", count, "Showing 0 records")
-		}
-	})
-
-	t.Run("union composes with status filter", func(t *testing.T) {
-		rec := doList(srv, cookie, "?event="+fx.ev2+"&status=completed")
-		if rec.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200", rec.Code)
-		}
-		// Only Alice is completed; Bob is unassigned.
-		got := listRowNames(t, rec, "Alice", "Bob")
-		if len(got) != 1 || got[0] != "Alice" {
-			t.Fatalf("rows = %v, want [Alice]", got)
-		}
-		if count := listCount(t, rec); !strings.Contains(count, "Showing 1 record") {
-			t.Errorf("count = %q, want %q", count, "Showing 1 record")
 		}
 	})
 

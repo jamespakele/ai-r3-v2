@@ -24,4 +24,5 @@ func Register(app *pocketbase.PocketBase) {
 	migrations.Register(upAttendanceRemoveSite, downAttendanceRemoveSite, "015_attendance_remove_site.go")
 	migrations.Register(upIntakeSiteToEvent, downIntakeSiteToEvent, "016_intake_site_to_event.go")
 	migrations.Register(upRemoveClaim, downRemoveClaim, "017_remove_claim.go")
+	migrations.Register(upRemoveIntakeStatus, downRemoveIntakeStatus, "018_remove_intake_status.go")
 }
