@@ -106,8 +106,6 @@ type FormState struct {
 	Personal    []string
 	ServicePlan []string
 
-	Status string
-
 	// view
 	Errors         map[string]bool
 	Validated      bool
@@ -237,7 +235,6 @@ func (s *Server) blankState(user *sessionUser) *FormState {
 		ServicePlan:   []string{"", "", "", "", "", "", "", ""},
 		HouseholdJSON: `[{"name":"","relationship":""}]`,
 		Household:     []HouseholdRow{{Name: "", Relationship: ""}},
-		Status:        "unassigned",
 		Errors:        map[string]bool{},
 	}
 	// Default the intake's home event to the first active event. There is no
@@ -296,7 +293,6 @@ func (s *Server) stateFromRecord(rec *core.Record, user *sessionUser, errors map
 		Personal:              asStringSlice(rec, "personal", 8),
 		ServicePlan:           asStringSlice(rec, "servicePlan", 8),
 		CasemanagerName:       rec.GetString("casemanagerName"),
-		Status:                rec.GetString("status"),
 		Errors:                errors,
 		Validated:             validated,
 	}

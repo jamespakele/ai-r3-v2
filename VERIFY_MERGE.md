@@ -1,64 +1,57 @@
-# MERGE VERIFICATION — Remove the Claim Feature (Stories 1–4)
+# MERGE VERIFICATION — Remove the Intake Status Feature Completely (Stories 1–4)
 
-Branch: `epic/remove-the-claim-feature-completely-sche-0910064449`
-Pre-merge base: `d16ab6d2a59b89f85c5dc8da648a2600fbb4b3c6` (current HEAD before merges)
-Final commit SHA: `47a805dffe092d627db097b07441e7f5a2908b59`
+Branch: `epic/36-remove-intake-status-field-and-complete`
+Pre-merge base of all children: `97519fc` (== master, plan doc)
+Final epic HEAD after child merges: `7b8ae90` (close-out commit to follow)
 
-## Merge sequence executed
+## What this epic delivers (the actual change)
+The `intake.status` select field, all stored status data, the List-screen Status column
+and badges, the status filter dropdown, the per-row Complete button and its
+`POST /admin/intake/{id}/complete` route+handler, and every status trace in the MCP API
+are removed entirely. After this epic a record is just a record — `created_by`
+provenance and the notes audit trail remain the only state notions.
+Known consequence (accepted, stated not relitigated): nothing marks a record complete
+anymore; the List shows every record equally. That is exactly what James asked for.
 
+## Merge sequence executed (preserve each child worktree first)
 | Order | Branch | Story | Result |
 |-------|--------|-------|--------|
-| 1 | `wt/t_ab332d9f` | Story 1 (migration 017) | Fast-forward, clean |
-| 2 | `wt/t_916ad5b6` | Story 2 (app/UI removal) | `RESULT.md` conflict → keep incoming; committed `c861c5f` |
-| 3 | `wt/t_081e1391` | Story 3 (MCP vocabulary) | `RESULT.md` conflict → keep incoming; committed `24d3522` |
-| 4 | `wt/t_7a3e5403` | Story 4 (test sweep, 015 restore) | `RESULT.md` conflict + 3 shared test files → force Story 4 content; committed `47a805d` |
+| — | `wt/t_f902df13` committed `63254eb` first | Story 1 (migration 018) | Worktree preserved before merging |
+| 1 | `wt/t_36fab24a` `1b67ef4` | Story 2+3 (server/UI/MCP removal) | `--no-ff`, clean |
+| 2 | `wt/t_f3446de5` `f3c526b` | Story 4 test sweep + migration 018 integration | `--no-ff`, clean (contains Stories 1,2,3) |
+| 3 | `wt/t_f902df13` `7b8ae90` | Story 1 (migration 018) | `RESULT.md` conflict only -> keep ours (integration); remaining 4 files byte-identical across both branches |
 
-## Conflict resolution applied (Step 4, unconditional)
+No source-file conflicts occurred. The only conflict was `RESULT.md` (a doc rewritten by
+every branch); resolved by keeping the integration (Story-4/full-gate) version, matching
+the prior epic's "keep incoming RESULT.md" precedent. No conflict markers remain
+(`grep '<<<<<<<|=======|>>>>>>>'` -> none).
 
-- `RESULT.md` (doc artifact, rewritten by every branch): on each conflict kept the incoming story's version (matches Story-4 worktree precedent `8ea379e`). Final content = Story 4 report. Doc file excluded from grep gate.
-- Three shared server test files forced to Story 4's exact content (Story 4 = final authority for tests): `records_list_integration_test.go`, `records_list_attendance_join_integration_test.go`, `claim_removal_integration_test.go`.
-- `migrations.go`: both registrations verified present — `015_attendance_remove_site` (line 24) AND `017_remove_claim` (line 26). Story 4's restoration applied cleanly; 015 was NOT dropped in the final tree.
-- No conflict markers remain anywhere (`grep '<<<<<<<|=======|>>>>>>>'` → none).
+## Migration 018 (schema + data)
+`r3-intake/pocketbase/migrations/018_remove_intake_status.go` registered at
+`migrations.go:27` alongside 015/017. Idempotent: `up` removes `intake.status` (no data
+rewrite — stored status values drop with the field); `down` re-adds it as
+`["unassigned","completed"]`. The 017 round-trip test was reworked to
+down018 -> down017 -> seed -> up017 -> up018 so it composes in the full chain.
 
-## Full verification gate
+## Full verification gate (run from `r3-intake/`)
+Working dir: `/srv/data/1-projects/ai-projects/ai-r3-v2/.worktrees/t_b46ad11f/r3-intake`
+Go env in worker shell: GOPATH=/tmp/gopath GOMODCACHE=/tmp/gopath/pkg/mod GOCACHE=/tmp/gocache
+($HOME is unset in the ai-coder worker shell, so Go's default module root is unreachable).
 
-Working directory for merges: `/srv/data/1-projects/ai-projects/ai-r3-v2/.worktrees/t_14f2d275`. Go module root: `r3-intake/`.
+- `go build ./...` : **rc=0**
+- `go vet ./...`   : **rc=0**
+- `go test ./...`  : **rc=0** — `ok r3-intake/internal/server (17.1s)`, `ok r3-intake/pocketbase/migrations`. Every package.
+- Note: `cmd/` does not exist at repo root or under `r3-intake/` (stale Makefile leg);
+  the `cmd` portion of the gate is vacuously satisfied, matching the prior epic.
 
-### gofmt
-Command: `gofmt -l $(git diff --name-only d16ab6d2a59b89f85c5dc8da648a2600fbb4b3c6 HEAD -- '*.go')`
-12 changed Go files checked: `mcp.go`, `admin.go`, `handlers.go`, `attendance_roster_integration_test.go`, `intake_save_validation_test.go`, `person_attendance_integration_test.go`, `records_list_integration_test.go`, `records_list_attendance_join_integration_test.go`, `claim_removal_integration_test.go`, `pocketbase/migrations/017_remove_claim.go`, `pocketbase/migrations/017_remove_claim_test.go`, `pocketbase/migrations/migrations.go`.
-- **Result: empty output (exit 0 = pass).**
-
-### go build ./...
-Run from `r3-intake/`.
-- **Result: success (exit 0).**
-
-### go vet ./...
-Run from `r3-intake/`.
-- **Result: success (exit 0).**
-
-### go test ./...
-Run from `r3-intake/`.
-```
-?   r3-intake/internal/assets     [no test files]
-?   r3-intake/internal/config     [no test files]
-?   r3-intake/internal/crypto     [no test files]
-?   r3-intake/internal/mcp        [no test files]
-ok  r3-intake/internal/server      16.792s
-ok  r3-intake/pocketbase/migrations 0.269s
-```
-- **Result: all packages pass (exit 0).**
-
-### Zero-hit grep for claim vocabulary
-Pattern `claimed|assigned_to`, case-insensitive, over ONLY: `internal/server`, `internal/mcp`, `internal/assets` (paths relative to `r3-intake/`).
-- `grep -rniE "claimed|assigned_to" internal/server internal/mcp internal/assets` → no output (exit 1 = no matches).
-- **`cmd/` absence**: no `cmd/` directory exists at repo root or under `r3-intake/` → the `cmd` portion of the gate is vacuously satisfied (reported, not a failure).
-- **Excluded**: `pocketbase/migrations/` and `docs/`. The new `017_remove_claim.go` / `017_remove_claim_test.go` legitimately mention `claimed`/`assigned_to` as removal history (live in the excluded dir); they were left intact and their migration test passes.
-- **Result: ZERO hits (pass).**
-
-## Final state
-
-- Final commit SHA: `47a805dffe092d627db097b07441e7f5a2908b59`
-- `git status`: clean (no uncommitted changes).
-- `VERIFY_MERGE.md` (this file): left uncommitted by design; written after the commit.
-- No `git push`. No tags created.
+## Final mechanical token gate (whole app tree incl. test files, excl. migrations + docs)
+Patterns `adminComplete|StatusFilter|status-unassigned|status-completed|ByStatus|by_status|
+CompletedThisMonth|unassigned` and the intake `.../complete` route over `internal/` (server,
+mcp, assets, config, crypto) incl. `*_test.go`:
+- **ZERO genuine hits.** The only `status-completed` matches are the preserved event
+  feature `.event-status-completed` (CSS + events test) — unrelated, must remain.
+- Intake `.../complete` route: zero.
+- Preserved and verified intact: finish route (`POST /intake/{id}/finish`,
+  `handleIntakeCmd`, `finish-form`), `events.status` + `.event-status-*` CSS, `attendance.status`
+  (matrix / CSV export / person-attendance), shared `.status-badge`, `created_by`
+  provenance + public-resume rule, `casemanagerName` + `ensureCaseManager`.

@@ -39,6 +39,14 @@ func TestRemoveClaimMigration(t *testing.T) {
 
 	app := pb // pocketbase.PocketBase implements core.App
 
+	// Migration 018 (remove intake status) is now in the chain, so
+	// RunAllMigrations has removed intake.status. Restore it first (down018
+	// re-adds status with the exact post-017 values) so the 017 round-trip
+	// below exercises against the pre-018 schema it was written for.
+	if err := downRemoveIntakeStatus(app); err != nil {
+		t.Fatalf("downRemoveIntakeStatus: %v", err)
+	}
+
 	// Local record-creation helpers mirroring the server integration-test
 	// pattern (rec + save).
 	rec := func(name string) *core.Record {
@@ -239,6 +247,16 @@ func TestRemoveClaimMigration(t *testing.T) {
 		if err != nil || r == nil {
 			t.Errorf("seeded intake %s not readable after round-trip: %v", id, err)
 		}
+	}
+
+	// Restore the final post-018 state: re-apply up018 so the intake status
+	// field is removed again, proving 018 round-trips and leaving the schema
+	// in the migrated shape (status absent).
+	if err := upRemoveIntakeStatus(app); err != nil {
+		t.Fatalf("upRemoveIntakeStatus: %v", err)
+	}
+	if f := findIntakeCol().Fields.GetByName("status"); f != nil {
+		t.Fatal("intake still has status field after upRemoveIntakeStatus")
 	}
 }
 

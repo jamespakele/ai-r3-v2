@@ -49,7 +49,6 @@ func NewServer(d Deps) (*mcp.Server, error) {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"status": map[string]any{"type": "string", "enum": []string{"unassigned", "completed"}, "description": "Filter by intake status"},
 				"site":   map[string]any{"type": "string", "description": "Filter by event id or event name (the intake's home event; intake.site was renamed to intake.event)"},
 				"limit":  map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "description": "Maximum records to return (default 50, max 200)"},
 				"offset": map[string]any{"type": "integer", "minimum": 0, "description": "Offset for pagination (default 0)"},
@@ -80,9 +79,8 @@ func NewServer(d Deps) (*mcp.Server, error) {
 			"type":     "object",
 			"required": []string{"query"},
 			"properties": map[string]any{
-				"query":  map[string]any{"type": "string", "minLength": 2, "description": "Search query (min 2 characters)"},
-				"status": map[string]any{"type": "string", "enum": []string{"unassigned", "completed"}, "description": "Optional status filter"},
-				"limit":  map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "description": "Maximum records to return (default 50, max 200)"},
+				"query": map[string]any{"type": "string", "minLength": 2, "description": "Search query (min 2 characters)"},
+				"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "description": "Maximum records to return (default 50, max 200)"},
 			},
 		},
 	}, d.handleSearchIntakes)
@@ -91,7 +89,7 @@ func NewServer(d Deps) (*mcp.Server, error) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "intake_stats",
 		Title:       "Intake stats",
-		Description: "Aggregate counts of intake records by status and site, plus completions this month.",
+		Description: "Aggregate counts of intake records by site.",
 		InputSchema: map[string]any{
 			"type":       "object",
 			"properties": map[string]any{},
@@ -233,7 +231,6 @@ func (d Deps) maskRecord(rec *core.Record) map[string]any {
 type intakeSummary struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
-	Status   string `json:"status"`
 	SiteName string `json:"site_name"`
 	Created  string `json:"created"`
 	SSNLast4 string `json:"ssn_last4"`
@@ -241,7 +238,6 @@ type intakeSummary struct {
 }
 
 type listIntakesIn struct {
-	Status string `json:"status"`
 	Site   string `json:"site"`
 	Limit  int    `json:"limit"`
 	Offset int    `json:"offset"`
@@ -272,9 +268,6 @@ func (d Deps) handleListIntakes(ctx context.Context, req *mcp.CallToolRequest, i
 	}
 
 	parts := []string{}
-	if in.Status != "" {
-		parts = append(parts, fmt.Sprintf("status='%s'", EscapeFilter(in.Status)))
-	}
 	if in.Site != "" {
 		// intake.site was renamed to intake.event (migration 016); the filter
 		// now scopes by the intake's home event.
@@ -305,7 +298,6 @@ func (d Deps) handleListIntakes(ctx context.Context, req *mcp.CallToolRequest, i
 		sums = append(sums, intakeSummary{
 			ID:       r.Id,
 			Name:     r.GetString("name"),
-			Status:   r.GetString("status"),
 			SiteName: sites[eventID],
 			Created:  hstCreated(r.GetString("created")),
 			SSNLast4: ssnLast4(r.GetString("ssn")),
@@ -337,9 +329,8 @@ func (d Deps) handleGetIntake(ctx context.Context, req *mcp.CallToolRequest, in 
 }
 
 type searchIntakesIn struct {
-	Query  string `json:"query"`
-	Status string `json:"status"`
-	Limit  int    `json:"limit"`
+	Query string `json:"query"`
+	Limit int    `json:"limit"`
 }
 
 type searchIntakesOut struct {
@@ -366,9 +357,6 @@ func (d Deps) handleSearchIntakes(ctx context.Context, req *mcp.CallToolRequest,
 
 	escaped := EscapeFilter(q)
 	filter := fmt.Sprintf(`name ~ "%s" || email ~ "%s" || contact ~ "%s"`, escaped, escaped, escaped)
-	if in.Status != "" {
-		filter = fmt.Sprintf("(%s) && status='%s'", filter, EscapeFilter(in.Status))
-	}
 
 	recs, err := d.PB.FindRecordsByFilter(col.Id, filter, "-created", limit, 0)
 	if err != nil {
@@ -386,7 +374,6 @@ func (d Deps) handleSearchIntakes(ctx context.Context, req *mcp.CallToolRequest,
 		sums = append(sums, intakeSummary{
 			ID:       r.Id,
 			Name:     r.GetString("name"),
-			Status:   r.GetString("status"),
 			SiteName: events[eventID],
 			Created:  hstCreated(r.GetString("created")),
 			SSNLast4: ssnLast4(r.GetString("ssn")),
@@ -396,21 +383,14 @@ func (d Deps) handleSearchIntakes(ctx context.Context, req *mcp.CallToolRequest,
 	return nil, searchIntakesOut{Intakes: sums}, nil
 }
 
-type statusCounts struct {
-	Unassigned int `json:"unassigned"`
-	Completed  int `json:"completed"`
-}
-
 type siteCount struct {
 	SiteName string `json:"site_name"`
 	Count    int    `json:"count"`
 }
 
 type intakeStatsOut struct {
-	Total              int          `json:"total"`
-	ByStatus           statusCounts `json:"by_status"`
-	BySite             []siteCount  `json:"by_site"`
-	CompletedThisMonth int          `json:"completed_this_month"`
+	Total  int         `json:"total"`
+	BySite []siteCount `json:"by_site"`
 }
 
 func (d Deps) handleIntakeStats(ctx context.Context, req *mcp.CallToolRequest, in struct{}) (*mcp.CallToolResult, intakeStatsOut, error) {
@@ -431,21 +411,9 @@ func (d Deps) handleIntakeStats(ctx context.Context, req *mcp.CallToolRequest, i
 	out := intakeStatsOut{
 		BySite: make([]siteCount, 0),
 	}
-	now := time.Now().In(hst)
 	bySite := map[string]int{}
 	for _, r := range recs {
 		out.Total++
-		status := r.GetString("status")
-		switch status {
-		case "unassigned":
-			out.ByStatus.Unassigned++
-		case "completed":
-			out.ByStatus.Completed++
-			updated := r.GetDateTime("updated").Time()
-			if !updated.IsZero() && updated.In(hst).Year() == now.Year() && updated.In(hst).Month() == now.Month() {
-				out.CompletedThisMonth++
-			}
-		}
 		// Group by the intake's home event (intake.site was renamed to
 		// intake.event in migration 016).
 		if eid := r.GetString("event"); eid != "" {

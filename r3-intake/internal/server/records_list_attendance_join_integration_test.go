@@ -24,8 +24,7 @@ type attJoinFixtures struct {
 //   - intakeB: home ev2, attended ev2 (attendance match).
 //   - intakeC: home ev1, attended ev1 (attendance match).
 //
-// Distinct names (Alice/Bob/Charlie) and statuses (unassigned/completed)
-// let tests assert search and status composition.
+// Distinct names (Alice/Bob/Charlie) let tests assert search composition.
 func seedAttJoinFixtures(t *testing.T, pb *pocketbase.PocketBase) attJoinFixtures {
 	t.Helper()
 	save := func(name string, rec *core.Record) string {
@@ -82,21 +81,18 @@ func seedAttJoinFixtures(t *testing.T, pb *pocketbase.PocketBase) attJoinFixture
 		r := rec("intake")
 		r.Set("name", "Alice")
 		r.Set("event", ev1)
-		r.Set("status", "completed")
 		return r
 	}())
 	intakeB := save("intakeB", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Bob")
 		r.Set("event", ev2)
-		r.Set("status", "unassigned")
 		return r
 	}())
 	intakeC := save("intakeC", func() *core.Record {
 		r := rec("intake")
 		r.Set("name", "Charlie")
 		r.Set("event", ev1)
-		r.Set("status", "completed")
 		return r
 	}())
 
@@ -274,26 +270,6 @@ func TestListEventFilterComposesWithSearch(t *testing.T) {
 	}
 }
 
-// TestListEventFilterComposesWithStatusAndSearch proves the three-way &&:
-// event union, status filter, and free-text search all apply together.
-func TestListEventFilterComposesWithStatusAndSearch(t *testing.T) {
-	srv := newTestServer(t)
-	fx := seedAttJoinFixtures(t, srv.pb)
-	cookie := adminCookie(srv, fx.admin1)
-
-	rec := doAttJoinList(srv, cookie, "?event="+fx.ev2+"&status=completed&q=Al")
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
-	got := attJoinRowNames(t, rec, "Alice")
-	if len(got) != 1 {
-		t.Fatalf("rows = %v, want exactly [Alice]", got)
-	}
-	if count := attJoinCount(t, rec); count != `Showing 1 record matching "Al"` {
-		t.Errorf("count = %q, want %q", count, `Showing 1 record matching "Al"`)
-	}
-}
-
 // TestListEventFilterCrossEventDistinct proves an intake surfaces for an event
 // it attended even when its home event is a different event, while an intake
 // with no attendance for the selected event does not.
@@ -386,7 +362,6 @@ func TestListEventFilterConstrainsByDateRange(t *testing.T) {
 		r := rec("intake")
 		r.Set("name", "Alice")
 		r.Set("event", ev1)
-		r.Set("status", "unassigned")
 		return r
 	}())
 	// Attendance dated after ev1's end_date (2026-08-31): must not surface.
